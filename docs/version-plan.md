@@ -54,7 +54,7 @@ Version 1 is also the performance test for Godot. If it fails the exit tests bel
 **Scope**
 
 - The Wild cut: evenly spread points, Voronoi regions relaxed to avoid slivers, knobbed edges, and exactly the requested piece count.
-- Daily puzzle with a fixed seed, chosen from bundled images only.
+- Daily puzzle with a fixed seed, chosen from bundled images only, with difficulty set by the weekday (see `INTENT.md`). The ghost image is always on.
 - The collection store backed by Cloudflare R2: manifest, download with progress and retry, offline cache, and an offline-safe empty state. Resetting game progress never deletes downloaded collections.
 - Stats history.
 - GitHub release builds of the APK.

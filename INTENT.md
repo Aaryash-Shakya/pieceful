@@ -28,7 +28,7 @@ Most mobile jigsaw apps are full of ads and feel sluggish. The owner wants one t
 - Four slots at the bottom of the screen let the player sort pieces by color or type, for example sky, branches or roofs. A slot holds a messy stack, and the player can only take out the whole stack at a time. Touching a slot fans the stack out under the finger. Releasing near the slot returns it. Dragging it away and releasing spreads the pieces in an even grid where the finger lifted. Each slot shows a count badge.
 - A game can be left half-finished and resumed. The save includes loose piece positions, clusters, slot contents and elapsed time.
 - Finishing a puzzle shows a completion screen with the puzzle name, piece count, cut style, ghost overlay setting and time. A result card with the same information can be shared through the Android share sheet so friends can compare.
-- A daily puzzle uses a fixed seed so everyone gets the identical cut.
+- A daily puzzle uses a fixed seed so everyone gets the identical cut. Its difficulty ramps through the week, so the share card ("Wednesday, 150 pieces, Irregular, 12:34") is comparable. The day is counted in UTC, the ghost image is always on, and the picture comes from the bundled images only. The planned ramp (the style and counts are Claude's suggestion that the owner approved in principle) is Monday Regular 54, Tuesday Regular 96, Wednesday Irregular 150, Thursday Wild 200, Friday Wild 250, Saturday Wild 300 and Sunday Regular 400.
 
 ## Content
 
