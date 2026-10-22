@@ -9,7 +9,7 @@ An Android jigsaw puzzle game built in Godot 4. Free, no ads, offline-first, dis
 ## Stack
 
 - Engine: Godot 4.x.
-- Language: GDScript (assumed, not confirmed by the owner yet; see `docs/open-decisions.md`).
+- Language: GDScript, confirmed by the owner.
 - Target: Android only. Do not add iOS-specific code.
 - Android package name: `io.github.aaryash_shakya.pieceful`. Do not change it.
 - Image collections are bundled in a few folders and downloaded from Cloudflare R2 for the rest.

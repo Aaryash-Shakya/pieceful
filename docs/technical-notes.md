@@ -54,3 +54,8 @@ Sound, vibration, a debug frame counter, and the look-and-feel options in `docs/
 ## Accessibility
 
 Only reduced motion is covered so far. Colour-blind safety, text size and screen-reader support have not been discussed. See `docs/open-decisions.md`.
+
+## Test devices
+
+- **Main test phone: Nothing Phone (4a).** Android 16, Snapdragon 7s Gen 4, 8 or 12 GB RAM, a 6.78 inch AMOLED screen with a 1224 by 2720 resolution and an adaptive refresh rate from 30 to 120 Hz. This is a recent mid-range phone. Because its screen can refresh at 120 Hz, record which rate each frame-rate check ran at. The target is at least 60fps.
+- **Low-end stress test: the owner's old Samsung Galaxy On7.** The exact model has not been checked. Variants range from the 2015 model (Snapdragon 410, 1.5 GB RAM, Android 5.1.1) to the On7 Prime (Snapdragon 625, 3 GB RAM, Android 6 at launch and Android 9 by May 2019). Use it only if it can install the app. It would be a useful worst-case check, since a smooth result there means a smooth result almost anywhere. Check which Android versions Godot 4 can target before promising it support.

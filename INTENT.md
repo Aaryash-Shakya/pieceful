@@ -63,7 +63,7 @@ These would make the project a failure even if everything technically works:
 ## Decisions already made
 
 - Engine: Godot 4. Version 1 doubles as the performance test.
-- Language: GDScript is assumed. The owner has not confirmed this.
+- Language: GDScript, confirmed by the owner on 2026-10-22.
 - Project name: Pieceful. Repository: `github.com/Aaryash-Shakya/pieceful`.
 - Licence: MIT for the code, with the notice "Copyright (c) 2026 Aaryash Shakya". The owner wants others to be free to use and modify the project as long as they credit it. MIT credit means the copyright notice is kept with copies. It cannot force a visible credit screen in someone else's app.
 - Android package name: `io.github.aaryash_shakya.pieceful`. It cannot change once an APK is shipped.
