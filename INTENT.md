@@ -64,6 +64,7 @@ These would make the project a failure even if everything technically works:
 
 - Engine: Godot 4. Version 1 doubles as the performance test.
 - Language: GDScript is assumed. The owner has not confirmed this.
+- Android package name: `io.github.aaryash_shakya.pieceful`. It cannot change once an APK is shipped.
 - Cut geometry is generated, not stored. Saves hold the image, style, count and seed.
 - Wild pieces have knobbed edges so they interlock, like the owner's reference screenshots. This is an assumption the owner has not rejected.
 - Slots are planned for version 2, not version 1. This is an assumption the owner has not rejected.
