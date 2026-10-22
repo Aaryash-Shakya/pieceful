@@ -180,7 +180,7 @@ While Dragging, each `_process` frame moves the camera by `CameraRig.edge_pan_ve
 - Modify: `docs/engine-decision.md`
 
 - [ ] **Step 1: Deploy.** Unlock the Nothing Phone (4a), then click Remote Deploy and Play. Expected: the board opens in portrait with the counter visible.
-- [ ] **Step 2: Measure at 400 pieces and write down the numbers.** Drag a piece continuously for 10 seconds, then pinch-zoom and pan continuously for 10 seconds. Note the lowest frame rate and the refresh rate shown for each.
+- [ ] **Step 2: Measure at 400 pieces and write down the numbers.** At the starting zoom only about 140 of the 400 pieces are on screen, so zoom out to the minimum first, with all 400 pieces visible (at `MIN_ZOOM` the view covers the whole loose area). Then drag a piece continuously for 10 seconds, and pinch-zoom and pan continuously for 10 seconds. Note the lowest frame rate, the worst frame time shown by the counter, and the refresh rate for each. Repeat the drag check once at the starting zoom.
 - [ ] **Step 3: Check the edge and touch cases.** Edges look clean (if jagged, try 2D MSAA in Project Settings, Rendering, Anti Aliasing, and note the effect on frame rate); pinch and pan work reliably; the three touch cases from Task 7 Step 3 behave as described.
 - [ ] **Step 4: Record the results** in a new "Board and piece movement results" section of `docs/engine-decision.md`: date, device, refresh rate, the lowest fps for each check, and whether the edges and gestures passed.
 - [ ] **Step 5: If any frame-rate check is below 60, stop and report to the owner.** Switching to pre-baked sprites or reopening the engine choice changes an architecture rule, so it needs their decision.
