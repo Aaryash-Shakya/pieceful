@@ -40,6 +40,7 @@ An Android jigsaw puzzle game built in Godot 4. Free, no ads, offline-first, dis
 - `INTENT.md`: what the owner wants and why.
 - `docs/version-plan.md`: the three versions and their exit tests.
 - `docs/engine-decision.md`: why Godot, the risks, and the spike checks.
+- `docs/dev-setup.md`: every install step for the owner's machine, and how to remove them all.
 - `docs/technical-notes.md`: toolchain, images, piece counts and behaviour details.
 - `docs/visual-design.md`: locked colours, fonts and effects.
 - `docs/open-decisions.md`: what is not decided yet. Check it before assuming an answer.
