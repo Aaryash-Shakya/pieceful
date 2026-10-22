@@ -5,20 +5,23 @@ const STYLE_GRID := "grid"
 const PRECISION := 0.001
 # Weight of cell squareness against hitting the requested piece count.
 const ASPECT_WEIGHT := 0.5
+const SCORE_SCALE := 1.0e9
 
 
 ## Returns columns in x and rows in y. Never more columns than pixels wide or rows than pixels high,
 ## so every cell keeps at least one pixel and no piece can have zero area.
 static func grid_split(width: int, height: int, target_count: int) -> Vector2i:
 	var best := Vector2i(1, 1)
-	var best_score := INF
+	var best_score := 1 << 62
 	for rows in range(1, mini(height, target_count) + 1):
 		var base := target_count / rows
 		for columns in [base, base + 1]:
 			columns = clampi(columns, 1, width)
 			var cell_aspect := (width / float(columns)) / (height / float(rows))
 			var count_error := absf(columns * rows - target_count) / float(target_count)
-			var score := count_error + ASPECT_WEIGHT * absf(log(cell_aspect))
+			# Quantised so libm rounding noise cannot flip exact ties (e.g. 9x6 vs 6x9 on a square
+			# image). Rows ascend, so a tie goes to the fewer-rows split.
+			var score := roundi((count_error + ASPECT_WEIGHT * absf(log(cell_aspect))) * SCORE_SCALE)
 			if score < best_score:
 				best_score = score
 				best = Vector2i(columns, rows)

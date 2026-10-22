@@ -42,6 +42,13 @@ func _init() -> void:
 	check(CutGenerator.grid_split(1500, 1000, 54) == Vector2i(9, 6), "grid_split 54 is 9x6")
 	check(CutGenerator.grid_split(1500, 1000, 150) == Vector2i(15, 10), "grid_split 150 is 15x10")
 
+	# Exact ties on a square image: fewer rows must always win.
+	check(CutGenerator.grid_split(1000, 1000, 54) == Vector2i(7, 7), "square 54 pins to 7x7")
+	check(CutGenerator.grid_split(1000, 1000, 20) == Vector2i(5, 4), "square 20 pins to 5x4")
+	check(CutGenerator.grid_split(1000, 1000, 30) == Vector2i(6, 5), "square 30 pins to 6x5")
+	check(CutGenerator.grid_split(1000, 1000, 12) == Vector2i(4, 3), "square 12 pins to 4x3")
+	check(CutGenerator.grid_split(1000, 1000, 6) == Vector2i(3, 2), "square 6 pins to 3x2")
+
 	var s := CutGenerator.grid_split(1536, 1024, 400)
 	check(absi(s.x * s.y - 400) <= 40, "grid_split 400 product within 40")
 	var aspect := (1536.0 / s.x) / (1024.0 / s.y)
