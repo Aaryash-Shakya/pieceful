@@ -51,6 +51,10 @@ This is the intended structure, not what exists today. Create directories as the
 - Test cluster joining and save-and-restore with plain logic tests, not through the UI.
 - Performance is a feature. Keep an on-screen frame-rate counter available in debug builds and check 600 pieces on a real phone before calling a version done.
 
+## Visual design
+
+Colours, fonts, corner radii and effect defaults are locked in `docs/visual-design.md`. Use those values. Do not substitute other fonts or palettes.
+
 ## Conventions
 
 - Match the style of the surrounding code. Keep comments sparse and explain why, not what.
