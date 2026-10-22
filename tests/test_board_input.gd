@@ -25,6 +25,10 @@ func _init() -> void:
 	_test_pinch_zoom_clamps()
 	_test_wheel_zooms_about_cursor()
 	_test_edge_pan_carries_piece()
+	_test_two_finger_pan()
+	_test_pinch_ignores_zero_distance()
+	_test_focus_loss_releases_piece(Node.NOTIFICATION_APPLICATION_FOCUS_OUT, "focus out")
+	_test_focus_loss_releases_piece(Node.NOTIFICATION_APPLICATION_PAUSED, "pause")
 
 	board.free()
 	finish()
@@ -176,6 +180,62 @@ func _test_wheel_zooms_about_cursor() -> void:
 		board._unhandled_input(wheel)
 	check(is_equal_approx(camera.zoom.x, CameraRig.MIN_ZOOM), "wheel zoom stops at MIN_ZOOM")
 	check(_inside_bounds(camera.position), "wheel zoom keeps the camera inside bounds")
+
+
+func _test_two_finger_pan() -> void:
+	_fit_board()
+	var a := viewport_size / 2.0 - Vector2(100, 0)
+	var b := viewport_size / 2.0 + Vector2(100, 0)
+	var delta := Vector2(40, 25)
+	var start := camera.position
+	var zoom := camera.zoom.x
+
+	_touch(0, a, true)
+	_touch(1, b, true)
+	_drag(0, a + delta, delta)
+	_drag(1, b + delta, delta)
+	check(camera.position.is_equal_approx(start - delta / zoom), "two fingers moved together pan the camera by delta over zoom")
+	check(is_equal_approx(camera.zoom.x, zoom), "two fingers moved together leave the zoom unchanged")
+
+	_drag(0, a + Vector2(1e6, 1e6), Vector2(1e6, 1e6) - delta)
+	_drag(1, b + Vector2(1e6, 1e6), Vector2(1e6, 1e6) - delta)
+	check(_inside_bounds(camera.position), "a huge two-finger pan stays inside the bounds")
+	_touch(0, a, false)
+	_touch(1, b, false)
+
+
+func _test_pinch_ignores_zero_distance() -> void:
+	_fit_board()
+	var a := viewport_size / 2.0 - Vector2(50, 0)
+	var b := viewport_size / 2.0 + Vector2(50, 0)
+	var zoom := camera.zoom.x
+
+	_touch(0, a, true)
+	_touch(1, b, true)
+	_drag(1, a, a - b)
+	check(is_equal_approx(camera.zoom.x, zoom), "fingers meeting do not collapse the zoom")
+	_drag(1, b, b - a)
+	check(is_equal_approx(camera.zoom.x, zoom), "fingers parting from one point do not jump the zoom")
+	_touch(0, a, false)
+	_touch(1, b, false)
+
+
+func _test_focus_loss_releases_piece(what: int, label: String) -> void:
+	_show_everything()
+	var hit := _find_covered_point()
+	var piece: PieceNode = hit[1]
+
+	_touch(0, hit[0], true)
+	_drag(0, hit[0] + Vector2(2, 2), Vector2(2, 2))
+	board.notification(what)
+	check(not _is_held(piece), "%s releases the held piece" % label)
+
+	var empty := _find_empty_point()
+	var start := camera.position
+	_touch(0, empty, true)
+	_drag(0, empty + Vector2(10, 0), Vector2(10, 0))
+	check(camera.position.is_equal_approx(start - Vector2(10, 0) / camera.zoom.x), "a touch after %s pans normally" % label)
+	_touch(0, empty + Vector2(10, 0), false)
 
 
 func _test_edge_pan_carries_piece() -> void:

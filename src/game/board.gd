@@ -25,6 +25,7 @@ var _drag_index := -1
 var _pinch_a := -1
 var _pinch_b := -1
 var _pinch_distance := 0.0
+var _pinch_mid := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -63,6 +64,12 @@ func _process(delta: float) -> void:
 	_held.position += camera.position - before
 
 
+# Touch-up events can be lost while the app is in the background, so nothing may stay held.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
+		_cancel_gesture()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		_on_touch(event)
@@ -75,8 +82,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_touch(event: InputEventScreenTouch) -> void:
 	if event.canceled:
 		# The system took the gesture (a notification pulled down, say), so every finger is gone.
-		_touches.clear()
-		_end_gesture()
+		_cancel_gesture()
 		return
 
 	if event.pressed:
@@ -114,9 +120,13 @@ func _on_drag(event: InputEventScreenDrag) -> void:
 			var a := _touches[_pinch_a]
 			var b := _touches[_pinch_b]
 			var distance := a.distance_to(b)
-			if _pinch_distance > 0.0:
-				_zoom_about(camera.zoom.x * distance / _pinch_distance, (a + b) / 2.0)
+			var mid := (a + b) / 2.0
+			# Pan first so the world follows the fingers, then zoom about where they are now.
+			_set_camera_position(camera.position - (mid - _pinch_mid) / camera.zoom.x)
+			if distance > 0.0 and _pinch_distance > 0.0:
+				_zoom_about(camera.zoom.x * distance / _pinch_distance, mid)
 			_pinch_distance = distance
+			_pinch_mid = mid
 
 
 func _on_wheel(event: InputEventMouseButton) -> void:
@@ -152,7 +162,13 @@ func _begin_pinch(index: int) -> void:
 			_pinch_b = other
 			break
 	_pinch_distance = _touches[_pinch_a].distance_to(_touches[_pinch_b])
+	_pinch_mid = (_touches[_pinch_a] + _touches[_pinch_b]) / 2.0
 	_mode = Mode.PINCHING
+
+
+func _cancel_gesture() -> void:
+	_touches.clear()
+	_end_gesture()
 
 
 func _end_gesture() -> void:
