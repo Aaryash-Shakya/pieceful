@@ -9,7 +9,7 @@ An Android jigsaw puzzle game built in Godot 4. Free, no ads, offline-first, dis
 ## Stack
 
 - Engine: Godot 4.x.
-- Language: GDScript (assumed, not confirmed by the owner yet).
+- Language: GDScript (assumed, not confirmed by the owner yet; see `docs/open-decisions.md`).
 - Target: Android only. Do not add iOS-specific code.
 - Android package name: `io.github.aaryash_shakya.pieceful`. Do not change it.
 - Image collections are bundled in a few folders and downloaded from Cloudflare R2 for the rest.
@@ -21,7 +21,7 @@ An Android jigsaw puzzle game built in Godot 4. Free, no ads, offline-first, dis
 3. **Never store piece geometry.** Saves and the daily puzzle store the image id, style, piece count and seed, and regenerate the cut.
 4. **Every style produces the same intermediate shape.** A cut is a graph of vertices and shared edges, and the pieces are the faces between them. One common step adds tabs and builds outlines. Regular, Irregular and Wild differ only in how they produce the graph. Do not write a separate pipeline per style.
 5. **Shared edges are generated once.** Both neighbouring pieces use the same edge, one reversed, so pieces fit with no gaps. Seed each edge by its id.
-6. **Pieces are drawn with `Polygon2D`.** The texture is the full image and the texture coordinates are the outline points, so no bitmap baking is needed. Hit-testing uses `Geometry2D.is_point_in_polygon`.
+6. **Pieces are drawn with `Polygon2D`.** The texture is the full image and the texture coordinates are the outline points, so no bitmap baking is needed. Hit-testing uses `Geometry2D.is_point_in_polygon`. This rule may change after the version 1 spike, if drawing 400 polygons is too slow or edges need pre-baked sprites. See `docs/engine-decision.md`.
 7. **Pieces never rotate.** Only translation.
 8. **Clusters use union-find.** A cluster moves and hit-tests as one body. Joins are permanent. A cluster that reaches its board position locks.
 9. **The world camera is a transform.** The board and loose pieces live in world space. The slot tray and other UI live in screen space and do not zoom.
@@ -34,6 +34,16 @@ An Android jigsaw puzzle game built in Godot 4. Free, no ads, offline-first, dis
 - **Wild:** evenly spread random points with a Voronoi region per point, relaxed once or twice to avoid slivers, with knobbed edges.
 - The slider snaps to valid rows-by-columns splits that fit the image aspect ratio for Regular and Irregular. Wild produces exactly the target count.
 - A tab-less grid exists as an internal development aid and test fixture. It is not a player-facing style.
+
+## Documents
+
+- `INTENT.md`: what the owner wants and why.
+- `docs/version-plan.md`: the three versions and their exit tests.
+- `docs/engine-decision.md`: why Godot, the risks, and the spike checks.
+- `docs/technical-notes.md`: toolchain, images, piece counts and behaviour details.
+- `docs/visual-design.md`: locked colours, fonts and effects.
+- `docs/open-decisions.md`: what is not decided yet. Check it before assuming an answer.
+- `docs/prototype/`: a throwaway browser prototype with a working cut generator to port.
 
 ## Planned layout
 

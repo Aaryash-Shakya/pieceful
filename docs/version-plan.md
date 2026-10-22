@@ -8,7 +8,14 @@ Assumptions the owner has not rejected: GDScript as the language, the sorting sl
 
 ## Version 1: Playable core
 
-Version 1 is also the performance test for Godot. If it fails the exit tests below, the engine choice is reopened before anything else is built.
+Version 1 is also the performance test for Godot. The first milestone is a spike, a throwaway test on the owner's real phone at the 400-piece maximum. The checks are proposed and still need the owner's confirmation. See `docs/engine-decision.md`.
+
+- 60fps while dragging pieces and while pinch-zooming and panning.
+- A snap sound that feels instant. If it does not, try an Oboe-based audio plugin before judging the engine.
+- Clean piece edges, using 2D MSAA where needed.
+- Pinch and pan that work reliably, through the Android gesture project setting or raw touch events.
+
+If the first two cannot be fixed, the engine choice is reopened before anything else is built. The fallback is libGDX with Kotlin.
 
 **Scope**
 
