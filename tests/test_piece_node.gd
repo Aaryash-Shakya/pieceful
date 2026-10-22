@@ -15,8 +15,12 @@ func _init() -> void:
 	check(node.contains_point(Vector2(105, 5)), "point over the displaced piece hits")
 	check(not node.contains_point(Vector2(5, 5)), "point over the home position misses")
 
+	# The shadow is the first child, added before the body.
+	var shadow := node.get_child(0) as Polygon2D
+	check(not shadow.visible, "shadow is hidden after setup")
 	node.set_held(true)
+	check(shadow.visible, "shadow shows while held")
 	node.set_held(false)
-	check(true, "set_held toggles without error")
+	check(not shadow.visible, "shadow hides again when released")
 
 	finish()
