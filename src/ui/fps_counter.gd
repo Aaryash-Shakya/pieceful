@@ -11,16 +11,21 @@ const MARGIN_TOP := 56
 
 var _label: Label
 var _timer: Timer
+# Longest frame since the last refresh. The fps figure is a one-second average, so
+# a single hitch only shows up here.
+var _worst_frame := 0.0
 
 
-static func format_text(fps: int, refresh_rate: float) -> String:
+static func format_text(fps: int, refresh_rate: float, worst_frame: float) -> String:
+	var worst_ms := roundi(worst_frame * 1000.0)
 	if refresh_rate <= 0.0:
-		return "%d fps" % fps
-	return "%d fps  %d Hz" % [fps, roundi(refresh_rate)]
+		return "%d fps  worst %d ms" % [fps, worst_ms]
+	return "%d fps  %d Hz  worst %d ms" % [fps, roundi(refresh_rate), worst_ms]
 
 
 func _ready() -> void:
 	if not OS.is_debug_build():
+		set_process(false)
 		queue_free()
 		return
 
@@ -40,5 +45,10 @@ func _ready() -> void:
 	_refresh()
 
 
+func _process(delta: float) -> void:
+	_worst_frame = maxf(_worst_frame, delta)
+
+
 func _refresh() -> void:
-	_label.text = format_text(roundi(Engine.get_frames_per_second()), DisplayServer.screen_get_refresh_rate())
+	_label.text = format_text(roundi(Engine.get_frames_per_second()), DisplayServer.screen_get_refresh_rate(), _worst_frame)
+	_worst_frame = 0.0
