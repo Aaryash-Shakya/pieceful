@@ -49,7 +49,7 @@ This is the intended structure, not what exists today. Create directories as the
 
 - Generator checks that must always pass: piece areas sum to the image area, every interior edge belongs to exactly two pieces, no piece is below a minimum area, and the same seed gives identical output twice.
 - Test cluster joining and save-and-restore with plain logic tests, not through the UI.
-- Performance is a feature. Keep an on-screen frame-rate counter available in debug builds and check 600 pieces on a real phone before calling a version done.
+- Performance is a feature. Keep an on-screen frame-rate counter available in debug builds and check 400 pieces (the maximum) on a real phone before calling a version done.
 
 ## Visual design
 

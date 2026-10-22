@@ -14,7 +14,7 @@ Version 1 is also the performance test for Godot. If it fails the exit tests bel
 
 - Godot 4 project, Android export, and a repeatable way to install the APK on a phone.
 - The cut generator and its tests. Build order: the tab-less grid first, then Regular, then Irregular. The tab-less grid is an internal development aid and is not shown to players.
-- Setup screen with the piece slider from about 12 to 600, snapping to valid rows-by-columns splits, and a live preview of the cut lines over the image.
+- Setup screen with the piece slider from 12 to 400, snapping to valid rows-by-columns splits, and a live preview of the cut lines over the image.
 - World camera with pinch-zoom and pan, and piece dragging with correct stacking order.
 - Locking a piece or cluster when it is dropped on its correct board position.
 - Clusters: two fitting pieces join permanently and move as one.
@@ -26,7 +26,7 @@ Version 1 is also the performance test for Godot. If it fails the exit tests bel
 
 **Exit tests**
 
-- 600 pieces hold 60fps while dragging and zooming on the owner's phone.
+- 400 pieces (the maximum) hold 60fps while dragging and zooming on the owner's phone.
 - The snap sound and vibration feel instant.
 - Saving and resuming restores the board exactly.
 - The generator tests pass: piece areas sum to the image area, every interior edge belongs to exactly two pieces, no piece is below the minimum area, and the same seed gives identical output twice.
@@ -62,7 +62,7 @@ Version 1 is also the performance test for Godot. If it fails the exit tests bel
 **Exit tests**
 
 - A downloaded collection is still available after resetting game progress.
-- Wild stays solvable at 600 pieces: no sliver pieces and no overly small pieces.
+- Wild stays solvable at 400 pieces: no sliver pieces and no overly small pieces.
 - The daily puzzle produces the identical cut on two different devices.
 
 ## Open items
