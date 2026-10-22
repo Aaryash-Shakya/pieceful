@@ -17,7 +17,7 @@ Checked on 2026-10-22: the machine had no Java, no Godot, no Android SDK, and no
 | Android build-tools | 35.0.1 | `sdkmanager` | `~/Android/Sdk/build-tools` |
 | Android platform | android-35 | `sdkmanager` | `~/Android/Sdk/platforms` |
 | Godot Android export templates | same as the Godot version | the Godot editor | `~/.local/share/godot/export_templates` |
-| Debug keystore | n/a | created with `keytool` | `~/.android/debug.keystore` |
+| Debug keystore | n/a | created by Godot itself on first run | `~/.local/share/godot/keystores/debug.keystore` |
 
 The versions above come from Godot's Android export page for the 4.7 docs and from Google's download page, both read on 2026-10-22. The page also lists CMake 3.10.2.4988404 and NDK r28b (28.1.13356709). It does not say whether a plain export needs them. We start without them, since the NDK is large, and add them if the export asks for them. If we do, add them to this table.
 
@@ -29,7 +29,7 @@ Not needed: Docker, Android Studio, Gradle, Kotlin, Flutter.
 
 ## Install
 
-Steps A and I need your password. Run those with the `!` prefix.
+Step A needs your password. Run it with the `!` prefix.
 
 **A. Godot and JDK 17**
 
@@ -59,33 +59,25 @@ mv unpacked/cmdline-tools ~/Android/Sdk/cmdline-tools/latest
 
 Accepting the licences means you agree to Google's terms. Read them first. Acceptance is stored in `~/Android/Sdk/licenses`.
 
-**D. Debug keystore**
+**D. Godot editor settings**
 
-Godot's Android page does not say how to create one, so this uses the standard Android debug values. A debug keystore signs test builds only and is not a secret. Confirm the path in Godot's editor settings in step E.
-
-```
-mkdir -p ~/.android
-keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore ~/.android/debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
-```
-
-**E. Godot editor settings**
-
-Open Godot, then Editor, Editor Settings, Export, Android. Set:
+The Android settings only exist inside an open project. In the Project Manager, Editor Settings has no Export section. Create the project first (Create, project path is the repository folder, turn off Create Folder, Version Control Metadata set to Git), then open Editor, Editor Settings, Export, Android. Set:
 - Java SDK Path: `/usr/lib/jvm/java-17-openjdk`
 - Android SDK Path: `/home/aaryash/Android/Sdk`
-- The debug keystore fields, if present in this version: `~/.android/debug.keystore`, user `androiddebugkey`, password `android`.
 
-**F. Export templates**
+Leave the Debug Keystore, Debug Keystore User and Debug Keystore Pass fields alone. Godot creates its own debug keystore at `~/.local/share/godot/keystores/debug.keystore` and fills them in. A debug keystore signs test builds only and is not a secret.
+
+**E. Export templates**
 
 In Godot, open Editor, Manage Export Templates, and download and install the templates for the exact running version. This menu path is from memory, so use the editor's own prompt if it differs.
 
-**G. The phone**
+**F. The phone**
 
 On the Nothing Phone (4a): turn on Developer options (tap the build number seven times in Settings, About phone), then turn on USB debugging. Plug it in and accept the prompt on the phone.
 
 If `adb devices` later shows the phone as unauthorised or without permissions, the udev rules are missing. The Arch `extra` repo has an `android-udev` package for that. Install it only if needed, and add it to this file and the removal list when you do.
 
-**H. Verify**
+**G. Verify**
 
 ```
 java -version
@@ -96,20 +88,20 @@ godot --version
 
 You should see Java 17, Godot 4.7.2, the three installed SDK packages, and the phone listed as a device.
 
-**I. Optional, to type `adb` anywhere**
+**H. Optional, to type `adb` anywhere**
 
 Add `~/Android/Sdk/platform-tools` to your PATH in your own shell configuration. Nothing here edits your shell files for you.
 
-**J. Tidy up after the install**
+**I. Tidy up after the install**
 
 The downloaded zip is no longer needed: `rm -r ~/Android/downloads`.
 
 ## Where everything lives
 
 - `~/Android/`: the Android SDK and the download folder.
-- `~/.android/`: the debug keystore, and the adb keys that `adb` creates the first time it runs.
+- `~/.android/`: the adb keys that `adb` creates the first time it runs, and a cache folder created by `sdkmanager`.
 - `~/.config/godot/`: Godot's editor settings, including the SDK and JDK paths.
-- `~/.local/share/godot/`: Godot's export templates.
+- `~/.local/share/godot/`: Godot's export templates and its auto-generated debug keystore.
 - `~/.cache/godot/`: Godot's cache.
 - `~/.gradle/`: only appears if a Gradle build is used later. Not created by the steps above.
 - In the project folder, generated and ignored by git: `.godot/`, `android/` and any `*.apk` or `*.aab` files.
@@ -141,4 +133,4 @@ To confirm it is clean, run the same checks as the baseline above. `command -v g
 
 ## Not verified
 
-The exact Godot menu paths and the names of the keystore fields in the editor settings, whether a plain export needs CMake and the NDK, whether Godot 4.7 supports a minimum Android version that includes the Galaxy On7 Pro, and the exact download address for Google's tools. Fix this file as each one is confirmed.
+The Godot menu path for installing export templates, whether a plain export needs CMake and the NDK, whether Godot 4.7 supports a minimum Android version that includes the Galaxy On7 Pro, and the exact download address for Google's tools. Fix this file as each one is confirmed.
