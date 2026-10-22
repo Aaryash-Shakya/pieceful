@@ -36,7 +36,7 @@ Version 1 is also the performance test for Godot. If it fails the exit tests bel
 **Scope**
 
 - The four slots: messy stack, fan-out under the finger, return when released near the slot, even grid spread when released away from it, and a count badge. Only the whole stack can be taken out.
-- The ghost-image overlay toggle.
+- The ghost-image overlay toggle, on by default at 20% opacity.
 - Four bundled collections and a collection picker.
 - Timer, completion screen and the shareable result card (puzzle name, piece count, cut style, ghost overlay setting, time) through the Android share sheet.
 - Settings for sound and vibration.

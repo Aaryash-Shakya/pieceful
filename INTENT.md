@@ -21,7 +21,7 @@ Most mobile jigsaw apps are full of ads and feel sluggish. The owner wants one t
 
 - Piece count is chosen with a slider from about 12 to 400. The slider moves between valid rows-by-columns splits that fit the image's aspect ratio, so the counts are values such as 15, 18 or 35, not every integer.
 - Cut style is one of three: Regular (classic jigsaw tabs on a grid), Irregular (a grid with uneven sizes and wobbly cuts, still four-sided), and Wild (arbitrary shapes such as triangles and trapezoids, with interlocking edges). The setup screen shows the cut lines over the actual image as a live preview.
-- The third difficulty control is a faint ghost image over the board, switched on or off.
+- The third difficulty control is a faint ghost image over the board, switched on or off. It is on by default, at 20% opacity.
 - The board and the loose pieces share one world that can be pinch-zoomed and panned. Pieces never rotate.
 - Loose pieces sit around the board. A cleanup button arranges them neatly, packed row by row.
 - Two pieces that fit join permanently into a cluster that moves as one, with a light sound and a light vibration. A piece or cluster dropped on its correct board position locks in place, with a stronger sound and vibration.

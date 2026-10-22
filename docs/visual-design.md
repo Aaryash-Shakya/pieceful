@@ -34,7 +34,7 @@ The felt and board are used behind the puzzle in both modes. Light mode keeps th
 - Lift shadow under held pieces.
 - Confetti and a short shake of the board (about 0.3 seconds, board only, not the interface) when a puzzle is finished.
 - Subtle grain on the felt.
-- Ghost image at 17% strength.
+- Ghost image is on by default, at 20% opacity.
 - Piece edges at 55% strength.
 - Reduce motion is off by default but turns on automatically when the device asks for reduced motion. When on, the ring, confetti and shake are disabled.
 
