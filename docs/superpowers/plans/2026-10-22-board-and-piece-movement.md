@@ -28,7 +28,7 @@
 ## Review Focus
 
 - Generator with `target_count` 1, a count larger than the pixel grid allows, or an extreme shape such as 10000 by 100: still valid pieces, no zero-area piece (Task 2).
-- A second finger lands while a piece is being dragged: the piece stays where it is, nothing is stuck held, no jump (Task 7).
+- A second finger lands while a piece is being dragged: the piece stays held under the first finger and the second finger pans and zooms the view, the drag continues when it lifts, the piece is dropped if the holding finger lifts first, nothing is stuck held, no jump (Task 7).
 - One finger lifts during a pinch: the remaining finger must not pan or jump the camera until all fingers are up (Task 7).
 - Panning or zooming far beyond the loose area: the camera clamps and the board can never be lost (Tasks 4 and 7).
 - A cancelled touch (a system gesture or notification during a drag) is treated as a release and leaves no piece held (Task 7).
@@ -143,7 +143,8 @@ State machine, tracked per touch index:
 |---|---|---|
 | Idle | first touch down on a piece (topmost hit, iterate `Pieces` children in reverse) | Dragging: move the piece to the last child, `set_held(true)` |
 | Idle | first touch down on empty space | Panning |
-| Dragging, Panning | second touch down | Pinching: release any held piece in place |
+| Dragging | second touch down | Hold-pinching: the piece stays held under the first finger and the second finger pans and zooms the view; when the second finger lifts the drag continues, and if the holding finger lifts first the piece is dropped in place |
+| Panning | second touch down | Pinching |
 | Dragging | drag | `piece.position += relative / camera.zoom.x` |
 | Panning | drag | camera position `-= relative / camera.zoom.x`, clamped |
 | Pinching | drag | zoom by the ratio of finger distance to previous distance, about the midpoint, clamped |
@@ -154,7 +155,7 @@ While Dragging, each `_process` frame moves the camera by `CameraRig.edge_pan_ve
 
 - [ ] **Step 1: Implement the state machine in `board.gd`.**
 - [ ] **Step 2: Check on the desktop with `godot --path . res://src/game/board.tscn`.** Expected: dragging a piece with the mouse moves it and keeps it on top after release; dragging empty space pans; the wheel zooms about the cursor so the point under it stays fixed; zooming and panning far out stops at the limits and the board stays reachable; dragging a piece close to the window edge pans the camera; no errors in Output.
-- [ ] **Step 3: Check the touch cases on the phone in Task 9.** Pin these there: a second finger landing during a drag leaves the piece where it was and does not jump; lifting one finger of a pinch does not pan or jump the camera; a notification pulled down mid-drag does not leave a piece lifted.
+- [ ] **Step 3: Check the touch cases on the phone in Task 9.** Pin these there: a second finger landing during a drag keeps the piece held under the first finger and pans and zooms the view, the drag continues when it lifts, and the piece is dropped if the holding finger lifts first; lifting one finger of a pinch does not pan or jump the camera; a notification pulled down mid-drag does not leave a piece lifted.
 - [ ] **Step 4: Commit.** `git add src/game && git commit -m "feat: add piece dragging, pan, pinch zoom and edge pan"`
 
 ### Task 8: Frame-rate counter and project settings
