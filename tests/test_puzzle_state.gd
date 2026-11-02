@@ -12,6 +12,15 @@ func _init() -> void:
 	_test_minimum_tolerance_on_tiny_cells()
 	_test_locked_cluster_is_frozen()
 	_test_completion()
+	_test_join_with_neighbour()
+	_test_join_boundaries()
+	_test_no_join_with_non_neighbour()
+	_test_no_join_with_locked()
+	_test_lock_wins_over_join()
+	_test_multi_join_spreads()
+	_test_largest_cluster_keeps_its_place()
+	_test_join_then_lock()
+	_test_drop_is_deterministic()
 	finish()
 
 
@@ -20,6 +29,10 @@ func _fresh(overrides: Dictionary = {}) -> PuzzleState:
 	for i in cut.size():
 		offsets.append(overrides.get(i, Vector2(1000 * (i + 1), 0)))
 	return PuzzleState.new(cut, offsets, PuzzleState.tolerance_for(300, 200, 6))
+
+
+func _fixture_tolerance() -> float:
+	return PuzzleState.tolerance_for(300, 200, 6)
 
 
 func _sorted(values: PackedInt32Array) -> PackedInt32Array:
@@ -84,6 +97,9 @@ func _test_lock_boundaries() -> void:
 	result = state.drop(2)
 	check(result.locked, "a diagonal offset of 0.85 tolerance locks")
 
+	state.move_cluster(3, Vector2(tol, 0))
+	check(state.drop(3).locked, "exactly on the tolerance locks")
+
 
 func _test_minimum_tolerance_on_tiny_cells() -> void:
 	var tiny := CutGenerator.generate_cut(100, 100, 400, CutGenerator.STYLE_GRID, 1)
@@ -115,4 +131,131 @@ func _test_completion() -> void:
 	for i in 6:
 		state.move_cluster(i, Vector2(1, 1))
 		state.drop(i)
+		# A second drop of a locked piece must not count it twice.
+		state.drop(i)
 		check(state.is_complete() == (i == 5), "is_complete after drop %d" % i)
+
+
+func _test_join_with_neighbour() -> void:
+	var a := Vector2(500, 0)
+	var state := _fresh({0: a})
+	var tol := state.tolerance
+	state.move_cluster(1, a + Vector2(0.7 * tol, -0.5 * tol))
+	var result := state.drop(1)
+	check(result.joined, "a drop near a neighbour joins")
+	check(not result.locked, "a join far from zero does not lock")
+	check(result.root == 0, "the lower id wins a tie of sizes")
+	check(state.find(1) == 0, "piece 1 joined root 0")
+	check(state.members(1) == PackedInt32Array([0, 1]), "the cluster holds 0 and 1")
+	check(state.offset_of(1) == a, "the joined cluster takes the neighbour's offset exactly")
+	check(state.offset_of(0) == a, "the neighbour keeps its offset")
+	check(state.roots() == PackedInt32Array([0, 2, 3, 4, 5]), "root 1 is gone")
+
+
+func _test_join_boundaries() -> void:
+	var a := Vector2(500, 0)
+	var state := _fresh({0: a})
+	var tol := state.tolerance
+	state.move_cluster(1, a + Vector2(1.01 * tol, 0))
+	var result := state.drop(1)
+	check(not result.joined, "just outside tolerance does not join")
+	check(state.find(1) == 1, "piece 1 stays its own root")
+	check(state.offset_of(1) == a + Vector2(1.01 * tol, 0), "a missed join leaves the offset alone")
+	state.move_cluster(1, a + Vector2(0.99 * tol, 0))
+	check(state.drop(1).joined, "just inside tolerance joins")
+
+
+func _test_no_join_with_non_neighbour() -> void:
+	var a := Vector2(500, 0)
+	var state := _fresh({0: a})
+	state.move_cluster(2, a + Vector2(1, 1))
+	check(not state.drop(2).joined, "a piece two cells away does not join")
+	state.move_cluster(4, a)
+	check(not state.drop(4).joined, "a diagonal piece does not join")
+	check(state.find(0) == 0, "piece 0 is unaffected")
+
+
+func _test_no_join_with_locked() -> void:
+	var state := _fresh()
+	var tol := state.tolerance
+	state.move_cluster(0, Vector2(1, 1))
+	state.drop(0)
+	state.move_cluster(1, Vector2(1.5 * tol, 0))
+	var result := state.drop(1)
+	check(not result.joined, "a locked neighbour is never joined")
+	check(not result.locked, "piece 1 is outside the lock tolerance")
+	check(state.find(1) == 1, "piece 1 stays its own root")
+
+
+func _test_lock_wins_over_join() -> void:
+	var state := _fresh({0: Vector2(1.2 * _fixture_tolerance(), 0)})
+	var tol := state.tolerance
+	state.move_cluster(1, Vector2(0.5 * tol, 0))
+	var result := state.drop(1)
+	check(result.locked, "a piece near zero locks")
+	check(not result.joined, "locking takes precedence over joining")
+	check(state.find(0) == 0, "the neighbour was not absorbed")
+	check(state.offset_of(0) == Vector2(1.2 * tol, 0), "the neighbour did not move")
+	check(not state.is_locked(0), "the neighbour stays loose")
+
+
+func _test_multi_join_spreads() -> void:
+	var a := Vector2(500, 0)
+	var state := _fresh({0: a, 2: a + Vector2(5, 0), 5: a + Vector2(3, 4), 4: Vector2(900, 0)})
+	state.move_cluster(1, a + Vector2(2, 2))
+	var result := state.drop(1)
+	check(result.joined, "the drop joins")
+	check(result.root == 0, "the lowest id wins an all-singleton tie")
+	check(state.members(1) == PackedInt32Array([0, 1, 2, 5]), "piece 5 joins through piece 2")
+	for i in [0, 1, 2, 5]:
+		check(state.offset_of(i) == a, "piece %d sits at the target" % i)
+	check(state.find(4) == 4, "the distant piece 4 is left alone")
+	check(state.offset_of(4) == Vector2(900, 0), "piece 4 did not move")
+
+
+func _play(state: PuzzleState) -> void:
+	state.move_cluster(4, Vector2(703, 0))
+	state.drop(4)
+	state.move_cluster(0, Vector2(701, 1))
+	state.move_cluster(1, Vector2(702, 0))
+	state.drop(1)
+	state.move_cluster(5, Vector2(1, 1))
+	state.drop(5)
+
+
+func _test_largest_cluster_keeps_its_place() -> void:
+	var state := _fresh({3: Vector2(700, 0)})
+	state.move_cluster(4, Vector2(703, 0))
+	var first := state.drop(4)
+	check(first.joined and first.root == 3, "pieces 3 and 4 join under root 3")
+	state.move_cluster(0, Vector2(701, 1))
+	state.move_cluster(1, Vector2(702, 0))
+	var result := state.drop(1)
+	check(result.root == 3, "the biggest cluster supplies the root")
+	check(state.members(1) == PackedInt32Array([0, 1, 3, 4]), "all four pieces are in one cluster")
+	for i in [0, 1, 3, 4]:
+		check(state.offset_of(i) == Vector2(700, 0), "piece %d sits where the biggest cluster was" % i)
+
+
+func _test_join_then_lock() -> void:
+	var state := _fresh({0: Vector2(0.6 * _fixture_tolerance(), 0)})
+	var tol := state.tolerance
+	state.move_cluster(1, Vector2(1.5 * tol, 0))
+	var result := state.drop(1)
+	check(result.joined and result.locked, "joining onto a cluster near zero also locks")
+	check(state.offset_of(0) == Vector2.ZERO, "piece 0 snapped to zero")
+	check(state.offset_of(1) == Vector2.ZERO, "piece 1 snapped to zero")
+	check(state.is_locked(0) and state.is_locked(1), "both pieces are locked")
+	check(not state.is_complete(), "two of six is not complete")
+
+
+func _test_drop_is_deterministic() -> void:
+	var first := _fresh({3: Vector2(700, 0)})
+	var second := _fresh({3: Vector2(700, 0)})
+	_play(first)
+	_play(second)
+	check(first.roots() == second.roots(), "same roots")
+	for root in first.roots():
+		check(first.members(root) == second.members(root), "same members for root %d" % root)
+		check(first.offset_of(root) == second.offset_of(root), "same offset for root %d" % root)
+		check(first.is_locked(root) == second.is_locked(root), "same lock for root %d" % root)

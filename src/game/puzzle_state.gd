@@ -93,8 +93,69 @@ func drop(piece: int) -> DropResult:
 	if _locked[root] == 1:
 		return result
 	if _offsets[root].length() <= tolerance:
-		_offsets[root] = Vector2.ZERO
-		_locked[root] = 1
-		_locked_pieces += _members[root].size()
+		_lock(root)
+		result.locked = true
+		return result
+	var absorbed := _absorbable_roots(root)
+	if absorbed.is_empty():
+		return result
+	var joining := absorbed.duplicate()
+	joining.append(root)
+	# Both picks scan every candidate and break ties by id, so neither depends on
+	# the order neighbours were visited in.
+	var target_root := _largest(absorbed)
+	var new_root := _largest(joining)
+	var target := _offsets[target_root]
+	var merged := PackedInt32Array()
+	for r in joining:
+		merged.append_array(_members[r])
+		if r != new_root:
+			_parents[r] = new_root
+			_members[r] = PackedInt32Array()
+	merged.sort()
+	_members[new_root] = merged
+	_offsets[new_root] = target
+	result.root = new_root
+	result.joined = true
+	if target.length() <= tolerance:
+		_lock(new_root)
 		result.locked = true
 	return result
+
+
+func _lock(root: int) -> void:
+	_offsets[root] = Vector2.ZERO
+	_locked[root] = 1
+	_locked_pieces += _members[root].size()
+
+
+# Loose clusters reachable from the dropped cluster through neighbouring pieces whose
+# offset is within tolerance of the dropped offset. Measuring against the dropped
+# offset, not the neighbour's, makes the result a fixed point independent of visit order.
+func _absorbable_roots(root: int) -> Array[int]:
+	var dropped := _offsets[root]
+	var seen := {root: true}
+	var absorbed: Array[int] = []
+	var pending: Array[int] = [root]
+	while not pending.is_empty():
+		var current: int = pending.pop_back()
+		for piece in _members[current]:
+			for q in _pieces[piece].neighbours:
+				var r := find(q)
+				if seen.has(r) or _locked[r] == 1:
+					continue
+				if _offsets[r].distance_to(dropped) <= tolerance:
+					seen[r] = true
+					absorbed.append(r)
+					pending.append(r)
+	return absorbed
+
+
+# The root with the most pieces; ties go to the lowest root id.
+func _largest(roots_to_scan: Array[int]) -> int:
+	var best := -1
+	for r in roots_to_scan:
+		if best == -1 or _members[r].size() > _members[best].size() \
+				or (_members[r].size() == _members[best].size() and r < best):
+			best = r
+	return best
