@@ -90,6 +90,64 @@ func same_cut(a: Array[CutPiece], b: Array[CutPiece]) -> bool:
 	return true
 
 
+## Irregular keeps the grid's topology: convex quads, border corners on the border, jittered inside.
+func check_four_sided(graph: CutGraph, w: int, h: int, label: String) -> void:
+	# Face 0's corners are 0, 1, stride + 1, stride, as in build_grid_graph.
+	var stride := graph.edges[CutGraph.ref_edge(graph.faces[0][3])].from_vertex
+	var columns := stride - 1
+	var rows := graph.vertices.size() / stride - 1
+	check(columns * rows == graph.faces.size(), "%s: lattice is columns by rows" % label)
+
+	var convex := true
+	for refs in graph.faces:
+		if refs.size() != 4:
+			convex = false
+			continue
+		var corners := PackedVector2Array()
+		for ref in refs:
+			var edge := graph.edges[CutGraph.ref_edge(ref)]
+			corners.append(graph.vertices[edge.to_vertex if CutGraph.ref_reversed(ref) else edge.from_vertex])
+		for i in 4:
+			var a := corners[(i + 1) % 4] - corners[i]
+			var b := corners[(i + 2) % 4] - corners[(i + 1) % 4]
+			if a.cross(b) <= 0.0:
+				convex = false
+	check(convex, "%s: every face is a strictly convex quad" % label)
+
+	var on_border := true
+	var jittered := false
+	for r in rows + 1:
+		for c in columns + 1:
+			var v := graph.vertices[r * stride + c]
+			if (r == 0 and v.y != 0.0) or (r == rows and v.y != h) or (c == 0 and v.x != 0.0) or (c == columns and v.x != w):
+				on_border = false
+			if r > 0 and r < rows and v.x != graph.vertices[c].x:
+				jittered = true
+	check(on_border, "%s: border corners stay on the border" % label)
+	check(jittered, "%s: interior corners are jittered" % label)
+	var uneven := false
+	for c in range(1, columns):
+		var left := graph.vertices[c].x - graph.vertices[c - 1].x
+		var right := graph.vertices[c + 1].x - graph.vertices[c].x
+		if absf(left - right) > 1e-3:
+			uneven = true
+	check(uneven or columns == 1, "%s: column widths are uneven" % label)
+
+
+func check_per_edge_seeding(style: String) -> void:
+	var graph := CutGenerator.build_graph(1536, 1024, 54, style, 7)
+	var tabs := TabShape.for_style(style)
+	var per_edge := true
+	for k in graph.edges.size():
+		var edge := graph.edges[k]
+		if edge.is_border():
+			continue
+		var expected := tabs.edge_points(graph.vertices[edge.from_vertex], graph.vertices[edge.to_vertex], graph.edge_room(k), SeededRng.new(SeededRng.hash2(7, k)))
+		if edge.points != expected:
+			per_edge = false
+	check(per_edge, "%s: each edge depends only on its own id" % style)
+
+
 func signed_area(outline: PackedVector2Array) -> float:
 	var sum := 0.0
 	var n := outline.size()
@@ -180,17 +238,36 @@ func _init() -> void:
 			tabbed = true
 	check(tabbed, "regular 400 has tabbed outlines")
 
-	var graph := CutGenerator.build_graph(1536, 1024, 54, "regular", 7)
-	var tabs := TabShape.for_style("regular")
-	var per_edge := true
-	for k in graph.edges.size():
-		var edge := graph.edges[k]
-		if edge.is_border():
-			continue
-		var expected := tabs.edge_points(graph.vertices[edge.from_vertex], graph.vertices[edge.to_vertex], graph.edge_room(k), SeededRng.new(SeededRng.hash2(7, k)))
-		if edge.points != expected:
-			per_edge = false
-	check(per_edge, "regular: each edge depends only on its own id")
+	check_per_edge_seeding("regular")
+
+	for shape in SHAPES:
+		for count in COUNTS:
+			check_cut(shape.x, shape.y, count, "irregular", 1)
+			for seed_value in [1, 2]:
+				var label := "irregular %dx%d count %d seed %d" % [shape.x, shape.y, count, seed_value]
+				check_four_sided(CutGenerator.build_graph(shape.x, shape.y, count, "irregular", seed_value), shape.x, shape.y, label)
+	check_cut(1536, 1024, 400, "irregular", 1)
+	check_cut(160, 120, 400, "irregular", 1)
+	check_cut(10, 10, 100000, "irregular", 1)
+	check_cut(10000, 100, 50, "irregular", 1)
+	check_cut(1000, 3000, 400, "irregular", 1)
+	for seed_value in [0, -5, 7]:
+		check_cut(1536, 1024, 54, "irregular", seed_value)
+
+	var irregular := CutGenerator.generate_cut(1536, 1024, 54, "irregular", 7)
+	check(same_cut(irregular, CutGenerator.generate_cut(1536, 1024, 54, "irregular", 7)), "irregular: same seed gives same cut")
+	check(not same_cut(irregular, CutGenerator.generate_cut(1536, 1024, 54, "irregular", 8)), "irregular: seeds 7 and 8 differ")
+	check(not same_cut(irregular, regular), "irregular and regular differ for the same seed")
+	check_per_edge_seeding("irregular")
+	var regular_graph := CutGenerator.build_graph(1536, 1024, 54, "regular", 7)
+	var irregular_graph := CutGenerator.build_graph(1536, 1024, 54, "irregular", 7)
+	var same_ids := regular_graph.edges.size() == irregular_graph.edges.size()
+	for k in mini(regular_graph.edges.size(), irregular_graph.edges.size()):
+		var re := regular_graph.edges[k]
+		var ie := irregular_graph.edges[k]
+		if re.from_vertex != ie.from_vertex or re.to_vertex != ie.to_vertex:
+			same_ids = false
+	check(same_ids, "irregular edge ids match regular for the same split")
 
 	check(CutGenerator.generate_cut(1536, 1024, 54, "bogus", 1).is_empty(), "unknown style is empty")
 	check(CutGenerator.build_graph(1536, 1024, 54, "bogus", 1) == null, "unknown style gives no graph")

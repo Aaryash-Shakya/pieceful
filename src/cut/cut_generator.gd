@@ -3,7 +3,14 @@ extends RefCounted
 
 const STYLE_GRID := "grid"
 const STYLE_REGULAR := "regular"
+const STYLE_IRREGULAR := "irregular"
 const PRECISION := 0.001
+# Irregular column widths and row heights vary by this fraction before being scaled to fill the image.
+const IRREGULAR_UNEVEN := 0.25
+# Interior Irregular corners move by up to this fraction of the smaller neighbouring column or row.
+const IRREGULAR_CORNER_JITTER := 0.15
+# Stream id for the Irregular lattice's generator. Edge ids are never negative, so no edge shares it.
+const LATTICE_STREAM := -1
 # Weight of cell squareness against hitting the requested piece count.
 const ASPECT_WEIGHT := 0.5
 const SCORE_SCALE := 1.0e9
@@ -75,12 +82,65 @@ static func build_grid_graph(width: int, height: int, columns: int, rows: int) -
 		for c in columns + 1:
 			var x := roundi(c * width / float(columns))
 			graph.vertices.append(Vector2(snappedf(x, PRECISION), snappedf(y, PRECISION)))
+	_add_lattice_faces(graph, columns, rows)
+	return graph
+
+
+## The grid's vertices in the same order, with uneven columns and rows and jittered interior corners.
+## The order of rng draws is part of the cut format: changing it changes every saved puzzle.
+static func build_irregular_graph(width: int, height: int, columns: int, rows: int, rng: SeededRng) -> CutGraph:
+	var cw := _uneven_sizes(columns, rng)
+	var rh := _uneven_sizes(rows, rng)
+	var cw_sum := _sum(cw)
+	var rh_sum := _sum(rh)
+	var xs := _lattice_lines(cw, cw_sum, width)
+	var ys := _lattice_lines(rh, rh_sum, height)
+	var graph := CutGraph.new()
+	for r in rows + 1:
+		for c in columns + 1:
+			var x := xs[c]
+			var y := ys[r]
+			if r > 0 and r < rows and c > 0 and c < columns:
+				var jx := IRREGULAR_CORNER_JITTER * minf(cw[c - 1], cw[c]) / cw_sum * width
+				x += rng.range_float(-jx, jx)
+				var jy := IRREGULAR_CORNER_JITTER * minf(rh[r - 1], rh[r]) / rh_sum * height
+				y += rng.range_float(-jy, jy)
+			graph.vertices.append(Vector2(snappedf(x, PRECISION), snappedf(y, PRECISION)))
+	_add_lattice_faces(graph, columns, rows)
+	return graph
+
+
+static func _uneven_sizes(count: int, rng: SeededRng) -> PackedFloat64Array:
+	var sizes := PackedFloat64Array()
+	for i in count:
+		sizes.append(1.0 + rng.range_float(-IRREGULAR_UNEVEN, IRREGULAR_UNEVEN))
+	return sizes
+
+
+static func _sum(values: PackedFloat64Array) -> float:
+	var total := 0.0
+	for v in values:
+		total += v
+	return total
+
+
+## Where each column or row starts, with the first line at 0 and the last exactly at extent.
+static func _lattice_lines(sizes: PackedFloat64Array, total: float, extent: int) -> PackedFloat64Array:
+	var lines := PackedFloat64Array([0.0])
+	var prefix := 0.0
+	for i in range(1, sizes.size()):
+		prefix += sizes[i - 1]
+		lines.append(extent * prefix / total)
+	lines.append(float(extent))
+	return lines
+
+
+static func _add_lattice_faces(graph: CutGraph, columns: int, rows: int) -> void:
 	var stride := columns + 1
 	for r in rows:
 		for c in columns:
 			var top_left := r * stride + c
 			graph.add_face(PackedInt32Array([top_left, top_left + 1, top_left + stride + 1, top_left + stride]))
-	return graph
 
 
 ## Gives every interior edge its tab. Border edges stay straight so the image keeps its frame.
@@ -98,13 +158,18 @@ static func build_graph(width: int, height: int, target_count: int, style: Strin
 	if width < 1 or height < 1 or target_count < 1:
 		push_error("build_graph: width, height and target_count must be at least 1")
 		return null
-	if style != STYLE_GRID and style != STYLE_REGULAR:
+	if style != STYLE_GRID and style != STYLE_REGULAR and style != STYLE_IRREGULAR:
 		push_error("build_graph: unknown style '%s'" % style)
 		return null
 	var split := grid_split(width, height, target_count)
-	var graph := build_grid_graph(width, height, split.x, split.y)
-	if style == STYLE_REGULAR:
-		shape_edges(graph, TabShape.for_style(style), seed_value)
+	if style == STYLE_GRID:
+		return build_grid_graph(width, height, split.x, split.y)
+	var graph: CutGraph
+	if style == STYLE_IRREGULAR:
+		graph = build_irregular_graph(width, height, split.x, split.y, SeededRng.new(SeededRng.hash2(seed_value, LATTICE_STREAM)))
+	else:
+		graph = build_grid_graph(width, height, split.x, split.y)
+	shape_edges(graph, TabShape.for_style(style), seed_value)
 	return graph
 
 
