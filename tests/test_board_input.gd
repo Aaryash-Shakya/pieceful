@@ -22,6 +22,9 @@ func _init() -> void:
 	_test_second_finger_during_drag()
 	_test_second_finger_pans_while_holding()
 	_test_spread_zooms_while_holding()
+	_test_holding_finger_moves_only_the_piece()
+	_test_second_finger_moving_away_zooms_while_holding()
+	_test_second_finger_repressed_while_holding()
 	_test_drag_continues_after_second_finger_lifts()
 	_test_first_finger_lifts_while_holding()
 	_test_third_finger_while_holding()
@@ -140,6 +143,73 @@ func _test_spread_zooms_while_holding() -> void:
 	check(_near(piece.position, _to_world(moved) + offset), "held piece stays under the first finger at the zoom limit")
 	_touch(0, moved, false)
 	_touch(1, b, false)
+
+
+func _test_holding_finger_moves_only_the_piece() -> void:
+	_show_everything()
+	var hit := _find_covered_point()
+	var piece: PieceNode = hit[1]
+	var a: Vector2 = hit[0]
+	var b := a + Vector2(100, 0)
+
+	_touch(0, a, true)
+	_touch(1, b, true)
+	var position := camera.position
+	var zoom := camera.zoom
+	var start := piece.position
+	var delta := Vector2(-60, 35)
+	_drag(0, a + delta, delta)
+	check(camera.position == position, "the holding finger moving does not pan the camera")
+	check(camera.zoom == zoom, "the holding finger moving does not zoom the camera")
+	check(_near(piece.position, start + delta / zoom.x), "the holding finger moves its piece by delta over zoom with a second finger down")
+	# B's next step must start from A's new position, not jump by A's earlier move.
+	var a_moved := a + delta
+	var b_swung := a_moved + (b - a_moved).rotated(PI / 2.0)
+	_drag(1, b_swung, b_swung - b)
+	check(camera.position.is_equal_approx(position - (b_swung - b) / 2.0 / zoom.x), "the second finger pans from where both fingers are now")
+	check(is_equal_approx(camera.zoom.x, zoom.x), "the second finger swinging round the moved first finger leaves the zoom unchanged")
+	_touch(0, a_moved, false)
+	_touch(1, b_swung, false)
+
+
+func _test_second_finger_moving_away_zooms_while_holding() -> void:
+	_show_everything()
+	var hit := _find_covered_point()
+	var piece: PieceNode = hit[1]
+	var a: Vector2 = hit[0]
+	var b := a + Vector2(100, 0)
+	var offset := piece.position - _to_world(a)
+	var zoom := camera.zoom.x
+
+	_touch(0, a, true)
+	_touch(1, b, true)
+	_drag(1, b + Vector2(80, -50), Vector2(80, -50))
+	check(camera.zoom.x > zoom, "the second finger moving away zooms in while a piece is held")
+	check(_near(piece.position, _to_world(a) + offset), "held piece stays under the still first finger while the second zooms")
+	_touch(1, b + Vector2(80, -50), false)
+	_touch(0, a, false)
+
+
+func _test_second_finger_repressed_while_holding() -> void:
+	_show_everything()
+	var hit := _find_covered_point()
+	var a: Vector2 = hit[0]
+	var b := a + Vector2(-100, 0)
+
+	_touch(0, a, true)
+	_touch(1, b, true)
+	# A lost release: B is pressed again somewhere else while still tracked.
+	var b2 := a + Vector2(0, 100)
+	_touch(1, b2, true)
+	var position := camera.position
+	var zoom := camera.zoom.x
+	# Swing B round A at a fixed distance, so the only correct result is a pan by half this drag.
+	var relative := Vector2(100, -100)
+	_drag(1, b2 + relative, relative)
+	check(camera.position.is_equal_approx(position - relative / 2.0 / zoom), "a re-pressed finger moves the camera only by its next drag")
+	check(is_equal_approx(camera.zoom.x, zoom), "a re-pressed finger does not jump the zoom")
+	_touch(1, b2 + relative, false)
+	_touch(0, a, false)
 
 
 func _test_drag_continues_after_second_finger_lifts() -> void:
