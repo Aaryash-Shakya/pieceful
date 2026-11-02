@@ -20,6 +20,13 @@ func _init() -> void:
 	_test_piece_drag()
 	_test_pan_clamps()
 	_test_second_finger_during_drag()
+	_test_second_finger_pans_while_holding()
+	_test_spread_zooms_while_holding()
+	_test_drag_continues_after_second_finger_lifts()
+	_test_first_finger_lifts_while_holding()
+	_test_third_finger_while_holding()
+	_test_no_edge_pan_while_second_finger_down()
+	_test_cancel_while_holding_with_two_fingers()
 	_test_pinch_lift_one_finger()
 	_test_cancel_releases_piece()
 	_test_pinch_zoom_clamps()
@@ -71,19 +78,194 @@ func _test_second_finger_during_drag() -> void:
 	_show_everything()
 	var hit := _find_covered_point()
 	var piece: PieceNode = hit[1]
+	var a: Vector2 = hit[0] + Vector2(5, 5)
+	var b: Vector2 = hit[0] + Vector2(200, 0)
 
 	_touch(0, hit[0], true)
-	_drag(0, hit[0] + Vector2(5, 5), Vector2(5, 5))
+	_drag(0, a, Vector2(5, 5))
 	var dragged := piece.position
-	_touch(1, hit[0] + Vector2(200, 0), true)
-	check(not _is_held(piece), "second finger releases the held piece")
-	check(piece.position == dragged, "second finger leaves the piece where it was")
-	_drag(0, hit[0] + Vector2(-40, 5), Vector2(-45, 0))
-	check(piece.position == dragged, "pinching does not move the released piece")
-	_touch(0, hit[0], false)
-	_touch(1, hit[0] + Vector2(200, 0), false)
+	_touch(1, b, true)
+	check(_is_held(piece), "second finger keeps the piece held")
+	check(pieces.get_child(pieces.get_child_count() - 1) == piece, "held piece stays on top when a second finger lands")
+	check(piece.position == dragged, "second finger landing does not move the held piece")
+	_touch(0, a, false)
+	_touch(1, b, false)
 	check(not _is_held(piece), "nothing is held after all fingers lift")
-	check(piece.position == dragged, "piece is still where it was after all fingers lift")
+
+
+func _test_second_finger_pans_while_holding() -> void:
+	_show_everything()
+	var hit := _find_covered_point()
+	var piece: PieceNode = hit[1]
+	var a: Vector2 = hit[0]
+	var b := a + Vector2(100, 0)
+	var offset := piece.position - _to_world(a)
+	var start := camera.position
+	var zoom := camera.zoom.x
+
+	_touch(0, a, true)
+	_touch(1, b, true)
+	# B swings round A at a fixed distance, so only the midpoint moves: a pure pan by half B's move.
+	var relative := Vector2(-100, 100)
+	_drag(1, b + relative, relative)
+	check(camera.position.is_equal_approx(start - relative / 2.0 / zoom), "second finger alone pans the camera while a piece is held")
+	check(is_equal_approx(camera.zoom.x, zoom), "second finger swinging at a fixed distance leaves the zoom unchanged")
+	check(_is_held(piece), "piece stays held while the second finger pans")
+	check(_near(piece.position, _to_world(a) + offset), "held piece stays under the first finger while the second pans")
+	_touch(1, b + relative, false)
+	_touch(0, a, false)
+
+
+func _test_spread_zooms_while_holding() -> void:
+	_show_everything()
+	var hit := _find_covered_point()
+	var piece: PieceNode = hit[1]
+	var a: Vector2 = hit[0]
+	var b := a + Vector2(100, 0)
+	var offset := piece.position - _to_world(a)
+	var zoom := camera.zoom.x
+
+	_touch(0, a, true)
+	_touch(1, b, true)
+	# Off-axis moves: along the A-B line a pinch keeps the world under A fixed anyway, which would prove nothing.
+	_drag(1, b + Vector2(100, 60), Vector2(100, 60))
+	check(camera.zoom.x > zoom and camera.zoom.x <= CameraRig.MAX_ZOOM, "spreading the fingers zooms in while a piece is held")
+	check(_near(piece.position, _to_world(a) + offset), "held piece stays under the first finger through a zoom")
+	var moved := a + Vector2(-50, 40)
+	_drag(0, moved, Vector2(-50, 40))
+	check(_near(piece.position, _to_world(moved) + offset), "held piece stays under the first finger when it moves in a pinch")
+	_drag(1, b + Vector2(1e6, 0), Vector2(1e6, 0))
+	check(is_equal_approx(camera.zoom.x, CameraRig.MAX_ZOOM), "zoom while holding stops at MAX_ZOOM")
+	check(_inside_bounds(camera.position), "camera stays inside bounds while holding")
+	check(_near(piece.position, _to_world(moved) + offset), "held piece stays under the first finger at the zoom limit")
+	_touch(0, moved, false)
+	_touch(1, b, false)
+
+
+func _test_drag_continues_after_second_finger_lifts() -> void:
+	_show_everything()
+	var hit := _find_covered_point()
+	var piece: PieceNode = hit[1]
+	var a: Vector2 = hit[0]
+	var b := a + Vector2(100, 0)
+
+	_touch(0, a, true)
+	_touch(1, b, true)
+	# Zoom first so the check below uses the new zoom, not the one at grab time.
+	_drag(1, b + Vector2(100, 0), Vector2(100, 0))
+	var before := piece.position
+	_touch(1, b + Vector2(100, 0), false)
+	check(_is_held(piece), "piece stays held after the second finger lifts")
+	check(piece.position == before, "second finger lifting does not move the piece")
+	var relative := Vector2(12, -7)
+	_drag(0, a + relative, relative)
+	check(_near(piece.position, before + relative / camera.zoom.x), "drag carries on by relative over zoom after the second finger lifts")
+	_touch(0, a + relative, false)
+	check(not _is_held(piece), "piece is released when the last finger lifts")
+
+
+func _test_first_finger_lifts_while_holding() -> void:
+	_show_everything()
+	var hit := _find_covered_point()
+	var piece: PieceNode = hit[1]
+	var a: Vector2 = hit[0]
+	var b := a + Vector2(100, 0)
+
+	_touch(0, a, true)
+	_touch(1, b, true)
+	_drag(1, b + Vector2(0, 30), Vector2(0, 30))
+	var placed := piece.position
+	_touch(0, a, false)
+	check(not _is_held(piece), "lifting the holding finger releases the piece")
+	check(piece.position == placed, "lifting the holding finger leaves the piece where it is")
+
+	var position := camera.position
+	var zoom := camera.zoom
+	_drag(1, b + Vector2(80, 40), Vector2(80, 10))
+	check(camera.position == position, "leftover second finger does not pan")
+	check(camera.zoom == zoom, "leftover second finger does not zoom")
+	check(piece.position == placed, "leftover second finger does not move the released piece")
+	_touch(1, b + Vector2(80, 40), false)
+
+	var empty := _find_empty_point()
+	position = camera.position
+	_touch(0, empty, true)
+	_drag(0, empty + Vector2(10, 0), Vector2(10, 0))
+	check(camera.position.is_equal_approx(position - Vector2(10, 0) / camera.zoom.x), "a fresh touch after all fingers lift pans normally")
+	_touch(0, empty + Vector2(10, 0), false)
+
+
+func _test_third_finger_while_holding() -> void:
+	_show_everything()
+	var hit := _find_covered_point()
+	var piece: PieceNode = hit[1]
+	var a: Vector2 = hit[0]
+	var b := a + Vector2(100, 0)
+	var c := a + Vector2(0, 100)
+	var offset := piece.position - _to_world(a)
+
+	_touch(0, a, true)
+	_touch(1, b, true)
+	_touch(2, c, true)
+	var position := camera.position
+	var zoom := camera.zoom
+	_drag(2, c + Vector2(30, 0), Vector2(30, 0))
+	check(camera.position == position and camera.zoom == zoom, "a third finger does not move the camera while two are paired")
+	_touch(1, b, false)
+	check(camera.position == position and camera.zoom == zoom, "the paired finger lifting does not jump the camera")
+	check(_is_held(piece), "piece stays held when a paired finger lifts with a third still down")
+	_drag(2, c + Vector2(30, 60), Vector2(0, 60))
+	check(camera.zoom.x > zoom.x, "the first finger re-pairs with the third")
+	check(_near(piece.position, _to_world(a) + offset), "held piece stays under the first finger after re-pairing")
+	_touch(0, a, false)
+	check(not _is_held(piece), "lifting the holding finger releases the piece with a third finger down")
+	_touch(2, c + Vector2(30, 60), false)
+
+
+func _test_no_edge_pan_while_second_finger_down() -> void:
+	_show_everything()
+	var hit := _find_covered_point()
+	var piece: PieceNode = hit[1]
+	var offset := piece.position - _to_world(hit[0])
+	var edge := Vector2(viewport_size.x, viewport_size.y / 2.0)
+	var b := viewport_size / 2.0
+
+	_touch(0, hit[0], true)
+	_drag(0, edge, edge - hit[0])
+	_touch(1, b, true)
+	var camera_before := camera.position
+	board._process(0.1)
+	check(camera.position == camera_before, "no edge pan while a second finger is down")
+	_touch(1, b, false)
+	board._process(0.1)
+	check(not camera.position.is_equal_approx(camera_before), "edge pan resumes once the second finger lifts")
+	check(_near(piece.position, _to_world(edge) + offset), "edge pan keeps the held piece under the finger")
+	_touch(0, edge, false)
+
+
+func _test_cancel_while_holding_with_two_fingers() -> void:
+	_show_everything()
+	var hit := _find_covered_point()
+	var piece: PieceNode = hit[1]
+	var a: Vector2 = hit[0]
+
+	_touch(0, a, true)
+	_touch(1, a + Vector2(100, 0), true)
+	_touch(1, a + Vector2(100, 0), false, true)
+	check(not _is_held(piece), "a cancelled touch during a hold and pinch releases the piece")
+	check(board._mode == Board.Mode.IDLE, "a cancelled touch during a hold and pinch goes idle")
+	var placed := piece.position
+	_drag(0, a + Vector2(30, 30), Vector2(30, 30))
+	check(piece.position == placed, "drags after the cancel do not move the piece")
+
+	for what: int in [Node.NOTIFICATION_APPLICATION_FOCUS_OUT, Node.NOTIFICATION_APPLICATION_PAUSED]:
+		hit = _find_covered_point()
+		piece = hit[1]
+		_touch(0, hit[0], true)
+		_touch(1, hit[0] + Vector2(100, 0), true)
+		board.notification(what)
+		check(not _is_held(piece), "losing focus during a hold and pinch releases the piece")
+		check(board._mode == Board.Mode.IDLE, "losing focus during a hold and pinch goes idle")
 
 
 func _test_pinch_lift_one_finger() -> void:
@@ -180,6 +362,18 @@ func _test_wheel_zooms_about_cursor() -> void:
 		board._unhandled_input(wheel)
 	check(is_equal_approx(camera.zoom.x, CameraRig.MIN_ZOOM), "wheel zoom stops at MIN_ZOOM")
 	check(_inside_bounds(camera.position), "wheel zoom keeps the camera inside bounds")
+
+	# On the desktop the mouse is the finger, so a piece it holds must stay under it through a wheel zoom.
+	_show_everything()
+	var hit := _find_covered_point()
+	var piece: PieceNode = hit[1]
+	var offset := piece.position - _to_world(hit[0])
+	_touch(0, hit[0], true)
+	wheel.button_index = MOUSE_BUTTON_WHEEL_UP
+	wheel.position = viewport_size / 2.0
+	board._unhandled_input(wheel)
+	check(_near(piece.position, _to_world(hit[0]) + offset), "wheel zoom keeps a held piece under the pointer")
+	_touch(0, hit[0], false)
 
 
 func _test_two_finger_pan() -> void:
@@ -282,6 +476,10 @@ func _drag(index: int, position: Vector2, relative: Vector2) -> void:
 
 func _is_held(piece: PieceNode) -> bool:
 	return (piece.get_child(0) as Polygon2D).visible
+
+
+func _near(a: Vector2, b: Vector2) -> bool:
+	return a.distance_to(b) < 0.01
 
 
 func _inside_bounds(point: Vector2) -> bool:
