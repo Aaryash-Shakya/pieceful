@@ -2,12 +2,16 @@ class_name Scatter
 extends RefCounted
 ## Starting displacements for loose pieces, so they begin spread around the board.
 
+# Distinct from the cut's lattice stream (-1), so scatter never reuses a cut's random numbers.
+const SCATTER_STREAM := -2
+
 
 ## One displacement per piece, in array order, used as the piece node's position.
 ## Each moved piece lies fully outside the board and inside the board grown by margin.
 ## Pieces may overlap each other.
 static func scatter(pieces: Array[CutPiece], image_size: Vector2, margin: float, seed_value: int) -> PackedVector2Array:
-	var rng := SeededRng.new(seed_value)
+	# Hashed because xorshift32's first draws from a small raw seed are tiny.
+	var rng := SeededRng.new(SeededRng.hash2(seed_value, SCATTER_STREAM))
 	var result := PackedVector2Array()
 	result.resize(pieces.size())
 	for i in pieces.size():

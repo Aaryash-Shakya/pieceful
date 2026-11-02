@@ -13,6 +13,18 @@ func _init(seed_value: int) -> void:
 		_state = 1
 
 
+## Mixes two ints into one 32-bit seed, so an edge's generator depends only on the cut seed and its id.
+static func hash2(a: int, b: int) -> int:
+	# Ints are signed 64-bit: each multiply keeps one side under 2^31 and the other masked to 32 bits.
+	var h := ((a & MASK) * 0x27d4eb2d + (b & MASK)) & MASK
+	h ^= h >> 15
+	h = (h * 0x2c1b3c6d) & MASK
+	h ^= h >> 12
+	h = (h * 0x297a2d39) & MASK
+	h ^= h >> 15
+	return h
+
+
 func next_u32() -> int:
 	# GDScript ints are 64-bit, so mask after each step to emulate 32-bit overflow.
 	var x := _state

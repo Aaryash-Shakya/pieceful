@@ -28,6 +28,7 @@ Things that are not settled. For each one, the owner's answer is needed, and whe
 | 10 | Daily puzzle: the exact ramp | Monday Regular 54, Tuesday Regular 96, Wednesday Irregular 150, Thursday Wild 200, Friday Wild 250, Saturday Wild 300, Sunday Regular 400 | The owner approved the idea of a weekday ramp. The styles and counts are Claude's. |
 | 11 | Accessibility beyond reduced motion | Not planned | Colour-blind safety, text scaling and screen-reader support have not been discussed. |
 | 12 | Licence for the owner's own images and sounds | CC BY 4.0 (reuse allowed with credit, the same idea as the code licence) | The MIT licence covers code only. Third-party images and fonts keep their own licences, recorded in the collection manifests. |
+| 13 | Daily puzzle on a picture where that weekday's count is not a valid split | The daily picks only bundled pictures whose aspect ratio makes that weekday's count valid. If none fits, it uses the nearest valid count and shows the real count on the share card | On a square picture none of 54, 96, 150 and 300 is a valid Regular or Irregular split, so a daily on such a picture would get a different count from the ramp. The share card must not claim a count the puzzle does not have. |
 
 ## May change after the spike
 

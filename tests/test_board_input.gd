@@ -17,6 +17,7 @@ func _init() -> void:
 	viewport_size = board.get_viewport_rect().size
 	bounds = Rect2(Vector2.ZERO, Vector2(Board.IMAGE_SIZE)).grow(Board.LOOSE_MARGIN)
 
+	_test_regular_pieces()
 	_test_piece_drag()
 	_test_pan_clamps()
 	_test_second_finger_during_drag()
@@ -42,6 +43,15 @@ func _init() -> void:
 
 	board.free()
 	finish()
+
+
+func _test_regular_pieces() -> void:
+	check(pieces.get_child_count() == Board.PIECE_COUNT, "the board builds every piece")
+	var most_points := 0
+	for piece in pieces.get_children():
+		# Child 1 is the body Polygon2D, after the shadow.
+		most_points = maxi(most_points, (piece.get_child(1) as Polygon2D).polygon.size())
+	check(most_points > 4, "regular pieces have tabs, so outlines have more than 4 points")
 
 
 func _test_piece_drag() -> void:
