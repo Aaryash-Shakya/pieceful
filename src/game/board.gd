@@ -12,7 +12,8 @@ const EDGE_PAN_MARGIN := 48.0
 const EDGE_PAN_SPEED := 600.0
 const WHEEL_ZOOM_STEP := 1.1
 
-enum Mode { IDLE, DRAGGING, PANNING, PINCHING, PINCH_ENDED }
+# HOLD_PINCHING: the dragging finger keeps its piece while it and one other finger move the camera.
+enum Mode { IDLE, DRAGGING, PANNING, PINCHING, HOLD_PINCHING, PINCH_ENDED }
 
 var camera: Camera2D
 var pieces: Node2D
@@ -22,6 +23,7 @@ var _mode := Mode.IDLE
 var _touches: Dictionary[int, Vector2] = {}
 var _held: PieceNode
 var _drag_index := -1
+var _held_offset := Vector2.ZERO
 var _pinch_a := -1
 var _pinch_b := -1
 var _pinch_distance := 0.0
@@ -58,10 +60,7 @@ func _process(delta: float) -> void:
 	var velocity := CameraRig.edge_pan_velocity(_touches[_drag_index], get_viewport_rect().size, EDGE_PAN_MARGIN, EDGE_PAN_SPEED)
 	if velocity == Vector2.ZERO:
 		return
-	var before := camera.position
-	_set_camera_position(before + velocity / camera.zoom.x * delta)
-	# The finger is still, so the piece travels with the camera to stay under it.
-	_held.position += camera.position - before
+	_set_camera_position(camera.position + velocity / camera.zoom.x * delta)
 
 
 # Touch-up events can be lost while the app is in the background, so nothing may stay held.
@@ -89,7 +88,13 @@ func _on_touch(event: InputEventScreenTouch) -> void:
 		_touches[event.index] = event.position
 		if _touches.size() == 1:
 			_begin_single(event.index, event.position)
-		elif _mode != Mode.PINCHING:
+		elif _mode == Mode.DRAGGING:
+			_pair(_drag_index)
+			_mode = Mode.HOLD_PINCHING
+		elif _mode == Mode.PINCHING or _mode == Mode.HOLD_PINCHING:
+			# A third finger, or a paired finger pressed again after a lost release: restart from where the pair is now.
+			_refresh_pinch()
+		else:
 			_begin_pinch(event.index)
 		return
 
@@ -97,7 +102,15 @@ func _on_touch(event: InputEventScreenTouch) -> void:
 		return
 	if _touches.is_empty():
 		_end_gesture()
-	elif _mode == Mode.PINCHING and (event.index == _pinch_a or event.index == _pinch_b):
+	elif _mode == Mode.HOLD_PINCHING and event.index == _pinch_b:
+		# The holding finger stays down, so it re-pairs or drags on alone from where the piece is.
+		if _touches.size() >= 2:
+			_pair(_drag_index)
+		else:
+			_mode = Mode.DRAGGING
+	elif (_mode == Mode.PINCHING or _mode == Mode.HOLD_PINCHING) and (event.index == _pinch_a or event.index == _pinch_b):
+		# In HOLD_PINCHING this is the holding finger lifting, so the piece drops where it is.
+		_release_held()
 		if _touches.size() >= 2:
 			_begin_pinch(_touches.keys()[0])
 		else:
@@ -111,22 +124,19 @@ func _on_drag(event: InputEventScreenDrag) -> void:
 	match _mode:
 		Mode.DRAGGING:
 			if event.index == _drag_index:
-				_held.position += event.relative / camera.zoom.x
+				_follow_held()
 		Mode.PANNING:
 			_set_camera_position(camera.position - event.relative / camera.zoom.x)
 		Mode.PINCHING:
-			if event.index != _pinch_a and event.index != _pinch_b:
-				return
-			var a := _touches[_pinch_a]
-			var b := _touches[_pinch_b]
-			var distance := a.distance_to(b)
-			var mid := (a + b) / 2.0
-			# Pan first so the world follows the fingers, then zoom about where they are now.
-			_set_camera_position(camera.position - (mid - _pinch_mid) / camera.zoom.x)
-			if distance > 0.0 and _pinch_distance > 0.0:
-				_zoom_about(camera.zoom.x * distance / _pinch_distance, mid)
-			_pinch_distance = distance
-			_pinch_mid = mid
+			if event.index == _pinch_a or event.index == _pinch_b:
+				_pinch_step()
+		Mode.HOLD_PINCHING:
+			if event.index == _drag_index:
+				# Only the second finger moves the view, so the holding finger can place its piece precisely.
+				_follow_held()
+				_refresh_pinch()
+			elif event.index == _pinch_b:
+				_pinch_step()
 
 
 func _on_wheel(event: InputEventMouseButton) -> void:
@@ -138,6 +148,19 @@ func _on_wheel(event: InputEventMouseButton) -> void:
 		_zoom_about(camera.zoom.x / WHEEL_ZOOM_STEP, event.position)
 
 
+func _pinch_step() -> void:
+	var a := _touches[_pinch_a]
+	var b := _touches[_pinch_b]
+	var distance := a.distance_to(b)
+	var mid := (a + b) / 2.0
+	# Pan first so the world follows the fingers, then zoom about where they are now.
+	_set_camera_position(camera.position - (mid - _pinch_mid) / camera.zoom.x)
+	if distance > 0.0 and _pinch_distance > 0.0:
+		_zoom_about(camera.zoom.x * distance / _pinch_distance, mid)
+	_pinch_distance = distance
+	_pinch_mid = mid
+
+
 func _begin_single(index: int, screen_position: Vector2) -> void:
 	_release_held()
 	var world := _to_world(screen_position)
@@ -146,6 +169,7 @@ func _begin_single(index: int, screen_position: Vector2) -> void:
 		if piece.contains_point(world):
 			_held = piece
 			_drag_index = index
+			_held_offset = piece.position - world
 			pieces.move_child(piece, -1)
 			piece.set_held(true)
 			_mode = Mode.DRAGGING
@@ -153,17 +177,33 @@ func _begin_single(index: int, screen_position: Vector2) -> void:
 	_mode = Mode.PANNING
 
 
-# Pairs the given finger with another one that is down; any held piece stays where it is.
 func _begin_pinch(index: int) -> void:
-	_release_held()
+	_pair(index)
+	_mode = Mode.PINCHING
+
+
+# Pairs the given finger with another one that is down.
+func _pair(index: int) -> void:
 	_pinch_a = index
 	for other in _touches:
 		if other != index:
 			_pinch_b = other
 			break
+	_refresh_pinch()
+
+
+# Restarts the pinch from where the paired fingers are now, so the next step does not jump.
+func _refresh_pinch() -> void:
 	_pinch_distance = _touches[_pinch_a].distance_to(_touches[_pinch_b])
 	_pinch_mid = (_touches[_pinch_a] + _touches[_pinch_b]) / 2.0
-	_mode = Mode.PINCHING
+
+
+# The one way a held piece moves: it keeps the offset it had from the finger at grab time,
+# so it stays under that finger through drags, pans and zooms alike. Every camera move
+# goes through _set_camera_position, which calls this.
+func _follow_held() -> void:
+	if _held != null:
+		_held.position = _to_world(_touches[_drag_index]) + _held_offset
 
 
 func _cancel_gesture() -> void:
@@ -193,6 +233,7 @@ func _zoom_about(zoom: float, screen_anchor: Vector2) -> void:
 
 func _set_camera_position(target: Vector2) -> void:
 	camera.position = CameraRig.clamp_position(target, _bounds)
+	_follow_held()
 
 
 func _to_world(screen_position: Vector2) -> Vector2:

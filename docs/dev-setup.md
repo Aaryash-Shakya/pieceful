@@ -19,7 +19,7 @@ Checked on 2026-10-22: the machine had no Java, no Godot, no Android SDK, and no
 | Godot Android export templates | same as the Godot version | the Godot editor | `~/.local/share/godot/export_templates` |
 | Debug keystore | n/a | created by Godot itself on first run | `~/.local/share/godot/keystores/debug.keystore` |
 
-The versions above come from Godot's Android export page for the 4.7 docs and from Google's download page, both read on 2026-10-22. The page also lists CMake 3.10.2.4988404 and NDK r28b (28.1.13356709). It does not say whether a plain export needs them. We start without them, since the NDK is large, and add them if the export asks for them. If we do, add them to this table.
+The versions above come from Godot's Android export page for the 4.7 docs and from Google's download page, both read on 2026-10-22. The page also lists CMake 3.10.2.4988404 and NDK r28b (28.1.13356709). A plain debug export worked without them on 2026-10-22, so they are not installed. Add them to this table if a later export asks for them.
 
 Godot's docs say Linux users should not take the SDK from their distribution's repositories, as it is often out of date. That is why the SDK is installed from Google. For the same reason, **do not install the `android-tools` package.** `adb` comes from the SDK's platform-tools, so there is only one copy.
 
@@ -69,7 +69,7 @@ Leave the Debug Keystore, Debug Keystore User and Debug Keystore Pass fields alo
 
 **E. Export templates**
 
-In Godot, open Editor, Manage Export Templates, and download and install the templates for the exact running version. This menu path is from memory, so use the editor's own prompt if it differs.
+In Godot, open Editor, Manage Export Templates. Leave Download from on the official releases mirror, tick Android under Mobile and install it. Do not use Install All Templates, since it downloads every platform. The templates must match the running version (4.7.2.stable). The download needs Network Mode set to Online in Editor Settings. It can be set back to Offline afterwards. Check with `ls ~/.local/share/godot/export_templates`.
 
 **F. The phone**
 
@@ -95,6 +95,17 @@ Add `~/Android/Sdk/platform-tools` to your PATH in your own shell configuration.
 **I. Tidy up after the install**
 
 The downloaded zip is no longer needed: `rm -r ~/Android/downloads`.
+
+## First run on the phone
+
+Checked on 2026-10-22 with the Nothing Phone (4a).
+
+1. In Godot, open Project, Export, Add, Android. Set Unique Name to `io.github.aaryash_shakya.pieceful`, leave Use Gradle Build off and keep only arm64-v8a ticked. Leave the keystore fields empty. This creates `export_presets.cfg`, which is committed. Do not enter a release keystore or its password in the preset, because they would be written into that file.
+2. If the dialog says the target platform requires ETC2/ASTC texture compression, turn on Import ETC2 ASTC (Project Settings, Rendering, Textures, VRAM Compression).
+3. Unlock the phone, plug it in, and make sure USB debugging is on. Click Remote Deploy in the top right toolbar, then Play. Leave Mirror Android devices unticked, since it needs scrcpy, which is not installed.
+4. The first run asks for a main scene. For a throwaway test scene, do not commit the scene or the main scene line it adds to `project.godot`.
+
+With the Mobile renderer, the export preset shows Min SDK 29 (Android 10), so the Galaxy On7 Pro (Android 6) cannot install a Mobile build.
 
 ## Where everything lives
 
@@ -133,4 +144,4 @@ To confirm it is clean, run the same checks as the baseline above. `command -v g
 
 ## Not verified
 
-The Godot menu path for installing export templates, whether a plain export needs CMake and the NDK, whether Godot 4.7 supports a minimum Android version that includes the Galaxy On7 Pro, and the exact download address for Google's tools. Fix this file as each one is confirmed.
+Whether Godot 4.7's Compatibility renderer lowers the minimum Android version enough for the Galaxy On7 Pro (Android 6, API 23), and the exact download address for Google's tools. Fix this file as each one is confirmed.
