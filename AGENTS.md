@@ -9,7 +9,7 @@ An Android jigsaw puzzle game built in Godot 4. Free, no ads, offline-first, dis
 ## Stack
 
 - Engine: Godot 4.x.
-- Language: GDScript (assumed, not confirmed by the owner yet; see `docs/open-decisions.md`).
+- Language: GDScript, confirmed by the owner.
 - Target: Android only. Do not add iOS-specific code.
 - Android package name: `io.github.aaryash_shakya.pieceful`. Do not change it.
 - Image collections are bundled in a few folders and downloaded from Cloudflare R2 for the rest.
@@ -40,6 +40,7 @@ An Android jigsaw puzzle game built in Godot 4. Free, no ads, offline-first, dis
 - `INTENT.md`: what the owner wants and why.
 - `docs/version-plan.md`: the three versions and their exit tests.
 - `docs/engine-decision.md`: why Godot, the risks, and the spike checks.
+- `docs/dev-setup.md`: every install step for the owner's machine, and how to remove them all.
 - `docs/technical-notes.md`: toolchain, images, piece counts and behaviour details.
 - `docs/visual-design.md`: locked colours, fonts and effects.
 - `docs/open-decisions.md`: what is not decided yet. Check it before assuming an answer.
