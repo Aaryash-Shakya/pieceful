@@ -31,4 +31,16 @@ func _init() -> void:
 	check(int_ok, "range_int(3, 5) stays within 3..5")
 	check(seen.size() == 3, "range_int(3, 5) returns all of 3, 4, 5")
 
+	check(SeededRng.hash2(1, 2) == 3749358279, "hash2(1, 2) is pinned")
+	check(SeededRng.hash2(7, 0) == 3190417882, "hash2(7, 0) is pinned")
+	check(SeededRng.hash2(-5, 3) == 3280828902, "hash2(-5, 3) is pinned")
+	check(SeededRng.hash2(1, -1) == 3238652418, "hash2(1, -1) is pinned")
+	var hash_ok := true
+	for x in 100:
+		for y in 10:
+			var h := SeededRng.hash2(x, y)
+			if h < 0 or h > SeededRng.MASK:
+				hash_ok = false
+	check(hash_ok, "hash2 stays within 0..MASK")
+
 	finish()

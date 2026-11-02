@@ -71,6 +71,8 @@ func edge_room(edge_id: int) -> float:
 	if edge.is_border():
 		return 0.0
 	var length := vertices[edge.from_vertex].distance_to(vertices[edge.to_vertex])
+	if length == 0.0:
+		return 0.0
 	return minf(length, minf(corner_area(edge.face_a), corner_area(edge.face_b)) / length)
 
 

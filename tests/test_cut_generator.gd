@@ -160,6 +160,38 @@ func _init() -> void:
 	var b := CutGenerator.generate_cut(1536, 1024, 54, "grid", 7)
 	check(same_cut(a, b), "same inputs give same outlines and neighbours")
 
+	for shape in SHAPES:
+		for count in COUNTS:
+			check_cut(shape.x, shape.y, count, "regular", 1)
+	check_cut(1536, 1024, 400, "regular", 1)
+	check_cut(160, 120, 400, "regular", 1)
+	check_cut(10, 10, 100000, "regular", 1)
+	check_cut(10000, 100, 50, "regular", 1)
+	check_cut(1000, 3000, 400, "regular", 1)
+	for seed_value in [0, -5, 7]:
+		check_cut(1536, 1024, 54, "regular", seed_value)
+
+	var regular := CutGenerator.generate_cut(1536, 1024, 54, "regular", 7)
+	check(same_cut(regular, CutGenerator.generate_cut(1536, 1024, 54, "regular", 7)), "regular: same seed gives same cut")
+	check(not same_cut(regular, CutGenerator.generate_cut(1536, 1024, 54, "regular", 8)), "regular: seeds 7 and 8 differ")
+	var tabbed := false
+	for p in CutGenerator.generate_cut(1536, 1024, 400, "regular", 1):
+		if p.outline.size() > 4:
+			tabbed = true
+	check(tabbed, "regular 400 has tabbed outlines")
+
+	var graph := CutGenerator.build_graph(1536, 1024, 54, "regular", 7)
+	var tabs := TabShape.for_style("regular")
+	var per_edge := true
+	for k in graph.edges.size():
+		var edge := graph.edges[k]
+		if edge.is_border():
+			continue
+		var expected := tabs.edge_points(graph.vertices[edge.from_vertex], graph.vertices[edge.to_vertex], graph.edge_room(k), SeededRng.new(SeededRng.hash2(7, k)))
+		if edge.points != expected:
+			per_edge = false
+	check(per_edge, "regular: each edge depends only on its own id")
+
 	check(CutGenerator.generate_cut(1536, 1024, 54, "bogus", 1).is_empty(), "unknown style is empty")
 	check(CutGenerator.build_graph(1536, 1024, 54, "bogus", 1) == null, "unknown style gives no graph")
 	check(CutGenerator.generate_cut(0, 1024, 54, "grid", 1).is_empty(), "width 0 is empty")

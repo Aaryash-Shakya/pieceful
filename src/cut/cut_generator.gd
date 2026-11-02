@@ -2,14 +2,15 @@ class_name CutGenerator
 extends RefCounted
 
 const STYLE_GRID := "grid"
+const STYLE_REGULAR := "regular"
 const PRECISION := 0.001
 # Weight of cell squareness against hitting the requested piece count.
 const ASPECT_WEIGHT := 0.5
 const SCORE_SCALE := 1.0e9
 # Widest cell aspect (as |ln(width / height)|) a count may have and still be offered to the player.
 const MAX_ASPECT_ERROR := 0.18
-# Four tabbed edges of TabShape.POINTS_PER_EDGE - 1 points each; a literal until TabShape exists.
-const MAX_OUTLINE_POINTS := 104
+# Four tabbed edges, each adding all its points but the last.
+const MAX_OUTLINE_POINTS := 4 * (TabShape.POINTS_PER_EDGE - 1)
 
 
 ## Returns columns in x and rows in y. Never more columns than pixels wide or rows than pixels high,
@@ -82,17 +83,29 @@ static func build_grid_graph(width: int, height: int, columns: int, rows: int) -
 	return graph
 
 
+## Gives every interior edge its tab. Border edges stay straight so the image keeps its frame.
+static func shape_edges(graph: CutGraph, tabs: TabShape, seed_value: int) -> void:
+	for edge in graph.edges:
+		if edge.is_border():
+			continue
+		# Seeded by id alone, so one edge's draws never shift another's.
+		var rng := SeededRng.new(SeededRng.hash2(seed_value, edge.id))
+		edge.points = tabs.edge_points(graph.vertices[edge.from_vertex], graph.vertices[edge.to_vertex], graph.edge_room(edge.id), rng)
+
+
 ## Returns null after push_error on invalid input or an unknown style.
-@warning_ignore("shadowed_global_identifier", "unused_parameter")
-static func build_graph(width: int, height: int, target_count: int, style: String, seed: int) -> CutGraph:
+static func build_graph(width: int, height: int, target_count: int, style: String, seed_value: int) -> CutGraph:
 	if width < 1 or height < 1 or target_count < 1:
-		push_error("generate_cut: width, height and target_count must be at least 1")
+		push_error("build_graph: width, height and target_count must be at least 1")
 		return null
-	if style != STYLE_GRID:
-		push_error("generate_cut: unknown style '%s'" % style)
+	if style != STYLE_GRID and style != STYLE_REGULAR:
+		push_error("build_graph: unknown style '%s'" % style)
 		return null
 	var split := grid_split(width, height, target_count)
-	return build_grid_graph(width, height, split.x, split.y)
+	var graph := build_grid_graph(width, height, split.x, split.y)
+	if style == STYLE_REGULAR:
+		shape_edges(graph, TabShape.for_style(style), seed_value)
+	return graph
 
 
 static func generate_cut(width: int, height: int, target_count: int, style: String, seed_value: int) -> Array[CutPiece]:

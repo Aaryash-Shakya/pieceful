@@ -45,4 +45,9 @@ func _init() -> void:
 	check(pieces[1].outline == PackedVector2Array([Vector2(1, 0), Vector2(2, 0), Vector2(2, 1), Vector2(1, 1), Vector2(1.2, 0.5)]), "piece 1 follows the bent edge reversed")
 	check(is_equal_approx(pieces[0].area() + pieces[1].area(), 2.0), "bent edge keeps the total area")
 
+	# Collapse the shared edge and face 0 so the room would be 0 / 0.
+	graph.vertices[3] = Vector2(0, 0)
+	graph.vertices[4] = Vector2(1, 0)
+	check(graph.edge_room(1) == 0.0, "edge_room of a zero-length edge is 0")
+
 	finish()
