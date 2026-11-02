@@ -26,4 +26,19 @@ func _init() -> void:
 	check(offsets == Scatter.scatter(pieces, size, margin, 1), "same seed gives same result")
 	check(offsets != Scatter.scatter(pieces, size, margin, 2), "different seeds differ")
 
+	# Small raw seeds make xorshift32's first draws tiny, which once pinned the first piece top-left.
+	var strips := {}
+	for s in range(1, 21):
+		var first := pieces[0].bounds()
+		first.position += Scatter.scatter(pieces, size, margin, s)[0]
+		if first.end.y <= 0.0:
+			strips["top"] = true
+		elif first.position.y >= size.y:
+			strips["bottom"] = true
+		elif first.end.x <= 0.0:
+			strips["left"] = true
+		else:
+			strips["right"] = true
+	check(strips.size() > 1, "the first piece does not land in the same strip for every seed")
+
 	finish()

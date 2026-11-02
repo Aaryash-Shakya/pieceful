@@ -5,6 +5,7 @@ extends Node2D
 const IMAGE_SIZE := Vector2i(1536, 1024)
 const PIECE_COUNT := 400
 const SEED := 1
+const STYLE := CutGenerator.STYLE_REGULAR
 const LOOSE_MARGIN := 768.0
 const BORDER := 1.08
 const BOARD_OUTLINE_WIDTH := 3.0
@@ -34,7 +35,7 @@ func _ready() -> void:
 	RenderingServer.set_default_clear_color(Palette.felt())
 
 	var texture := _make_test_texture()
-	var cut := CutGenerator.generate_cut(IMAGE_SIZE.x, IMAGE_SIZE.y, PIECE_COUNT, CutGenerator.STYLE_GRID, SEED)
+	var cut := CutGenerator.generate_cut(IMAGE_SIZE.x, IMAGE_SIZE.y, PIECE_COUNT, STYLE, SEED)
 	var offsets := Scatter.scatter(cut, Vector2(IMAGE_SIZE), LOOSE_MARGIN, SEED)
 
 	pieces = Node2D.new()
