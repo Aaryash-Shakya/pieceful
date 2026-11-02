@@ -33,6 +33,7 @@ Decisions and working defaults that are not covered by `INTENT.md` or `AGENTS.md
 - For Regular and Irregular, only row-by-column splits whose cells stay close to square are valid. For a 3:2 picture there are about 100 valid counts between 12 and 600, fewer up to 400. The slider moves between valid counts only.
 - Wild accepts any count, but the slider uses the same list for consistency.
 - On a 3:2 picture, 54, 96, 150, 300 and 400 are valid grid splits; 200 and 250 are not, which only works because those are Wild days. On a square picture none of 54, 96, 150 and 300 is valid, and the smallest valid count is 16.
+- What the daily puzzle does on such a picture is open decision 13 in `docs/open-decisions.md`.
 
 ## Behaviour details from the prototype
 
