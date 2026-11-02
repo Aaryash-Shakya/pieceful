@@ -4,7 +4,13 @@ extends RefCounted
 const STYLE_GRID := "grid"
 const STYLE_REGULAR := "regular"
 const STYLE_IRREGULAR := "irregular"
+const STYLES: Array[String] = [STYLE_GRID, STYLE_REGULAR, STYLE_IRREGULAR]
 const PRECISION := 0.001
+const LN2 := 0.6931471805599453
+const SQRT2 := 1.4142135623730951
+const SQRT_HALF := 0.7071067811865476
+# Series terms for ln: |s| <= 0.1716, so the 13th term is below 1e-18 of the first.
+const LN_TERMS := 13
 # Irregular column widths and row heights vary by this fraction before being scaled to fill the image.
 const IRREGULAR_UNEVEN := 0.25
 # Interior Irregular corners move by up to this fraction of the smaller neighbouring column or row.
@@ -21,6 +27,27 @@ const MAX_ASPECT_ERROR := 0.18
 const MAX_OUTLINE_POINTS := 4 * (TabShape.POINTS_PER_EDGE - 1)
 
 
+## Natural log of a positive x using only 64-bit + - * /, so every device scores splits identically.
+## libm's log is not guaranteed to round the same on bionic and glibc.
+static func ln(x: float) -> float:
+	# Halving and doubling are exact, so m * 2^k == x with m in [sqrt(0.5), sqrt(2)).
+	var k := 0
+	var m := x
+	while m >= SQRT2:
+		m *= 0.5
+		k += 1
+	while m < SQRT_HALF:
+		m *= 2.0
+		k -= 1
+	# ln(m) = 2 * atanh(s) = 2 * (s + s^3 / 3 + s^5 / 5 + ...), summed from the smallest term.
+	var s := (m - 1.0) / (m + 1.0)
+	var s2 := s * s
+	var sum := 0.0
+	for i in range(LN_TERMS - 1, -1, -1):
+		sum = sum * s2 + 1.0 / (2 * i + 1)
+	return k * LN2 + 2.0 * s * sum
+
+
 ## Returns columns in x and rows in y. Never more columns than pixels wide or rows than pixels high,
 ## so every cell keeps at least one pixel and no piece can have zero area.
 static func grid_split(width: int, height: int, target_count: int) -> Vector2i:
@@ -35,9 +62,9 @@ static func grid_split(width: int, height: int, target_count: int) -> Vector2i:
 			columns = clampi(columns, 1, width)
 			var cell_aspect := (width / float(columns)) / (height / float(rows))
 			var count_error := absf(columns * rows - target_count) / float(target_count)
-			# Quantised so libm rounding noise cannot flip exact ties (e.g. 9x6 vs 6x9 on a square
+			# Quantised so rounding noise cannot flip exact ties (e.g. 9x6 vs 6x9 on a square
 			# image). Rows ascend, so a tie goes to the fewer-rows split.
-			var score := roundi((count_error + ASPECT_WEIGHT * absf(log(cell_aspect))) * SCORE_SCALE)
+			var score := roundi((count_error + ASPECT_WEIGHT * absf(ln(cell_aspect))) * SCORE_SCALE)
 			if score < best_score:
 				best_score = score
 				best = Vector2i(columns, rows)
@@ -66,7 +93,7 @@ static func _exact_split(width: int, height: int, count: int) -> Vector2i:
 		if columns > width:
 			continue
 		var cell_aspect := (width / float(columns)) / (height / float(rows))
-		var score := roundi(absf(log(cell_aspect)) * SCORE_SCALE)
+		var score := roundi(absf(ln(cell_aspect)) * SCORE_SCALE)
 		# Strict: rows ascend, so a tie goes to fewer rows.
 		if score < best_score:
 			best_score = score
@@ -83,8 +110,7 @@ static func build_grid_graph(width: int, height: int, columns: int, rows: int) -
 		for c in columns + 1:
 			var x := roundi(c * width / float(columns))
 			graph.vertices.append(Vector2(snappedf(x, PRECISION), snappedf(y, PRECISION)))
-	_add_lattice_faces(graph, columns, rows)
-	return graph
+	return graph if _add_lattice_faces(graph, columns, rows) else null
 
 
 ## The grid's vertices in the same order, with uneven columns and rows and jittered interior corners.
@@ -107,8 +133,7 @@ static func build_irregular_graph(width: int, height: int, columns: int, rows: i
 				var jy := IRREGULAR_CORNER_JITTER * minf(rh[r - 1], rh[r]) / rh_sum * height
 				y += rng.range_float(-jy, jy)
 			graph.vertices.append(Vector2(snappedf(x, PRECISION), snappedf(y, PRECISION)))
-	_add_lattice_faces(graph, columns, rows)
-	return graph
+	return graph if _add_lattice_faces(graph, columns, rows) else null
 
 
 static func _uneven_sizes(count: int, rng: SeededRng) -> PackedFloat64Array:
@@ -136,12 +161,16 @@ static func _lattice_lines(sizes: PackedFloat64Array, total: float, extent: int)
 	return lines
 
 
-static func _add_lattice_faces(graph: CutGraph, columns: int, rows: int) -> void:
+## False after push_error if any cell is rejected, since later faces would then get the wrong index.
+static func _add_lattice_faces(graph: CutGraph, columns: int, rows: int) -> bool:
 	var stride := columns + 1
 	for r in rows:
 		for c in columns:
 			var top_left := r * stride + c
-			graph.add_face(PackedInt32Array([top_left, top_left + 1, top_left + stride + 1, top_left + stride]))
+			if graph.add_face(PackedInt32Array([top_left, top_left + 1, top_left + stride + 1, top_left + stride])) == -1:
+				push_error("build_graph: lattice cell %d, %d was rejected" % [c, r])
+				return false
+	return true
 
 
 ## Gives every interior edge its tab. Border edges stay straight so the image keeps its frame.
@@ -154,23 +183,22 @@ static func shape_edges(graph: CutGraph, tabs: TabShape, seed_value: int) -> voi
 		edge.points = tabs.edge_points(graph.vertices[edge.from_vertex], graph.vertices[edge.to_vertex], graph.edge_room(edge.id), rng)
 
 
-## Returns null after push_error on invalid input or an unknown style.
+## Returns null after push_error on invalid input, an unknown style or a lattice that fails to build.
 static func build_graph(width: int, height: int, target_count: int, style: String, seed_value: int) -> CutGraph:
 	if width < 1 or height < 1 or target_count < 1:
 		push_error("build_graph: width, height and target_count must be at least 1")
 		return null
-	if style != STYLE_GRID and style != STYLE_REGULAR and style != STYLE_IRREGULAR:
+	if not STYLES.has(style):
 		push_error("build_graph: unknown style '%s'" % style)
 		return null
 	var split := grid_split(width, height, target_count)
-	if style == STYLE_GRID:
-		return build_grid_graph(width, height, split.x, split.y)
-	var graph: CutGraph
-	if style == STYLE_IRREGULAR:
-		graph = build_irregular_graph(width, height, split.x, split.y, SeededRng.new(SeededRng.hash2(seed_value, LATTICE_STREAM)))
-	else:
-		graph = build_grid_graph(width, height, split.x, split.y)
-	shape_edges(graph, TabShape.for_style(style), seed_value)
+	var lattice_rng := SeededRng.new(SeededRng.hash2(seed_value, LATTICE_STREAM))
+	var graph := build_irregular_graph(width, height, split.x, split.y, lattice_rng) if style == STYLE_IRREGULAR else build_grid_graph(width, height, split.x, split.y)
+	if graph == null:
+		return null
+	var tabs := TabShape.for_style(style)
+	if tabs:
+		shape_edges(graph, tabs, seed_value)
 	return graph
 
 

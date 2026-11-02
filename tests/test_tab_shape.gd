@@ -70,6 +70,13 @@ func _init() -> void:
 				matches += 1
 	check(matches == cases, "edge_points matches the 64-bit reference on %d of %d slanted edges" % [matches, cases])
 
+	var total := 1
+	for segments in TabShape.SEGMENTS:
+		total += segments
+	check(TabShape.POINTS_PER_EDGE == total, "POINTS_PER_EDGE is the segment count plus one")
+	check(TabShape.SEGMENTS == [TabShape.SHOULDER_SEGMENTS, TabShape.KNOB_SEGMENTS, TabShape.SHOULDER_SEGMENTS], "SEGMENTS is shoulder, knob, shoulder")
+	check(CutGenerator.MAX_OUTLINE_POINTS == 4 * (total - 1), "MAX_OUTLINE_POINTS follows the segment counts")
+
 	var shape := TabShape.for_style("regular")
 	var pts := shape.edge_points(Vector2(0, 0), Vector2(100, 0), 100.0, SeededRng.new(3))
 	check_bounds(pts, "regular seed 3")

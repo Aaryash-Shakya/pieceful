@@ -1,6 +1,25 @@
 extends BaseTest
 
 
+func two_squares() -> CutGraph:
+	var graph := CutGraph.new()
+	graph.vertices = PackedVector2Array([
+		Vector2(0, 0), Vector2(1, 0), Vector2(2, 0),
+		Vector2(0, 1), Vector2(1, 1), Vector2(2, 1),
+	])
+	graph.add_face(PackedInt32Array([0, 1, 4, 3]))
+	graph.add_face(PackedInt32Array([1, 2, 5, 4]))
+	return graph
+
+
+## Everything add_face may touch, as plain values that compare with ==.
+func graph_state(graph: CutGraph) -> Array:
+	var state := [graph.faces.duplicate(), graph._edge_ids.duplicate()]
+	for edge in graph.edges:
+		state.append([edge.id, edge.from_vertex, edge.to_vertex, edge.face_a, edge.face_b, edge.points])
+	return state
+
+
 func _init() -> void:
 	var graph := CutGraph.new()
 	graph.vertices = PackedVector2Array([
@@ -71,6 +90,33 @@ func _init() -> void:
 	dy = square.vertices[4].y - square.vertices[1].y
 	length = sqrt(dx * dx + dy * dy)
 	check(square.edge_room(1) == length, "a short edge's room is its 64-bit length")
+
+	# A rejected face must leave the graph exactly as it was. This one adds a new edge, then would
+	# claim edge 3-4's free side, then clashes on its third edge (1-4 already has both faces).
+	var clash := two_squares()
+	clash.vertices.append(Vector2(2, 3))
+	var before := graph_state(clash)
+	check(clash.add_face(PackedInt32Array([6, 3, 4, 1])) == -1, "a face clashing on its third edge is rejected")
+	check(graph_state(clash) == before, "a rejected face leaves edges, faces and every face_b unchanged")
+	clash.vertices.append(Vector2(3, 0))
+	check(clash.add_face(PackedInt32Array([2, 7, 5])) == 2, "the next face still gets the next index")
+	check(clash.edges.size() == 9 and clash.edges[7].from_vertex == 2 and clash.edges[7].to_vertex == 7, "the next face's edges get the next ids")
+
+	# Positive area, but walks edge 1-2 both ways itself.
+	var twice := CutGraph.new()
+	twice.vertices = PackedVector2Array([Vector2(0, 0), Vector2(2, 0), Vector2(2, 2), Vector2(0, 2)])
+	check(twice.add_face(PackedInt32Array([0, 1, 2, 1, 3])) == -1, "a face using one edge twice is rejected")
+	check(twice.edges.is_empty() and twice.faces.is_empty(), "a face using one edge twice leaves the graph empty")
+
+	# The winding contract is enforced when a face is added, so room can never come out negative.
+	var wound := two_squares()
+	wound.vertices.append_array(PackedVector2Array([Vector2(0, 2), Vector2(1, 2), Vector2(0, 3), Vector2(1, 3), Vector2(2, 2)]))
+	var wound_before := graph_state(wound)
+	check(wound.add_face(PackedInt32Array([6, 8, 9, 7])) == -1, "a face wound the wrong way is rejected")
+	check(graph_state(wound) == wound_before, "a wrongly wound face leaves the graph unchanged")
+	check(wound.add_face(PackedInt32Array([6, 7, 10])) == -1, "a face with zero area is rejected")
+	check(graph_state(wound) == wound_before, "a zero-area face leaves the graph unchanged")
+	check(wound.add_face(PackedInt32Array([6, 7, 9, 8])) == 2, "the same face wound the right way is accepted")
 
 	# Collapse the shared edge and face 0 so the room would be 0 / 0.
 	graph.vertices[3] = Vector2(0, 0)

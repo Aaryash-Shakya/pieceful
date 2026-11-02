@@ -2,8 +2,11 @@ class_name TabShape
 extends RefCounted
 ## A classic jigsaw knob on one edge: shoulder, knob, shoulder as three cubic curves.
 
-const SEGMENTS: Array[int] = [8, 10, 8]
-const POINTS_PER_EDGE := 27
+const SHOULDER_SEGMENTS := 8
+const KNOB_SEGMENTS := 10
+const SEGMENTS: Array[int] = [SHOULDER_SEGMENTS, KNOB_SEGMENTS, SHOULDER_SEGMENTS]
+# Every segment's end point, plus the edge's first point.
+const POINTS_PER_EDGE := 2 * SHOULDER_SEGMENTS + KNOB_SEGMENTS + 1
 # Below this many image pixels of room a knob would be too small to see or grab.
 const MIN_ROOM := 8.0
 

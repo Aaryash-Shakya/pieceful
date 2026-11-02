@@ -298,6 +298,27 @@ func _init() -> void:
 	var golden_edge := TabShape.for_style("regular").edge_points(Vector2(10.5, 20.25), Vector2(130.75, 95.5), GOLDEN_ROOM, SeededRng.new(SeededRng.hash2(1, 0)))
 	check(golden_edge == golden_points, "regular slanted edge matches its golden points (got %s)" % str(golden_edge))
 
+	# The project's own ln, so the split choice cannot depend on a platform's libm.
+	var ln_ok := true
+	var worst := 0.0
+	var x := 1.0e-6
+	while x < 1.0e6:
+		var err := absf(CutGenerator.ln(x) - log(x))
+		worst = maxf(worst, err)
+		if err > 1e-12:
+			ln_ok = false
+		x *= 1.0137
+	for value in [1.5, 2.0 / 3.0, 0.5, 2.0, 1.2, 1.0 / 1.2, 0.7071067811865476, 1.4142135623730951, 1.0 + 1e-12, 1.0 - 1e-12]:
+		var err := absf(CutGenerator.ln(value) - log(value))
+		worst = maxf(worst, err)
+		if err > 1e-12:
+			ln_ok = false
+	check(ln_ok, "CutGenerator.ln matches log within 1e-12 (worst %s)" % str(worst))
+	check(CutGenerator.ln(1.0) == 0.0, "ln(1) is exactly 0")
+
+	# A lattice whose cells collapse (more columns than pixels) must fail loudly, not half-build.
+	check(CutGenerator.build_grid_graph(2, 2, 4, 1) == null, "a lattice with a rejected face gives no graph")
+
 	check(CutGenerator.generate_cut(1536, 1024, 54, "bogus", 1).is_empty(), "unknown style is empty")
 	check(CutGenerator.build_graph(1536, 1024, 54, "bogus", 1) == null, "unknown style gives no graph")
 	check(CutGenerator.generate_cut(0, 1024, 54, "grid", 1).is_empty(), "width 0 is empty")

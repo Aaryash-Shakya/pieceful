@@ -11,8 +11,8 @@ const DRAWS := 7
 # The draws each of the three curves reads: shoulder, knob, shoulder.
 const CURVE_MASKS: Array[int] = [0b0111111, 0b0110111, 0b1110111]
 # Each curve's first and last point among an edge's TabShape.POINTS_PER_EDGE.
-const CURVE_FIRST: Array[int] = [0, 8, 18]
-const CURVE_LAST: Array[int] = [8, 18, 26]
+const CURVE_FIRST: Array[int] = [0, TabShape.SHOULDER_SEGMENTS, TabShape.SHOULDER_SEGMENTS + TabShape.KNOB_SEGMENTS]
+const CURVE_LAST: Array[int] = [TabShape.SHOULDER_SEGMENTS, TabShape.SHOULDER_SEGMENTS + TabShape.KNOB_SEGMENTS, TabShape.POINTS_PER_EDGE - 1]
 const LATTICE_SEEDS := 8
 
 

@@ -22,12 +22,35 @@ static func ref_reversed(ref: int) -> bool:
 	return (ref & 1) == 1
 
 
-## Adds a face given by its corner vertices and returns its index, or -1 if an edge would be used
-## by a third face or twice in the same direction.
+## Adds a face given by its corner vertices and returns its index. Returns -1 and leaves the graph
+## untouched if the corners do not have positive signed area (the shared winding), or if an edge
+## would be used by a third face, twice in the same direction, or twice by this face.
 func add_face(corners: PackedInt32Array) -> int:
+	var n := corners.size()
+	var area := 0.0
+	var seen := {}
+	for i in n:
+		var from_vertex := corners[i]
+		var to_vertex := corners[(i + 1) % n]
+		var a := vertices[from_vertex]
+		var b := vertices[to_vertex]
+		area += a.x * b.y - b.x * a.y
+		var key := edge_key(from_vertex, to_vertex)
+		if seen.has(key):
+			push_error("CutGraph.add_face: the face uses edge %d-%d twice" % [from_vertex, to_vertex])
+			return -1
+		seen[key] = true
+		if _edge_ids.has(key):
+			var existing := edges[_edge_ids[key]]
+			if existing.from_vertex != to_vertex or existing.face_b != -1:
+				push_error("CutGraph.add_face: edge %d-%d is already used that way" % [from_vertex, to_vertex])
+				return -1
+	if area <= 0.0:
+		push_error("CutGraph.add_face: corners must have positive signed area, got %f" % (area * 0.5))
+		return -1
+
 	var face_index := faces.size()
 	var refs := PackedInt32Array()
-	var n := corners.size()
 	for i in n:
 		var from_vertex := corners[i]
 		var to_vertex := corners[(i + 1) % n]
@@ -44,9 +67,6 @@ func add_face(corners: PackedInt32Array) -> int:
 			refs.append(2 * edge.id)
 			continue
 		var existing := edges[_edge_ids[key]]
-		if existing.from_vertex != to_vertex or existing.face_b != -1:
-			push_error("CutGraph.add_face: edge %d-%d is already used that way" % [from_vertex, to_vertex])
-			return -1
 		existing.face_b = face_index
 		refs.append(2 * existing.id + 1)
 	faces.append(refs)
