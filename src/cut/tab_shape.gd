@@ -30,7 +30,9 @@ static func for_style(style: String) -> TabShape:
 		"regular":
 			return TabShape.new(0.10, 0.05, 0.03, 0.02)
 		"irregular":
-			return TabShape.new(0.10, 0.15, 0.08, 0.06)
+			# Tight because the jittered lattice has corners down to about 50 degrees, where two inward
+			# knobs shifted toward the corner can touch. Checked exhaustively in tests/test_tab_extremes.gd.
+			return TabShape.new(0.10, 0.08, 0.03, 0.02)
 	return null
 
 
@@ -38,10 +40,18 @@ static func for_style(style: String) -> TabShape:
 func edge_points(from: Vector2, to: Vector2, room: float, rng: SeededRng) -> PackedVector2Array:
 	if room < MIN_ROOM:
 		return PackedVector2Array([from, to])
-	var length := from.distance_to(to)
-	var u := (to - from) / length
+	# All arithmetic is on GDScript floats: 64-bit, rounded after every operation on every CPU.
+	# Vector2 math is 32-bit C++ that arm64 builds may fuse into multiply-adds, so a phone and a
+	# desktop could disagree by a snap step.
+	var dx: float = to.x - from.x
+	var dy: float = to.y - from.y
+	var length := sqrt(dx * dx + dy * dy)
+	var ux := dx / length
+	var uy := dy / length
 	var flip := 1.0 if rng.next_float() < 0.5 else -1.0
-	var n := u.orthogonal() * flip
+	# The unit normal, u.orthogonal() * flip.
+	var nx := uy * flip
+	var ny := -ux * flip
 	var t := size * room * (1.0 + rng.range_float(-size_jitter, size_jitter))
 	var m := length * (0.5 + rng.range_float(-shift, shift))
 	var w := wobble * room
@@ -49,23 +59,26 @@ func edge_points(from: Vector2, to: Vector2, room: float, rng: SeededRng) -> Pac
 	var c := rng.range_float(-w, w)
 	var d := rng.range_float(-w, w)
 	var e := rng.range_float(-w, w)
-	# Along the edge in x, across it in y.
-	var q := PackedVector2Array([
-		Vector2(0.0, 0.0), Vector2(0.2 * length, a), Vector2(m + d, -t + c), Vector2(m - t, t + c),
-		Vector2(m - 2.0 * t - d, 3.0 * t + c), Vector2(m + 2.0 * t - d, 3.0 * t + c), Vector2(m + t, t + c),
-		Vector2(m + d, -t + c), Vector2(0.8 * length, e), Vector2(length, 0.0),
-	])
+	# Control points along the edge (qx) and across it (qy). PackedFloat64Array keeps them 64-bit.
+	var qx := PackedFloat64Array([0.0, 0.2 * length, m + d, m - t, m - 2.0 * t - d, m + 2.0 * t - d, m + t, m + d, 0.8 * length, length])
+	var qy := PackedFloat64Array([0.0, a, -t + c, t + c, 3.0 * t + c, 3.0 * t + c, t + c, -t + c, e, 0.0])
 	var points := PackedVector2Array([from])
 	for curve in SEGMENTS.size():
 		var segments := SEGMENTS[curve]
-		var p0 := q[3 * curve]
-		var p1 := q[3 * curve + 1]
-		var p2 := q[3 * curve + 2]
-		var p3 := q[3 * curve + 3]
+		var k := 3 * curve
 		for i in range(1, segments + 1):
-			var local := p0.bezier_interpolate(p1, p2, p3, i / float(segments))
-			var p := from + u * local.x + n * local.y
-			points.append(Vector2(snappedf(p.x, CutGenerator.PRECISION), snappedf(p.y, CutGenerator.PRECISION)))
-	points[0] = from
+			# Cubic Bernstein weights.
+			var s := i / float(segments)
+			var r := 1.0 - s
+			var b0 := r * r * r
+			var b1 := 3.0 * r * r * s
+			var b2 := 3.0 * r * s * s
+			var b3 := s * s * s
+			var lx := b0 * qx[k] + b1 * qx[k + 1] + b2 * qx[k + 2] + b3 * qx[k + 3]
+			var ly := b0 * qy[k] + b1 * qy[k + 1] + b2 * qy[k + 2] + b3 * qy[k + 3]
+			var px := from.x + ux * lx + nx * ly
+			var py := from.y + uy * lx + ny * ly
+			# Snapped while still 64-bit, so the 32-bit Vector2 gets the same value everywhere.
+			points.append(Vector2(snappedf(px, CutGenerator.PRECISION), snappedf(py, CutGenerator.PRECISION)))
 	points[points.size() - 1] = to
 	return points

@@ -70,7 +70,12 @@ func edge_room(edge_id: int) -> float:
 	var edge := edges[edge_id]
 	if edge.is_border():
 		return 0.0
-	var length := vertices[edge.from_vertex].distance_to(vertices[edge.to_vertex])
+	# 64-bit GDScript floats, not Vector2.distance_to, so every CPU gets the same room (see TabShape).
+	var a := vertices[edge.from_vertex]
+	var b := vertices[edge.to_vertex]
+	var dx: float = b.x - a.x
+	var dy: float = b.y - a.y
+	var length := sqrt(dx * dx + dy * dy)
 	if length == 0.0:
 		return 0.0
 	return minf(length, minf(corner_area(edge.face_a), corner_area(edge.face_b)) / length)

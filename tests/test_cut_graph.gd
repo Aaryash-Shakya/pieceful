@@ -45,6 +45,33 @@ func _init() -> void:
 	check(pieces[1].outline == PackedVector2Array([Vector2(1, 0), Vector2(2, 0), Vector2(2, 1), Vector2(1, 1), Vector2(1.2, 0.5)]), "piece 1 follows the bent edge reversed")
 	check(is_equal_approx(pieces[0].area() + pieces[1].area(), 2.0), "bent edge keeps the total area")
 
+	# Room feeds every tab, so it must be the same 64-bit value on every CPU, not a 32-bit distance.
+	var slanted := CutGraph.new()
+	slanted.vertices = PackedVector2Array([
+		Vector2(0, 0), Vector2(91.317, 3.211), Vector2(180.5, 0),
+		Vector2(2.5, 77.123), Vector2(97.901, 83.777), Vector2(181.25, 79.5),
+	])
+	slanted.add_face(PackedInt32Array([0, 1, 4, 3]))
+	slanted.add_face(PackedInt32Array([1, 2, 5, 4]))
+	var a := slanted.vertices[1]
+	var b := slanted.vertices[4]
+	var dx: float = b.x - a.x
+	var dy: float = b.y - a.y
+	var length := sqrt(dx * dx + dy * dy)
+	var expected := minf(length, minf(slanted.corner_area(0), slanted.corner_area(1)) / length)
+	check(slanted.edge_room(1) == expected, "edge_room is computed in 64-bit (%.12f, expected %.12f)" % [slanted.edge_room(1), expected])
+	var square := CutGraph.new()
+	square.vertices = PackedVector2Array([
+		Vector2(0, 0), Vector2(300.125, 0), Vector2(600.25, 0),
+		Vector2(0, 0.375), Vector2(305.333, 13.417), Vector2(600.25, 0.5),
+	])
+	square.add_face(PackedInt32Array([0, 1, 4, 3]))
+	square.add_face(PackedInt32Array([1, 2, 5, 4]))
+	dx = square.vertices[4].x - square.vertices[1].x
+	dy = square.vertices[4].y - square.vertices[1].y
+	length = sqrt(dx * dx + dy * dy)
+	check(square.edge_room(1) == length, "a short edge's room is its 64-bit length")
+
 	# Collapse the shared edge and face 0 so the room would be 0 / 0.
 	graph.vertices[3] = Vector2(0, 0)
 	graph.vertices[4] = Vector2(1, 0)

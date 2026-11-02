@@ -71,9 +71,11 @@ The orchestrator was delegated these decisions by the owner. Each one is Claude'
   | Parameter | Regular | Irregular | Prototype |
   |---|---|---|---|
   | Neck half-width `size` | 0.10 | 0.10 | 0.10 |
-  | Size varies by | ±5% | ±15% | ±8% |
-  | Knob centre shift along the edge | ±3% | ±8% | ±3% or ±7% |
-  | Shoulder and knob wobble | ±2% | ±6% | ±3% or ±7% |
+  | Size varies by | ±5% | ±8% | ±8% |
+  | Knob centre shift along the edge | ±3% | ±3% | ±3% or ±7% |
+  | Shoulder and knob wobble | ±2% | ±2% | ±3% or ±7% |
+
+  Irregular was first ±15%, ±8% and ±6%. With every draw forced to an extreme, those values made outlines cross themselves even in square cells, and the jittered lattice's corners (down to about 50 degrees) let two inward knobs shifted toward the same corner touch. The values above pass an exhaustive extreme-draw check (`tests/test_tab_extremes.gd`) on square, 1.2:1 and 2:1 cells and on real Irregular cuts up to 400 pieces. Irregular's variety now comes mostly from its lattice.
 
 - **Irregular lattice.** Column widths and row heights each vary by ±25% before being scaled to fill the image (the prototype used ±35%). Interior corners move by up to ±15% of the smaller neighbouring column width and row height (the prototype used ±20%). Border corners stay on the border. These are tighter than the prototype so pieces stay convex quads and tabs never collide. A Python model of this exact design over 112 cuts (four aspect ratios, counts 12 to 400, five seeds, plus tiny and extreme images) found no crossing outline, all points inside the image, and a smallest Irregular piece of 0.42 times the mean area.
 - **Regular keeps the grid's whole-pixel cell boundaries**, so Grid and Regular share vertices and differ only by tabs.
