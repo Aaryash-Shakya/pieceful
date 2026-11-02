@@ -6,6 +6,8 @@ const PRECISION := 0.001
 # Weight of cell squareness against hitting the requested piece count.
 const ASPECT_WEIGHT := 0.5
 const SCORE_SCALE := 1.0e9
+# Four tabbed edges of TabShape.POINTS_PER_EDGE - 1 points each; a literal until TabShape exists.
+const MAX_OUTLINE_POINTS := 104
 
 
 ## Returns columns in x and rows in y. Never more columns than pixels wide or rows than pixels high,
@@ -39,44 +41,25 @@ static func build_grid_graph(width: int, height: int, columns: int, rows: int) -
 	for r in rows:
 		for c in columns:
 			var top_left := r * stride + c
-			graph.faces.append(PackedInt32Array([top_left, top_left + 1, top_left + stride + 1, top_left + stride]))
+			graph.add_face(PackedInt32Array([top_left, top_left + 1, top_left + stride + 1, top_left + stride]))
 	return graph
 
 
+## Returns null after push_error on invalid input or an unknown style.
 @warning_ignore("shadowed_global_identifier", "unused_parameter")
-static func generate_cut(width: int, height: int, target_count: int, style: String, seed: int) -> Array[CutPiece]:
-	var pieces: Array[CutPiece] = []
+static func build_graph(width: int, height: int, target_count: int, style: String, seed: int) -> CutGraph:
 	if width < 1 or height < 1 or target_count < 1:
 		push_error("generate_cut: width, height and target_count must be at least 1")
-		return pieces
+		return null
 	if style != STYLE_GRID:
 		push_error("generate_cut: unknown style '%s'" % style)
-		return pieces
-
+		return null
 	var split := grid_split(width, height, target_count)
-	var graph := build_grid_graph(width, height, split.x, split.y)
+	return build_grid_graph(width, height, split.x, split.y)
 
-	var edge_faces := {}
-	for face_index in graph.faces.size():
-		var face := graph.faces[face_index]
-		var outline := PackedVector2Array()
-		for vertex_index in face:
-			outline.append(graph.vertices[vertex_index])
-		var piece := CutPiece.new()
-		piece.id = face_index
-		piece.outline = outline
-		piece.home = piece.bounds().get_center()
-		pieces.append(piece)
 
-		for i in face.size():
-			var key := CutGraph.edge_key(face[i], face[(i + 1) % face.size()])
-			if not edge_faces.has(key):
-				edge_faces[key] = []
-			edge_faces[key].append(face_index)
-
-	for key in edge_faces:
-		var sharing: Array = edge_faces[key]
-		if sharing.size() == 2:
-			pieces[sharing[0]].neighbours.append(sharing[1])
-			pieces[sharing[1]].neighbours.append(sharing[0])
-	return pieces
+static func generate_cut(width: int, height: int, target_count: int, style: String, seed_value: int) -> Array[CutPiece]:
+	var graph := build_graph(width, height, target_count, style, seed_value)
+	if graph == null:
+		return []
+	return graph.to_pieces()
