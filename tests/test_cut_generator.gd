@@ -3,6 +3,17 @@ extends BaseTest
 const SHAPES: Array[Vector2i] = [Vector2i(1536, 1024), Vector2i(1024, 1536), Vector2i(1000, 1000), Vector2i(2048, 900)]
 const COUNTS: Array[int] = [12, 54, 150]
 const MIN_AREA_FRACTION := {"grid": 0.5, "regular": 0.5, "irregular": 0.25}
+# The golden slanted tab (see the end of _init). Changing these points means every saved puzzle changes.
+const GOLDEN_ROOM := 80.0
+var golden_points := PackedVector2Array([
+	Vector2(10.5, 20.25), Vector2(20.174, 26.182), Vector2(30.22, 33.118), Vector2(40.155, 40.224),
+	Vector2(49.495, 46.667), Vector2(57.757, 51.61), Vector2(64.457, 54.221), Vector2(69.112, 53.664),
+	Vector2(71.24, 49.105), Vector2(72.512, 44.661), Vector2(74.927, 42.097), Vector2(78.067, 41.15),
+	Vector2(81.512, 41.56), Vector2(84.846, 43.064), Vector2(87.649, 45.4), Vector2(89.502, 48.307),
+	Vector2(89.989, 51.522), Vector2(88.689, 54.784), Vector2(85.185, 57.832), Vector2(81.647, 61.513),
+	Vector2(82.357, 65.442), Vector2(86.51, 69.641), Vector2(93.302, 74.133), Vector2(101.927, 78.942),
+	Vector2(111.58, 84.091), Vector2(121.456, 89.602), Vector2(130.75, 95.5),
+])
 
 
 func check_cut(w: int, h: int, count: int, style: String, seed_value: int) -> void:
@@ -76,9 +87,19 @@ func check_cut(w: int, h: int, count: int, style: String, seed_value: int) -> vo
 			if n == p.id or seen.has(n) or not pieces[n].neighbours.has(p.id):
 				symmetric = false
 			seen[n] = true
-	check(shape_ok, "%s: outlines are counter-clockwise, simple, triangulable and inside the image" % label)
+	check(shape_ok, "%s: outlines have positive area in image coordinates (clockwise on screen), are simple, triangulable and inside the image" % label)
 	check(count_ok, "%s: outline size matches the face's edge points" % label)
 	check(symmetric, "%s: neighbours are symmetric, never self, no duplicates" % label)
+
+
+## Chains SeededRng.hash2 from 0 over every outline point's x then y, in thousandths, in piece order.
+func cut_checksum(pieces: Array[CutPiece]) -> int:
+	var h := 0
+	for p in pieces:
+		for point in p.outline:
+			h = SeededRng.hash2(h, roundi(point.x * 1000.0))
+			h = SeededRng.hash2(h, roundi(point.y * 1000.0))
+	return h
 
 
 func same_cut(a: Array[CutPiece], b: Array[CutPiece]) -> bool:
@@ -268,6 +289,14 @@ func _init() -> void:
 		if re.from_vertex != ie.from_vertex or re.to_vertex != ie.to_vertex:
 			same_ids = false
 	check(same_ids, "irregular edge ids match regular for the same split")
+
+	# Golden values. Saves and daily puzzles store only the seed and regenerate the cut, so if one of
+	# these numbers changes, every saved puzzle changes. Do not update them to make a test pass.
+	check(cut_checksum(CutGenerator.generate_cut(1536, 1024, 400, "regular", 1)) == 1775637367, "regular 1536x1024 400 seed 1 matches its golden checksum (got %d)" % cut_checksum(CutGenerator.generate_cut(1536, 1024, 400, "regular", 1)))
+	check(cut_checksum(CutGenerator.generate_cut(1536, 1024, 400, "irregular", 1)) == 3022635426, "irregular 1536x1024 400 seed 1 matches its golden checksum (got %d)" % cut_checksum(CutGenerator.generate_cut(1536, 1024, 400, "irregular", 1)))
+	# Every bit of one slanted tab, so a run on an arm64 phone can confirm it computes the same points.
+	var golden_edge := TabShape.for_style("regular").edge_points(Vector2(10.5, 20.25), Vector2(130.75, 95.5), GOLDEN_ROOM, SeededRng.new(SeededRng.hash2(1, 0)))
+	check(golden_edge == golden_points, "regular slanted edge matches its golden points (got %s)" % str(golden_edge))
 
 	check(CutGenerator.generate_cut(1536, 1024, 54, "bogus", 1).is_empty(), "unknown style is empty")
 	check(CutGenerator.build_graph(1536, 1024, 54, "bogus", 1) == null, "unknown style gives no graph")

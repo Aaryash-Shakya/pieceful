@@ -1,8 +1,9 @@
 extends BaseTest
 ## Outlines must stay simple even when every tab draw lands on an extreme: a crossing outline fails
-## triangulation and its piece would not draw. Exhaustive, not sampled: a crossing between two curves
-## depends only on the draws those two curves read, so checking every curve pair in every combination
-## of its own draws covers every combination of the whole cut.
+## triangulation and its piece would not draw. For a given lattice the tab draws are exhaustive: a
+## crossing between two curves depends only on the draws those two curves read, so checking every curve
+## pair in every combination of its own draws covers every tab combination of the whole cut. Lattices
+## are sampled: real seeded cuts, plus 8 lattices with every lattice draw on an extreme.
 
 const SHAPES: Array[Vector2i] = [Vector2i(1536, 1024), Vector2i(1024, 1536), Vector2i(1000, 1000), Vector2i(2048, 900)]
 # Draws in TabShape.edge_points order: flip, size, shift, a, c, d, e.
@@ -191,6 +192,11 @@ func check_simple(graph: CutGraph, tabs: TabShape, label: String) -> void:
 func _init() -> void:
 	var probe := ExtremeRng.new(0b10)
 	check(probe.range_float(-1.0, 1.0) == -1.0 and probe.range_float(-1.0, 1.0) > 0.999, "ExtremeRng drives range_float to its ends")
+	# Positive control: the first Irregular values crossed in plain square cells, so a detector that
+	# finds nothing here is broken, not passing.
+	var old_irregular := TabShape.new(0.10, 0.15, 0.08, 0.06)
+	var old_crossings := count_crossings(CutGenerator.build_grid_graph(300, 300, 3, 3), old_irregular)
+	check(old_crossings > 0, "the old Irregular tabs cross on a 3x3 grid (%d crossings)" % old_crossings)
 
 	for style in ["regular", "irregular"]:
 		var tabs := TabShape.for_style(style)
