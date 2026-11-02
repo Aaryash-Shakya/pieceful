@@ -30,9 +30,9 @@ static func for_style(style: String) -> TabShape:
 		"regular":
 			return TabShape.new(0.10, 0.05, 0.03, 0.02)
 		"irregular":
-			# Tight because the jittered lattice has corners down to about 50 degrees, where two inward
-			# knobs shifted toward the corner can touch. Checked exhaustively in tests/test_tab_extremes.gd.
-			return TabShape.new(0.10, 0.08, 0.03, 0.02)
+			# Bounded by the lattice's sharpest corners (about 68 degrees), where two inward knobs shifted
+			# toward the corner can touch. Checked exhaustively in tests/test_tab_extremes.gd.
+			return TabShape.new(0.10, 0.10, 0.04, 0.02)
 	return null
 
 

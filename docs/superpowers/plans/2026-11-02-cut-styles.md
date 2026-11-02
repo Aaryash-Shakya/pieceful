@@ -119,7 +119,7 @@ func outline_is_simple(outline: PackedVector2Array) -> bool
 - Produces: `TabShape extends RefCounted` with `const SEGMENTS: Array[int] = [8, 10, 8]`, `const POINTS_PER_EDGE := 27`, `const MIN_ROOM := 8.0`, `var size: float`, `var size_jitter: float`, `var shift: float`, `var wobble: float`, `_init(size_value: float, size_jitter_value: float, shift_value: float, wobble_value: float)`, `static for_style(style: String) -> TabShape` (null for `grid` and unknown styles), `edge_points(from: Vector2, to: Vector2, room: float, rng: SeededRng) -> PackedVector2Array`.
 - Produces: `CutGenerator.STYLE_REGULAR := "regular"`, `static shape_edges(graph: CutGraph, tabs: TabShape, seed_value: int) -> void` (sets `points` of every interior edge to `tabs.edge_points(from, to, graph.edge_room(id), SeededRng.new(SeededRng.hash2(seed_value, id)))`; border edges stay straight).
 
-Values for `for_style`: Regular `TabShape.new(0.10, 0.05, 0.03, 0.02)`, Irregular `TabShape.new(0.10, 0.15, 0.08, 0.06)`.
+Values for `for_style`: Regular `TabShape.new(0.10, 0.05, 0.03, 0.02)`, Irregular `TabShape.new(0.10, 0.10, 0.04, 0.02)`.
 
 The tab, in this order of random draws (this order is the contract; do not reorder):
 
@@ -173,7 +173,7 @@ h ^= h >> 15
 
 **Interfaces:**
 - Consumes: `TabShape.for_style("irregular")`, `shape_edges`, `SeededRng.hash2`, `CutGraph.add_face`, `check_cut`, `same_cut`.
-- Produces: `CutGenerator.STYLE_IRREGULAR := "irregular"`, `const IRREGULAR_UNEVEN := 0.25`, `const IRREGULAR_CORNER_JITTER := 0.15`, `const LATTICE_STREAM := -1`, `static build_irregular_graph(width: int, height: int, columns: int, rows: int, rng: SeededRng) -> CutGraph`. `build_graph` for `irregular` passes `SeededRng.new(SeededRng.hash2(seed, LATTICE_STREAM))`, then calls `shape_edges` like Regular. Same vertex order and faces as `build_grid_graph`, so edge ids match for the same split.
+- Produces: `CutGenerator.STYLE_IRREGULAR := "irregular"`, `const IRREGULAR_UNEVEN := 0.25`, `const IRREGULAR_CORNER_JITTER := 0.08`, `const LATTICE_STREAM := -1`, `static build_irregular_graph(width: int, height: int, columns: int, rows: int, rng: SeededRng) -> CutGraph`. `build_graph` for `irregular` passes `SeededRng.new(SeededRng.hash2(seed, LATTICE_STREAM))`, then calls `shape_edges` like Regular. Same vertex order and faces as `build_grid_graph`, so edge ids match for the same split.
 
 The lattice, in this order of draws:
 

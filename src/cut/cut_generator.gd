@@ -8,7 +8,8 @@ const PRECISION := 0.001
 # Irregular column widths and row heights vary by this fraction before being scaled to fill the image.
 const IRREGULAR_UNEVEN := 0.25
 # Interior Irregular corners move by up to this fraction of the smaller neighbouring column or row.
-const IRREGULAR_CORNER_JITTER := 0.15
+# Kept small: corners sharper than about 70 degrees let two inward knobs touch (tests/test_tab_extremes.gd).
+const IRREGULAR_CORNER_JITTER := 0.08
 # Stream id for the Irregular lattice's generator. Edge ids are never negative, so no edge shares it.
 const LATTICE_STREAM := -1
 # Weight of cell squareness against hitting the requested piece count.

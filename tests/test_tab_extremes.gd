@@ -12,6 +12,7 @@ const CURVE_MASKS: Array[int] = [0b0111111, 0b0110111, 0b1110111]
 # Each curve's first and last point among an edge's TabShape.POINTS_PER_EDGE.
 const CURVE_FIRST: Array[int] = [0, 8, 18]
 const CURVE_LAST: Array[int] = [8, 18, 26]
+const LATTICE_SEEDS := 8
 
 
 ## Gives each draw the lowest or highest value SeededRng can return, one bit per draw.
@@ -28,6 +29,15 @@ class ExtremeRng extends SeededRng:
 		var high := ((bits >> draw) & 1) == 1
 		draw += 1
 		return HIGH if high else 0.0
+
+
+## Lands every draw on an extreme, picking which from its own sequence, so a lattice gets its
+## widest size spread and its sharpest corners.
+class CoinRng extends SeededRng:
+	const HIGH := 4294967295.0 / 4294967296.0
+
+	func next_float() -> float:
+		return HIGH if ((next_u32() >> 16) & 1) == 1 else 0.0
 
 
 ## One curve of an edge in every combination of the draws it reads.
@@ -157,6 +167,22 @@ func count_curve_crossings(a: TabCurve, b: TabCurve, skip_a: int, skip_b: int) -
 	return crossings
 
 
+## The smallest interior angle of any face corner, in degrees.
+func sharpest_corner(graph: CutGraph) -> float:
+	var sharpest := 180.0
+	for refs in graph.faces:
+		var corners := PackedVector2Array()
+		for ref in refs:
+			var edge := graph.edges[CutGraph.ref_edge(ref)]
+			corners.append(graph.vertices[edge.to_vertex if CutGraph.ref_reversed(ref) else edge.from_vertex])
+		var n := corners.size()
+		for i in n:
+			var along := corners[(i + 1) % n] - corners[i]
+			var back := corners[(i + n - 1) % n] - corners[i]
+			sharpest = minf(sharpest, rad_to_deg(absf(along.angle_to(back))))
+	return sharpest
+
+
 func check_simple(graph: CutGraph, tabs: TabShape, label: String) -> void:
 	var crossings := count_crossings(graph, tabs)
 	check(crossings == 0, "%s: no outline crosses itself at extreme draws (%d crossings)" % [label, crossings])
@@ -180,5 +206,15 @@ func _init() -> void:
 				var label := "irregular %dx%d count %d seed %d" % [shape.x, shape.y, count, seed_value]
 				check_simple(CutGenerator.build_graph(shape.x, shape.y, count, "irregular", seed_value), irregular, label)
 	check_simple(CutGenerator.build_graph(1536, 1024, 150, "irregular", 3), irregular, "irregular 1536x1024 count 150 seed 3")
+
+	# Lattices with every width, height and corner draw on an extreme as well as every tab draw.
+	var sharpest := 180.0
+	for seed_value in range(1, LATTICE_SEEDS + 1):
+		var columns := 5 if seed_value % 2 == 0 else 7
+		var graph := CutGenerator.build_irregular_graph(200 * columns, 1000, columns, 5, CoinRng.new(seed_value))
+		sharpest = minf(sharpest, sharpest_corner(graph))
+		check_simple(graph, irregular, "extreme irregular lattice %d" % seed_value)
+	# Guards the case above: it only pins anything if its corners are as sharp as the lattice allows.
+	check(sharpest < 72.0, "extreme lattices reach sharp corners (%.1f degrees)" % sharpest)
 
 	finish()
