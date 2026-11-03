@@ -36,6 +36,10 @@ Up to 400 irregular textured pieces on screen, 60fps dragging with overlap, pinc
 6. **Share sheet.** A community plugin exists, tested on Godot 4.3. Check it on the version in use, or write a small plugin from the official template.
 7. **Device variety.** The Godot Foundation reports Android GPU driver diversity (12,000 or more devices) as the main stability issue. Two shipped games launched with crash rates near 4%, which fixes in 4.5.2 and 4.6 brought under 1%. Use a current stable version.
 
+## Audio driver finding (2026-11-03)
+
+On 2026-11-03 the Godot sources at `4.5-stable` and at `master` were read (`platform/android/audio_driver_opensl.cpp`; 4.7.2 sits between them, and Android has no other audio driver in either). The OpenSL ES driver hard-codes a 44 100 Hz mix rate and two buffers of 1024 frames, about 46 ms of buffering inside Godot before Android's own output path, and it reads no project setting. `audio/driver/output_latency` and `audio/driver/mix_rate` therefore have no effect on Android. The feedback slice does not set them, records the finding, and matches the sound files to the fixed 44 100 Hz rate so Godot never resamples them. Whether 46 ms plus the device's path feels instant is the owner's phone check; if it does not, the next step is the Oboe-based plugin, which needs the owner's agreement before it is added.
+
 ## Spike pass or fail checks (proposed, awaiting owner confirmation)
 
 Run on the owner's real phone, at 400 pieces, the maximum.

@@ -14,6 +14,10 @@ var bounds: Rect2
 func make_board() -> void:
 	board = load("res://src/game/board.tscn").instantiate()
 	root.add_child(board)
+	# Real playback would leave the audio server holding streams when a headless test exits.
+	var feedback := board.get_node("Feedback") as Feedback
+	feedback.play_sound = func(_sound: StringName) -> void: pass
+	feedback.vibrate = func(_duration_ms: int, _amplitude: float) -> void: pass
 	camera = board.camera
 	pieces = board.pieces
 	viewport_size = board.get_viewport_rect().size

@@ -10,6 +10,7 @@ func _init() -> void:
 	_test_files_exist_and_load()
 	_test_lengths()
 	_test_onset()
+	_test_no_clipping()
 	_test_files_match_generator()
 	_test_licence_note()
 	finish()
@@ -72,6 +73,13 @@ func _test_onset() -> void:
 		var whole := _peak(s, 0, frames)
 		check(_peak(s, 0, 132) >= 0.1 * whole, "%s is audible within the first 3 ms" % sound_name)
 		check(whole >= 1000, "%s is loud enough" % sound_name)
+
+
+func _test_no_clipping() -> void:
+	for sound_name: StringName in Synth.SOUNDS:
+		var s: AudioStreamWAV = Synth.render(sound_name)
+		var peak := _peak(s, 0, s.data.size() / 2)
+		check(peak < 32767, "%s does not clip (peak %d)" % [sound_name, peak])
 
 
 func _test_files_match_generator() -> void:
