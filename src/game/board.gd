@@ -2,6 +2,7 @@ class_name Board
 extends Node2D
 ## The world: the board rectangle, the loose pieces around it and the camera.
 
+const IMAGE_ID := "test-gradient"
 const IMAGE_SIZE := Vector2i(1536, 1024)
 const PIECE_COUNT := 400
 const SEED := 1
@@ -13,6 +14,10 @@ const EDGE_PAN_MARGIN := 48.0
 const EDGE_PAN_SPEED := 600.0
 const WHEEL_ZOOM_STEP := 1.1
 const CLEANUP_DURATION := 0.4
+# A hitch or a frame the system held back counts no more than this toward the clock.
+const ELAPSED_STEP_LIMIT := 0.25
+# A restored loose offset beyond this many longest image sides is damage, not play.
+const FAR_OFFSET_FACTOR := 8
 
 # HOLD_PINCHING: the dragging finger keeps its piece while it and one other finger move the camera.
 enum Mode { IDLE, DRAGGING, PANNING, PINCHING, HOLD_PINCHING, PINCH_ENDED }
@@ -30,16 +35,23 @@ class TidyMove:
 	var from: Vector2
 	var to: Vector2
 
+## Set before the board enters the tree.
+var save_path := SaveFile.DEFAULT_PATH
+var puzzle: SaveGame.Puzzle
+## Seconds of play, counted only while the app has focus and the puzzle is unfinished.
+var elapsed := 0.0
 var camera: Camera2D
 var cut: Array[CutPiece]
 var state: PuzzleState
 var locked_pieces: Node2D
 var pieces: Node2D
-# True only while the system forces a drop (focus loss, pause). The signals still fire, but feedback stays silent.
+# True only while the system forces a drop (focus loss, pause, close, back). The signals still fire, but feedback stays silent.
 var releasing_for_system := false
 
-var _base_bounds := Rect2(Vector2.ZERO, Vector2(IMAGE_SIZE)).grow(LOOSE_MARGIN)
-var _bounds := _base_bounds
+# Both are set from the puzzle's image size in _apply_image_size.
+var _base_bounds: Rect2
+var _bounds: Rect2
+var _texture: GradientTexture2D
 # Each tidy deals a new order, so pressing it again reshuffles.
 var _cleanup_count := 0
 var _tidy_tween: Tween
@@ -57,16 +69,23 @@ var _pinch_a := -1
 var _pinch_b := -1
 var _pinch_distance := 0.0
 var _pinch_mid := Vector2.ZERO
+var _focused := false
+# The text of the last successful write, so a second leave in one trip writes nothing.
+var _last_saved_text := ""
+# Successful writes, so tests can tell a skipped write from a repeated one.
+var _save_writes := 0
 
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Palette.felt())
+	# The app can start behind the lock screen; the clock waits for real focus.
+	_focused = get_window().has_focus()
 
-	var texture := _make_test_texture()
-	cut = CutGenerator.generate_cut(IMAGE_SIZE.x, IMAGE_SIZE.y, PIECE_COUNT, STYLE, SEED)
-	var offsets := Scatter.scatter(cut, Vector2(IMAGE_SIZE), LOOSE_MARGIN, SEED)
-	state = PuzzleState.new(cut, offsets, PuzzleState.tolerance_for(IMAGE_SIZE.x, IMAGE_SIZE.y, cut.size()))
+	var loose_order := _restore()
+	if state == null:
+		loose_order = _start_fresh()
 
+	_texture = _make_test_texture()
 	# Added first so locked pieces draw below every loose one.
 	locked_pieces = Node2D.new()
 	locked_pieces.name = "LockedPieces"
@@ -76,18 +95,113 @@ func _ready() -> void:
 	add_child(pieces)
 	for i in cut.size():
 		var node := PieceNode.new()
-		node.setup(cut[i], texture, Palette.outline())
-		node.position = offsets[i]
-		pieces.add_child(node)
+		node.setup(cut[i], _texture, Palette.outline())
+		node.position = state.offset_of(i)
 		_nodes.append(node)
 		_piece_bounds.append(cut[i].bounds())
+		if state.is_locked(i):
+			locked_pieces.add_child(node)
+	for id in loose_order:
+		pieces.add_child(_nodes[id])
 
 	camera = Camera2D.new()
 	camera.name = "Camera"
 	add_child(camera)
-	camera.position = Vector2(IMAGE_SIZE) / 2.0
-	var fit := get_viewport_rect().size.x / (IMAGE_SIZE.x * BORDER)
+	_apply_image_size()
+
+
+# Loads the save into puzzle, cut and state and returns its loose draw order. With no save, or
+# one that fails a check, state stays null and the board starts fresh. Restoring emits no signal.
+func _restore() -> PackedInt32Array:
+	var file := SaveFile.read(save_path)
+	if file.error == ERR_FILE_NOT_FOUND:
+		return PackedInt32Array()
+	if file.error != OK:
+		_set_save_aside("it could not be read (error %d)" % file.error)
+		return PackedInt32Array()
+	var loaded := SaveGame.from_json(file.text)
+	if loaded.snapshot == null:
+		_set_save_aside(loaded.error)
+		return PackedInt32Array()
+	var saved := loaded.snapshot
+	var p := saved.puzzle
+	# Until real images arrive, the board can draw only its test image at its one size.
+	if p.image_id != IMAGE_ID or p.image_size != IMAGE_SIZE:
+		_set_save_aside("unknown image %s at %dx%d" % [p.image_id, p.image_size.x, p.image_size.y])
+		return PackedInt32Array()
+	var saved_cut := CutGenerator.generate_cut(p.image_size.x, p.image_size.y, p.piece_count, p.style, p.cut_seed)
+	if CutGenerator.checksum(saved_cut) != p.cut_checksum:
+		_set_save_aside("the cut no longer matches the one it was saved with")
+		return PackedInt32Array()
+	var tolerance := PuzzleState.tolerance_for(p.image_size.x, p.image_size.y, saved_cut.size())
+	var saved_state := SaveGame.state_from(saved.clusters, saved_cut, tolerance)
+	# A broken partition gives the empty state, which counts as complete; a finished puzzle never has a save.
+	if saved_state.is_complete():
+		_set_save_aside("the clusters do not fit the cut or the puzzle is complete")
+		return PackedInt32Array()
+	# A damaged offset far out would stretch the camera bounds and strand the piece out of reach.
+	var reach := FAR_OFFSET_FACTOR * maxi(p.image_size.x, p.image_size.y)
+	for root in saved_state.roots():
+		if not saved_state.is_locked(root) and saved_state.offset_of(root).length() > reach:
+			_set_save_aside("cluster %d lies too far from the board" % root)
+			return PackedInt32Array()
+	if not SaveGame.loose_order_valid(saved.loose_order, saved_state):
+		_set_save_aside("the draw order does not list every loose piece once")
+		return PackedInt32Array()
+	puzzle = p
+	cut = saved_cut
+	state = saved_state
+	elapsed = saved.elapsed
+	_cleanup_count = saved.tidy_count
+	# The file already holds this game, so leaving again before anything changes writes nothing.
+	_last_saved_text = file.text
+	return saved.loose_order
+
+
+# A save the game cannot use may still be wanted (a newer version wrote it, or the read failed
+# only this once), so it is kept beside the save path instead of deleted.
+func _set_save_aside(reason: String) -> void:
+	var error := SaveFile.move_aside(save_path)
+	var outcome := "moved it to %s" % SaveFile.bad_path(save_path) if error == OK \
+			else "could not move it aside (error %d)" % error
+	push_warning("Board: could not use the save at %s: %s; %s" % [save_path, reason, outcome])
+
+
+# A new puzzle from the constants, scattered around the board. Returns its draw order: by id.
+func _start_fresh() -> PackedInt32Array:
+	puzzle = SaveGame.Puzzle.new()
+	puzzle.image_id = IMAGE_ID
+	puzzle.image_size = IMAGE_SIZE
+	puzzle.style = STYLE
+	puzzle.piece_count = PIECE_COUNT
+	puzzle.cut_seed = SEED
+	var size := puzzle.image_size
+	cut = CutGenerator.generate_cut(size.x, size.y, puzzle.piece_count, puzzle.style, puzzle.cut_seed)
+	puzzle.cut_checksum = CutGenerator.checksum(cut)
+	var offsets := Scatter.scatter(cut, Vector2(size), LOOSE_MARGIN, puzzle.cut_seed)
+	state = PuzzleState.new(cut, offsets, PuzzleState.tolerance_for(size.x, size.y, cut.size()))
+	var order := PackedInt32Array()
+	for i in cut.size():
+		order.append(i)
+	return order
+
+
+# Everything sized from the image follows the puzzle, not the constants. The camera bounds take in
+# every loose cluster, so a tidied band from a restored save stays reachable.
+func _apply_image_size() -> void:
+	var size := Vector2(puzzle.image_size)
+	_texture.width = puzzle.image_size.x
+	_texture.height = puzzle.image_size.y
+	_base_bounds = Rect2(Vector2.ZERO, size).grow(LOOSE_MARGIN)
+	_bounds = _base_bounds
+	for root in state.roots():
+		if not state.is_locked(root):
+			var rect := cluster_home_rect(root)
+			_bounds = _bounds.merge(Rect2(rect.position + state.offset_of(root), rect.size))
+	camera.position = size / 2.0
+	var fit := get_viewport_rect().size.x / (size.x * BORDER)
 	camera.zoom = Vector2(fit, fit)
+	queue_redraw()
 
 
 func node_for(piece_id: int) -> PieceNode:
@@ -120,8 +234,9 @@ func cleanup() -> void:
 	var rects: Array[Rect2] = []
 	for root in roots:
 		rects.append(cluster_home_rect(root))
-	var cell := sqrt(float(IMAGE_SIZE.x) * IMAGE_SIZE.y / cut.size())
-	var result := CleanupLayout.layout(rects, Vector2(IMAGE_SIZE), cell, SEED, _cleanup_count, state.tolerance)
+	var size := Vector2(puzzle.image_size)
+	var cell := sqrt(size.x * size.y / cut.size())
+	var result := CleanupLayout.layout(rects, size, cell, puzzle.cut_seed, _cleanup_count, state.tolerance)
 	_cleanup_count += 1
 	for k in roots.size():
 		var move := TidyMove.new()
@@ -171,7 +286,42 @@ func _finish_cleanup() -> void:
 	_tidy_moves.clear()
 
 
+## Reads the state, never the nodes, so a save during a tidy holds where the tidy lands.
+func snapshot() -> SaveGame.Snapshot:
+	var s := SaveGame.Snapshot.new()
+	s.puzzle = puzzle
+	s.clusters = SaveGame.clusters_of(state)
+	for child in pieces.get_children():
+		s.loose_order.append((child as PieceNode).piece_id)
+	s.elapsed = elapsed
+	s.tidy_count = _cleanup_count
+	return s
+
+
+## Writes the game, or deletes the save once the puzzle is complete. False when nothing could be saved.
+func save_game() -> bool:
+	if state == null:
+		return false
+	if state.is_complete():
+		SaveFile.remove(save_path)
+		_last_saved_text = ""
+		return true
+	var text := SaveGame.to_json(snapshot())
+	# One trip to the background sends several notifications; only the first needs the write.
+	if text == _last_saved_text and FileAccess.file_exists(save_path):
+		return true
+	var err := SaveFile.write_atomic(save_path, text)
+	if err != OK:
+		push_warning("Board: could not save to %s (error %d)" % [save_path, err])
+		return false
+	_last_saved_text = text
+	_save_writes += 1
+	return true
+
+
 func _process(delta: float) -> void:
+	if _focused and not state.is_complete():
+		elapsed += minf(delta, ELAPSED_STEP_LIMIT)
 	if _mode != Mode.DRAGGING:
 		return
 	var velocity := CameraRig.edge_pan_velocity(_touches[_drag_index], get_viewport_rect().size, EDGE_PAN_MARGIN, EDGE_PAN_SPEED)
@@ -180,13 +330,26 @@ func _process(delta: float) -> void:
 	_set_camera_position(camera.position + velocity / camera.zoom.x * delta)
 
 
-# Touch-up events can be lost while the app is in the background, so nothing may stay held.
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
-		_finish_cleanup()
-		releasing_for_system = true
-		_cancel_gesture()
-		releasing_for_system = false
+	match what:
+		# Not on RESUMED: Android can resume the app behind the lock screen or in multi-window without focus.
+		NOTIFICATION_APPLICATION_FOCUS_IN:
+			_focused = true
+		NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_APPLICATION_PAUSED:
+			_focused = false
+			_leave()
+		NOTIFICATION_WM_CLOSE_REQUEST, NOTIFICATION_WM_GO_BACK_REQUEST:
+			_leave()
+
+
+# Touch-up events can be lost while the app is in the background, so nothing may stay held.
+# The drop comes before the save, so the save holds where the piece landed.
+func _leave() -> void:
+	_finish_cleanup()
+	releasing_for_system = true
+	_cancel_gesture()
+	releasing_for_system = false
+	save_game()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -379,6 +542,8 @@ func _settle(result: PuzzleState.DropResult) -> void:
 		cluster_locked.emit(result.root, nodes.size())
 	if result.locked and state.is_complete():
 		puzzle_completed.emit()
+	if result.locked:
+		save_game()
 
 
 # Moves the nodes to the top of the loose layer, keeping their order among themselves.
@@ -414,11 +579,12 @@ func _to_world(screen_position: Vector2) -> Vector2:
 
 
 func _draw() -> void:
-	var rect := Rect2(Vector2.ZERO, Vector2(IMAGE_SIZE))
+	var rect := Rect2(Vector2.ZERO, Vector2(puzzle.image_size))
 	draw_rect(rect, Palette.board())
 	draw_rect(rect, Palette.accent(), false, BOARD_OUTLINE_WIDTH)
 
 
+# Sized by _apply_image_size, so it always matches the puzzle's image.
 func _make_test_texture() -> GradientTexture2D:
 	var gradient := Gradient.new()
 	gradient.offsets = PackedFloat32Array([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
@@ -427,8 +593,6 @@ func _make_test_texture() -> GradientTexture2D:
 	])
 	var texture := GradientTexture2D.new()
 	texture.gradient = gradient
-	texture.width = IMAGE_SIZE.x
-	texture.height = IMAGE_SIZE.y
 	texture.fill = GradientTexture2D.FILL_LINEAR
 	texture.fill_from = Vector2(0, 0)
 	texture.fill_to = Vector2(1, 1)

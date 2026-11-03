@@ -1,5 +1,7 @@
 extends "res://tests/base_test.gd"
 
+const LogCapture := preload("res://tests/log_capture.gd")
+
 var cut: Array[CutPiece] = CutGenerator.generate_cut(300, 200, 6, CutGenerator.STYLE_GRID, 1)
 
 
@@ -26,6 +28,10 @@ func _init() -> void:
 	_test_invalid_input_is_rejected()
 	_test_larger_dropped_cluster_moves_onto_absorbed()
 	_test_neighbour_order_does_not_matter()
+	_test_restore_round_trip()
+	_test_restore_counts_locked()
+	_test_restore_rejects_bad_input()
+	_test_restore_keeps_a_non_minimum_root()
 	finish()
 
 
@@ -372,3 +378,131 @@ func _snapshot(state: PuzzleState) -> Array:
 	for root in state.roots():
 		rows.append([root, state.members(root), state.offset_of(root), state.is_locked(root)])
 	return rows
+
+
+func _parts(state: PuzzleState) -> Array:
+	var roots := state.roots()
+	var groups: Array[PackedInt32Array] = []
+	var offsets := PackedVector2Array()
+	var locked := PackedByteArray()
+	for root in roots:
+		groups.append(state.members(root))
+		offsets.append(state.offset_of(root))
+		locked.append(1 if state.is_locked(root) else 0)
+	return [roots, groups, offsets, locked]
+
+
+func _restore(parts: Array) -> PuzzleState:
+	return PuzzleState.restored(cut, _fixture_tolerance(), parts[0], parts[1], parts[2], parts[3])
+
+
+func _test_restore_round_trip() -> void:
+	var s := _fresh()
+	_play(s)
+	s.move_cluster(2, Vector2(-612.4567, 0.1))
+	var r := _restore(_parts(s))
+	check(_snapshot(r) == _snapshot(s), "a restored state matches roots, members, offsets and locks")
+	for i in 6:
+		check(r.find(i) == s.find(i), "piece %d keeps its root" % i)
+	check(r.is_complete() == s.is_complete(), "completion carries over")
+	check(r.tolerance == s.tolerance, "tolerance carries over")
+	s.move_cluster(3, s.offset_of(0))
+	r.move_cluster(3, r.offset_of(0))
+	var a := s.drop(3)
+	var b := r.drop(3)
+	check(a.root == b.root and a.joined == b.joined and a.locked == b.locked, "drop gives the same result after a restore")
+	check(_snapshot(r) == _snapshot(s), "a restored state plays on identically")
+
+
+func _test_restore_counts_locked() -> void:
+	var groups: Array[PackedInt32Array] = [PackedInt32Array([2, 0, 1]), PackedInt32Array([3, 4, 5])]
+	var roots := PackedInt32Array([0, 3])
+	var r := PuzzleState.restored(cut, _fixture_tolerance(), roots, groups, PackedVector2Array([Vector2.ZERO, Vector2.ZERO]), PackedByteArray([1, 1]))
+	check(r.piece_count() == 6, "both locked groups restore")
+	check(r.is_complete(), "all pieces locked is complete")
+	check(r.members(1) == PackedInt32Array([0, 1, 2]), "members come back sorted")
+	r = PuzzleState.restored(cut, _fixture_tolerance(), roots, groups, PackedVector2Array([Vector2.ZERO, Vector2(50, 50)]), PackedByteArray([1, 0]))
+	check(not r.is_complete(), "a loose group keeps it incomplete")
+	check(r.is_locked(0), "the locked group is locked")
+	check(not r.is_locked(4), "the loose group is loose")
+	check(r.offset_of(5) == Vector2(50, 50), "the loose group keeps its offset")
+
+
+func _test_restore_rejects_bad_input() -> void:
+	var base := _fresh()
+	_play(base)
+	var good := _parts(base)
+	var locked_index: int = (good[3] as PackedByteArray).find(1)
+	var loose_index: int = (good[3] as PackedByteArray).find(0)
+	check(locked_index >= 0 and loose_index >= 0, "the fixture state has a locked and a loose group")
+	var cases := {}
+	var c := good.duplicate(true)
+	c[0] = c[0].slice(0, c[0].size() - 1)
+	cases["roots one shorter than groups"] = c
+	c = good.duplicate(true)
+	c[0].append(0)
+	c[1].append(PackedInt32Array())
+	c[2].append(Vector2.ZERO)
+	c[3].append(0)
+	cases["an empty group"] = c
+	c = good.duplicate(true)
+	c[1][0].append(6)
+	cases["id 6 in a group"] = c
+	c = good.duplicate(true)
+	c[1][0].append(-1)
+	cases["id -1 in a group"] = c
+	c = good.duplicate(true)
+	c[1][0].append(c[1][1][0])
+	cases["a piece in two groups"] = c
+	c = good.duplicate(true)
+	c[0].remove_at(0)
+	c[1].remove_at(0)
+	c[2].remove_at(0)
+	c[3].remove_at(0)
+	cases["a piece in no group"] = c
+	c = good.duplicate(true)
+	c[0][0] = c[1][1][0]
+	cases["a root not in its group"] = c
+	c = good.duplicate(true)
+	c[3][0] = 2
+	cases["a lock flag of 2"] = c
+	c = good.duplicate(true)
+	c[2][locked_index] = Vector2(1, 0)
+	cases["a locked group away from zero"] = c
+	c = good.duplicate(true)
+	c[2][loose_index] = Vector2(NAN, 0)
+	cases["a NaN offset on a loose group"] = c
+	c = good.duplicate(true)
+	c[2][loose_index] = Vector2(INF, 0)
+	cases["an infinite offset on a loose group"] = c
+	c = good.duplicate(true)
+	c[2] = c[2].slice(0, c[2].size() - 1)
+	cases["offsets one shorter than groups"] = c
+	c = good.duplicate(true)
+	c[3] = c[3].slice(0, c[3].size() - 1)
+	cases["lock flags one shorter than groups"] = c
+	c = good.duplicate(true)
+	c[1][0].append(c[1][0][0])
+	cases["a duplicate id inside one group"] = c
+	var capture := LogCapture.new()
+	OS.add_logger(capture)
+	for label in cases:
+		check(_restore(cases[label]).piece_count() == 0, "restored rejects " + label)
+	OS.remove_logger(capture)
+	check(capture.warnings.is_empty() and capture.errors.is_empty(),
+			"bad input is rejected silently, got warnings %s and errors %s" % [capture.warnings, capture.errors])
+
+
+# A saved root need not be the smallest id; it must stay the root, and later tie-breaks follow it.
+func _test_restore_keeps_a_non_minimum_root() -> void:
+	var groups: Array[PackedInt32Array] = [
+		PackedInt32Array([0, 1]), PackedInt32Array([2]), PackedInt32Array([4, 3]), PackedInt32Array([5])]
+	var offsets := PackedVector2Array([Vector2(500, 0), Vector2(3000, 0), Vector2(505, 0), Vector2(4000, 0)])
+	var r := PuzzleState.restored(cut, _fixture_tolerance(), PackedInt32Array([1, 2, 4, 5]), groups, offsets, PackedByteArray([0, 0, 0, 0]))
+	check(r.piece_count() == 6, "a group with a non-minimum root restores")
+	check(r.find(3) == 4 and r.find(0) == 1, "pieces keep the stated roots")
+	check(r.roots() == PackedInt32Array([1, 2, 4, 5]), "roots lists the stated roots")
+	check(r.members(4) == PackedInt32Array([3, 4]), "members stay sorted under a non-minimum root")
+	var result := r.drop(0)
+	check(result.joined and result.root == 1, "an equal-size tie goes to the lower stated root, 1 not 0")
+	check(r.members(3) == PackedInt32Array([0, 1, 3, 4]) and r.find(3) == 1, "the pairs merged under root 1")

@@ -1,6 +1,8 @@
 extends "res://tests/base_test.gd"
 ## Shared setup and input helpers for tests that drive a real Board.
 
+const TEST_SAVE_PATH := "user://test_save/current.json"
+
 var board: Board
 var camera: Camera2D
 var pieces: Node2D
@@ -10,9 +12,17 @@ var bounds: Rect2
 
 # Root only enters the tree once the main loop starts and Board._ready needs it,
 # so the caller awaits process_frame first.
-func make_board() -> void:
+## A fresh board starts with no save; otherwise it resumes whatever is at TEST_SAVE_PATH.
+## With focus, a board that starts without window focus (headless, say) is given it, so its clock runs.
+func make_board(fresh := true, focus := true) -> void:
 	board = load("res://src/game/board.tscn").instantiate()
+	# Board tests never read or write the player's real save.
+	board.save_path = TEST_SAVE_PATH
+	if fresh:
+		SaveFile.remove(TEST_SAVE_PATH)
 	root.add_child(board)
+	if focus and not board._focused:
+		board._notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
 	# Real playback would leave the audio server holding streams when a headless test exits.
 	var feedback := board.get_node("Feedback") as Feedback
 	feedback.sound_enabled = false
@@ -21,6 +31,13 @@ func make_board() -> void:
 	pieces = board.pieces
 	viewport_size = board.get_viewport_rect().size
 	bounds = Rect2(Vector2.ZERO, Vector2(Board.IMAGE_SIZE)).grow(Board.LOOSE_MARGIN)
+
+
+func finish() -> void:
+	SaveFile.remove(TEST_SAVE_PATH)
+	DirAccess.remove_absolute(SaveFile.bad_path(TEST_SAVE_PATH))
+	DirAccess.remove_absolute(TEST_SAVE_PATH.get_base_dir())
+	super()
 
 
 func _touch(index: int, position: Vector2, pressed: bool, canceled := false) -> void:

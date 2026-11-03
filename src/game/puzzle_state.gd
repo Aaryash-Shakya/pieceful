@@ -47,6 +47,57 @@ func _init(pieces: Array[CutPiece], offsets: PackedVector2Array, tolerance_value
 		_members[i] = PackedInt32Array([i])
 
 
+## Rebuilds a state from saved clusters: entry k of the four arrays is one cluster's root, member
+## ids, offset and lock flag. The input comes from a file, so anything inconsistent gives the
+## empty state without logging; pieces with bad ids still reach _init's error.
+static func restored(pieces: Array[CutPiece], tolerance_value: float, roots: PackedInt32Array,
+		groups: Array[PackedInt32Array], offsets: PackedVector2Array, locked: PackedByteArray) -> PuzzleState:
+	var empty_pieces: Array[CutPiece] = []
+	var empty := PuzzleState.new(empty_pieces, PackedVector2Array(), tolerance_value)
+	var count := pieces.size()
+	if roots.size() != groups.size() or offsets.size() != groups.size() or locked.size() != groups.size():
+		return empty
+	var seen := PackedByteArray()
+	seen.resize(count)
+	seen.fill(0)
+	var placed := 0
+	for k in groups.size():
+		var group := groups[k]
+		if group.is_empty() or not group.has(roots[k]) or locked[k] > 1:
+			return empty
+		# A non-finite offset can never join or lock, so the puzzle could not be finished.
+		if not offsets[k].is_finite():
+			return empty
+		if locked[k] == 1 and offsets[k] != Vector2.ZERO:
+			return empty
+		for id in group:
+			if id < 0 or id >= count or seen[id] == 1:
+				return empty
+			seen[id] = 1
+		placed += group.size()
+	if placed != count:
+		return empty
+	var zeros := PackedVector2Array()
+	zeros.resize(count)
+	var state := PuzzleState.new(pieces, zeros, tolerance_value)
+	if state.piece_count() != count:
+		return empty
+	for k in groups.size():
+		var sorted_group := groups[k].duplicate()
+		sorted_group.sort()
+		var root := roots[k]
+		for id in sorted_group:
+			state._parents[id] = root
+			state._members[id] = PackedInt32Array()
+		state._members[root] = sorted_group
+		# A locked offset is exactly zero, so a -0.0 from the file is not kept.
+		state._offsets[root] = Vector2.ZERO if locked[k] == 1 else offsets[k]
+		state._locked[root] = locked[k]
+		if locked[k] == 1:
+			state._locked_pieces += sorted_group.size()
+	return state
+
+
 ## Snap distance in pixels: a fraction of the cell size, never below a thumb-friendly minimum.
 static func tolerance_for(width: int, height: int, piece_count: int) -> float:
 	if piece_count <= 0:
