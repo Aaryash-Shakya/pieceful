@@ -14,6 +14,7 @@ config/name="Pieceful"
 run/main_scene="res://src/game/board.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 config/icon="res://icon.svg"
+config/quit_on_go_back=false
 
 [display]
 

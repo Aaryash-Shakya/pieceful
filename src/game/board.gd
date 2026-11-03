@@ -27,6 +27,8 @@ signal cluster_lifted(cluster_root: int, piece_count: int)
 signal pieces_joined(cluster_root: int, piece_count: int, locked: bool)
 signal cluster_locked(cluster_root: int, piece_count: int)
 signal puzzle_completed
+## The player asked to leave the board, by Home or back. The game is already saved.
+signal home_requested
 
 
 # One cluster's glide during a tidy. Its members share one offset, so they share one path.
@@ -82,6 +84,7 @@ var _last_saved_text := ""
 var _save_writes := 0
 # Set when the caller's puzzle could not start and the test puzzle stands in for it.
 var _saving_disabled := false
+var _going_home := false
 
 
 func _ready() -> void:
@@ -380,8 +383,20 @@ func _notification(what: int) -> void:
 		NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_APPLICATION_PAUSED:
 			_focused = false
 			_leave()
-		NOTIFICATION_WM_CLOSE_REQUEST, NOTIFICATION_WM_GO_BACK_REQUEST:
+		NOTIFICATION_WM_CLOSE_REQUEST:
 			_leave()
+		NOTIFICATION_WM_GO_BACK_REQUEST:
+			go_home()
+
+
+## Saves and asks to leave. Only the first call counts: a double tap or a back press while the
+## caller is already switching screens must not save or leave twice.
+func go_home() -> void:
+	if _going_home:
+		return
+	_going_home = true
+	_leave()
+	home_requested.emit()
 
 
 # Touch-up events can be lost while the app is in the background, so nothing may stay held.

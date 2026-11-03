@@ -4,6 +4,7 @@ const LogCapture := preload("res://tests/log_capture.gd")
 
 # Member variables, not locals: the signal lambda would capture a local by value.
 var _completed := 0
+var _home := 0
 var capture: LogCapture
 # Every piece a test has moved, so later tests pick untouched pieces.
 var _used := PackedInt32Array()
@@ -35,6 +36,8 @@ func _init() -> void:
 	_test_completion_deletes_save()
 	_test_launch_focus()
 	_test_pause_completing_drop_leaves_no_save()
+	_test_back_goes_home()
+	_test_go_home_runs_once()
 
 	board.free()
 	OS.remove_logger(capture)
@@ -323,3 +326,42 @@ func _test_pause_completing_drop_leaves_no_save() -> void:
 	check(_completed == 1, "the forced drop reports completion")
 	check(not FileAccess.file_exists(TEST_SAVE_PATH), "a pause that completes leaves no save")
 	check(not _temp_exists(), "a pause that completes leaves no temp file")
+
+
+func _new_board_counting_home() -> void:
+	board.free()
+	make_board()
+	_show_everything()
+	_used = PackedInt32Array()
+	_home = 0
+	board.home_requested.connect(func() -> void: _home += 1)
+
+
+func _test_back_goes_home() -> void:
+	_new_board_counting_home()
+	board._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	check(_home == 1, "back asks to go home once")
+	check(FileAccess.file_exists(TEST_SAVE_PATH), "back saves")
+
+	_new_board_counting_home()
+	board._notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
+	check(FileAccess.file_exists(TEST_SAVE_PATH), "a close request saves")
+	check(_home == 0, "a close request does not go home")
+	check(ProjectSettings.get_setting("application/config/quit_on_go_back") == false,
+			"back does not quit the app, so the board can go home")
+
+
+func _test_go_home_runs_once() -> void:
+	SaveFile.remove(TEST_SAVE_PATH)
+	var n := _first_loose_singleton()
+	_hold(n, n.position + Vector2(0, 40))
+	check(_is_held(n), "go home: the piece is held")
+	board.go_home()
+	check(not _is_held(n), "go home: the piece is dropped")
+	check(FileAccess.file_exists(TEST_SAVE_PATH) and _saved_offset(_saved(), n.piece_id) == board.state.offset_of(n.piece_id),
+			"go home: the save holds the dropped offset")
+	check(_home == 1, "go home asks once")
+	SaveFile.remove(TEST_SAVE_PATH)
+	board.go_home()
+	board._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	check(_home == 1 and not FileAccess.file_exists(TEST_SAVE_PATH), "a second go_home does nothing")
