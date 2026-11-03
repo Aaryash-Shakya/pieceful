@@ -1,4 +1,4 @@
-extends BoardTest
+extends "res://tests/board_test.gd"
 
 
 func _init() -> void:

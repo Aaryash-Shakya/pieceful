@@ -1,4 +1,3 @@
-class_name BaseTest
 extends SceneTree
 
 var _failures: int = 0

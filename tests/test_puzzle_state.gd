@@ -1,4 +1,4 @@
-extends BaseTest
+extends "res://tests/base_test.gd"
 
 var cut: Array[CutPiece] = CutGenerator.generate_cut(300, 200, 6, CutGenerator.STYLE_GRID, 1)
 

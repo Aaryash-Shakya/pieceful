@@ -1,4 +1,4 @@
-extends BaseTest
+extends "res://tests/base_test.gd"
 
 const AGREEMENT_SHAPES: Array[Vector2i] = [Vector2i(1536, 1024), Vector2i(1024, 1536), Vector2i(1000, 1000), Vector2i(2048, 900), Vector2i(10000, 100)]
 

@@ -1,4 +1,4 @@
-extends BaseTest
+extends "res://tests/base_test.gd"
 ## Outlines must stay simple even when every tab draw lands on an extreme: a crossing outline fails
 ## triangulation and its piece would not draw. For a given lattice the tab draws are exhaustive: a
 ## crossing between two curves depends only on the draws those two curves read, so checking every curve

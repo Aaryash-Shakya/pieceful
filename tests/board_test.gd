@@ -1,5 +1,4 @@
-class_name BoardTest
-extends BaseTest
+extends "res://tests/base_test.gd"
 ## Shared setup and input helpers for tests that drive a real Board.
 
 var board: Board
@@ -14,6 +13,10 @@ var bounds: Rect2
 func make_board() -> void:
 	board = load("res://src/game/board.tscn").instantiate()
 	root.add_child(board)
+	# Real playback would leave the audio server holding streams when a headless test exits.
+	var feedback := board.get_node("Feedback") as Feedback
+	feedback.sound_enabled = false
+	feedback.vibration_enabled = false
 	camera = board.camera
 	pieces = board.pieces
 	viewport_size = board.get_viewport_rect().size
