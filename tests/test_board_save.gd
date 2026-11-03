@@ -38,6 +38,7 @@ func _init() -> void:
 	_test_pause_completing_drop_leaves_no_save()
 	_test_back_goes_home()
 	_test_go_home_runs_once()
+	_test_go_home_lands_a_tidy()
 
 	board.free()
 	OS.remove_logger(capture)
@@ -365,3 +366,26 @@ func _test_go_home_runs_once() -> void:
 	board.go_home()
 	board._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	check(_home == 1 and not FileAccess.file_exists(TEST_SAVE_PATH), "a second go_home does nothing")
+
+
+# Home pressed while a tidy glides: the nodes land and the save holds the tidied offsets.
+func _test_go_home_lands_a_tidy() -> void:
+	_new_board_counting_home()
+	SaveFile.remove(TEST_SAVE_PATH)
+	board.cleanup()
+	check(board.is_tidying(), "tidy then home: the tidy runs")
+	board.go_home()
+	check(not board.is_tidying(), "tidy then home: the tidy lands first")
+	var landed := true
+	for i in board.cut.size():
+		if board.node_for(i).position != board.state.offset_of(i):
+			landed = false
+	check(landed, "tidy then home: every node is where the state says")
+	check(FileAccess.file_exists(TEST_SAVE_PATH) and _home == 1, "tidy then home: saved and asked once")
+	if FileAccess.file_exists(TEST_SAVE_PATH):
+		var saved := _saved()
+		var all_final := true
+		for root in board.state.roots():
+			if _saved_offset(saved, root) != board.state.offset_of(root):
+				all_final = false
+		check(all_final, "tidy then home: the save holds the tidied offsets")

@@ -18,9 +18,15 @@ func _init() -> void:
 	_test_hud_without_board()
 	_test_home_button(hud)
 	_test_home_press_goes_home(hud)
+	_test_fps_counter_clears_the_buttons()
 
 	board.free()
 	finish()
+
+
+# FpsCounter writes its margin out rather than reading the HUD's, so this keeps the two in step.
+func _test_fps_counter_clears_the_buttons() -> void:
+	check(FpsCounter.MARGIN_TOP >= Hud.MARGIN_TOP + Hud.BUTTON_SIZE.y, "the frame counter sits below the HUD buttons")
 
 
 func _test_hud_is_screen_space(hud: Hud) -> void:

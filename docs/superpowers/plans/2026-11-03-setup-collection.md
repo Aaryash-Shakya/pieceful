@@ -264,3 +264,11 @@ These need the phone or a person, so they are not task steps. Run them after Tas
 6. **Phone, picture quality:** start a 400-piece game on each of two pictures and zoom in fully: edges and colours look clean (if blotchy, the import moves to VRAM compression). Note the APK size from `ls -l build/pieceful-debug.apk`.
 7. **Phone, old save:** on the first launch of this build, the old `test-gradient` save is moved to `files/save/current.bad.json` (`adb shell run-as io.github.aaryash_shakya.pieceful ls files/save`) and no Resume card shows.
 8. **Start without asking:** decide whether Start should ask before replacing a saved game.
+9. **Phone, picture strip:** a sideways swipe on the strip reaches tiles 5 and 6, and a swipe never selects a tile.
+10. **Phone, short screen:** on a short phone, a vertical swipe that starts on the strip or on the preview scrolls the page.
+11. **Phone, slider grab:** the slider is easy to grab with a thumb, and releasing it at 400 pieces causes no visible hitch.
+12. **Phone, tile tap:** say whether tapping a tile hitches while the 2048 px picture decodes.
+13. **Phone, rapid Start:** tapping Start several times fast opens one board; Home returns to one setup screen.
+14. **Phone, finished puzzle:** finish a puzzle, press Home: no Resume card shows.
+15. **Phone, notch:** on a tall phone, Home, Tidy and the frame-rate counter sit clear of the notch and status bar.
+16. **Phone, reinstall:** `tools/build_apk.sh` over an installed build keeps the app's save (the Resume card still shows afterwards).

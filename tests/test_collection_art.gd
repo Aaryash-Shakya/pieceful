@@ -10,7 +10,7 @@ func _init() -> void:
 	_test_render_is_deterministic()
 	_test_manifest_matches_files()
 	_test_import_settings()
-	_test_pictures_are_rich()
+	_test_grain_and_colour_present()
 	_test_fixture_collection()
 	finish()
 
@@ -93,7 +93,9 @@ func _test_import_settings() -> void:
 		check(import_text.contains("mipmaps/generate=true"), "%s: mipmaps on" % p.id)
 
 
-func _test_pictures_are_rich() -> void:
+# Only that colour and fine grain are present: neither check sees regions or structure, so whether
+# a picture is pleasant to solve stays an owner check (docs/technical-notes.md).
+func _test_grain_and_colour_present() -> void:
 	for p: Dictionary in _read_manifest(DIR).get("pictures", []):
 		var img := (load("%s/%s" % [DIR, p.file]) as Texture2D).get_image()
 		img.clear_mipmaps()
@@ -118,9 +120,10 @@ func _test_pictures_are_rich() -> void:
 			if n >= samples * 0.005:
 				populated += 1
 			biggest = maxi(biggest, n)
-		check(populated >= 16, "%s: %d colour bins populated" % [p.id, populated])
-		check(biggest <= samples * 0.2, "%s: biggest bin holds %.1f%%" % [p.id, 100.0 * biggest / samples])
+		check(populated >= 16, "%s: colour present, %d colour bins populated" % [p.id, populated])
+		check(biggest <= samples * 0.2, "%s: colour present, biggest bin holds %.1f%%" % [p.id, 100.0 * biggest / samples])
 
+		# Luminance spread inside 32 px tiles: grain, not whether the tiles differ from each other.
 		var tiles := 0
 		var textured := 0
 		for ty in range(0, h - 31, 32):
@@ -138,7 +141,7 @@ func _test_pictures_are_rich() -> void:
 				tiles += 1
 				if deviation >= 0.01:
 					textured += 1
-		check(textured >= tiles * 0.95, "%s: %d of %d tiles have texture" % [p.id, textured, tiles])
+		check(textured >= tiles * 0.95, "%s: grain present in %d of %d tiles" % [p.id, textured, tiles])
 
 
 func _test_fixture_collection() -> void:
