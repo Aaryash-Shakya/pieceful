@@ -33,6 +33,8 @@ signal cluster_locked(cluster_root: int, piece_count: int)
 signal puzzle_completed
 ## What a slot holds changed (a stack went in or out, or the board just started).
 signal slots_changed
+## A cluster or a whole stack went into a slot, with this many pieces. Not emitted for a system release.
+signal stashed(piece_count: int)
 signal ghost_changed(on: bool)
 ## The player asked to leave the board, by Home or back. The game is already saved.
 signal home_requested
@@ -685,7 +687,9 @@ func _release_held() -> void:
 		node.set_held(false)
 	var over := slot_at(_held_screen)
 	if over != -1 and not releasing_for_system:
+		var piece_total := state.members(_held_root).size()
 		_stash(_held_root, over)
+		stashed.emit(piece_total)
 		_held_root = -1
 		_held_nodes.clear()
 		slots_changed.emit()
@@ -727,8 +731,12 @@ func _release_stack() -> void:
 	var near_home := from >= 0 and from < slot_rects.size() and slot_rects[from].grow(NEAR_SLOT_MARGIN).has_point(_held_screen)
 	if releasing_for_system or dest != -1 or near_home:
 		var into := from if releasing_for_system or dest == -1 else dest
+		var piece_total := 0
 		for root in roots:
+			piece_total += state.members(root).size()
 			_stash(root, into)
+		if not releasing_for_system:
+			stashed.emit(piece_total)
 	else:
 		var offsets := SlotSpread.grid(rects, _to_world(_held_screen), state.tolerance)
 		for k in roots.size():

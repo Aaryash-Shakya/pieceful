@@ -1,9 +1,13 @@
 extends "res://tests/board_test.gd"
 
 
+var _stashed: Array[int] = []
+
+
 func _init() -> void:
 	await process_frame
 	make_board()
+	board.stashed.connect(func(n: int) -> void: _stashed.append(n))
 	_fit_board()
 	_test_tray_geometry()
 	_test_drop_on_slot_stashes()
@@ -78,6 +82,7 @@ func _test_release_away_spreads() -> void:
 	_touch(0, _slot_center(1), true)
 	_drag(0, spot, spot - _slot_center(1))
 	_touch(0, spot, false)
+	check(_stashed == [1, 1, 2], "stashed fired for each put and the return, not the spread: %s" % [_stashed])
 	check(board.state.slot_piece_count(1) == 0, "the slot is empty after a spread")
 	check(board.state.slot_of(0) == -1 and board.state.slot_of(1) == -1, "the pieces are loose again")
 	var a := board.node_for(0)
@@ -97,6 +102,7 @@ func _test_system_release_returns_the_stack() -> void:
 	check(board.state.slot_piece_count(3) == 0, "taken out")
 	board._leave()
 	check(board.state.slot_of(2) == 3, "a system release puts the stack back")
+	check(_stashed == [1, 1, 2, 1], "a system release makes no stash feedback: %s" % [_stashed])
 	check(board.node_for(2).get_parent() == board.stash, "and hides it")
 	_touch(0, _slot_center(3), false)
 	check(board.state.slot_of(2) == 3, "the late touch-up changes nothing")
