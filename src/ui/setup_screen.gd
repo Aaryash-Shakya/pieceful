@@ -5,8 +5,6 @@ extends Control
 
 const SCENE := "res://src/ui/setup_screen.tscn"
 const BOARD_SCENE := "res://src/game/board.tscn"
-const MIN_COUNT := 12
-const MAX_COUNT := 400
 const DEFAULT_COUNT := 54
 const PREVIEW_DELAY := 0.15
 const STYLES: Array[String] = [CutGenerator.STYLE_REGULAR, CutGenerator.STYLE_IRREGULAR]
@@ -62,6 +60,8 @@ var _dragging := false
 var _press_at := Vector2.ZERO
 # Set on a release that travelled past TAP_SLOP, read by the pressed handler that follows it.
 var _swiped := false
+# Motion counts toward a swipe only while a press is down; a hovering mouse is not dragging.
+var _pointer_down := false
 # Set by the first launch: a double tap or Start then Resume must not open two boards.
 var _launched := false
 var _picture_group := ButtonGroup.new()
@@ -77,6 +77,10 @@ static func fresh_seed(unix_ms: int, ticks_usec: int) -> int:
 
 
 static func nearest_count(options: PackedInt32Array, target: int) -> int:
+	# The collection only lists pictures with a valid count, so this is a guard, not a path.
+	if options.is_empty():
+		push_warning("SetupScreen: no valid piece count; keeping %d" % target)
+		return target
 	var best := options[0]
 	for option in options:
 		if absi(option - target) < absi(best - target):
@@ -109,6 +113,14 @@ static func open(tree: SceneTree, path: String, source: Collection) -> SetupScre
 	return screen
 
 
+## The screen a board returns to. Every setting a new screen inherits from the one that launched
+## the board is handed on here, the quit seam included, so a test's seam survives the round trip.
+static func return_from_board(tree: SceneTree, path: String, source: Collection, quit: Callable) -> SetupScreen:
+	var screen := open(tree, path, source)
+	screen.quit_app = quit
+	return screen
+
+
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Palette.page_background())
 	theme = UiTheme.build()
@@ -126,7 +138,11 @@ func _ready() -> void:
 
 	saved = resumable(save_path, collection)
 	if saved == null and FileAccess.file_exists(save_path):
-		_set_save_aside()
+		# With no pictures at all the save cannot be judged, so it waits for a launch that has them.
+		if collection.pictures.is_empty():
+			_keep_save("no pictures are available")
+		else:
+			_set_save_aside()
 
 	_build_ui()
 	start_button.pressed.connect(start)
@@ -145,8 +161,9 @@ func _ready() -> void:
 			resume_label.text = "%s · %d pieces · %s" % [picture.title, puzzle.piece_count, STYLE_NAMES[puzzle.style]]
 			resume_card.visible = true
 		else:
+			# The save itself is fine; only this run's picture failed.
 			saved = null
-			_set_save_aside()
+			_keep_save("picture %s did not load" % puzzle.image_id)
 	else:
 		style = CutGenerator.STYLE_REGULAR
 		count = DEFAULT_COUNT
@@ -173,10 +190,6 @@ func _notification(what: int) -> void:
 func start() -> Board:
 	if _launched or picture == null:
 		return null
-	# The lines on screen as the board opens should be the cut it opens with.
-	if not preview_timer.is_stopped():
-		preview_timer.stop()
-		regenerate_preview()
 	var puzzle := SaveGame.Puzzle.new()
 	puzzle.image_id = picture.id
 	puzzle.image_size = picture.size()
@@ -190,16 +203,18 @@ func start() -> Board:
 func resume() -> Board:
 	if _launched or saved == null:
 		return null
-	var puzzle := SaveGame.Puzzle.new()
-	puzzle.image_id = saved.puzzle.image_id
-	puzzle.image_size = saved.puzzle.image_size
-	puzzle.style = saved.puzzle.style
-	puzzle.piece_count = saved.puzzle.piece_count
+	var puzzle := saved.puzzle.copy()
 	puzzle.cut_seed = cut_seed
 	return _launch(puzzle, true)
 
 
-# Kept beside the save rather than deleted; it also clears an old test-picture save on first launch.
+func _keep_save(reason: String) -> void:
+	push_warning("SetupScreen: could not resume the save at %s: %s; left it in place" % [save_path, reason])
+
+
+# Only for a save that is unusable in itself: unreadable, malformed, or naming a picture the loaded
+# collection does not have at that size. Kept beside the save rather than deleted; it also clears an
+# old test-picture save on first launch.
 func _set_save_aside() -> void:
 	SaveFile.move_aside(save_path)
 	push_warning("SetupScreen: could not resume the save at %s; moved it to %s" % [save_path, SaveFile.bad_path(save_path)])
@@ -218,11 +233,8 @@ func _launch(puzzle: SaveGame.Puzzle, resume_save: bool) -> Board:
 	board.start_puzzle = puzzle
 	board.resume = resume_save
 	var tree := get_tree()
-	var path := save_path
-	var source := collection
-	# Handed on so a test's quit seam survives the round trip through the board.
-	var quit := quit_app
-	board.home_requested.connect(func() -> void: SetupScreen.open(tree, path, source).quit_app = quit)
+	# Static and bound to values, so it never reaches this screen, which is freed by then.
+	board.home_requested.connect(SetupScreen.return_from_board.bind(tree, save_path, collection, quit_app))
 	tree.change_scene_to_node(board)
 	return board
 
@@ -249,7 +261,7 @@ func select_picture(index: int) -> void:
 
 	picture = candidate
 	chosen_texture = texture
-	counts = CutGenerator.valid_counts(picture.width, picture.height, MIN_COUNT, MAX_COUNT)
+	counts = CutGenerator.valid_counts(picture.width, picture.height, Collection.MIN_COUNT, Collection.MAX_COUNT)
 	var target := nearest_count(counts, count)
 	slider.min_value = 0
 	slider.max_value = counts.size() - 1
@@ -354,9 +366,11 @@ func _on_scrolled_button_input(event: InputEvent) -> void:
 		if button_event.pressed:
 			_press_at = button_event.global_position
 			_swiped = false
-		else:
+			_pointer_down = true
+		elif _pointer_down:
+			_pointer_down = false
 			_note_travel(button_event.global_position)
-	elif event is InputEventMouseMotion:
+	elif event is InputEventMouseMotion and _pointer_down:
 		_note_travel((event as InputEventMouseMotion).global_position)
 
 

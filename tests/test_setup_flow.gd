@@ -4,6 +4,7 @@ extends "res://tests/base_test.gd"
 const LogCapture := preload("res://tests/log_capture.gd")
 const SAVE := "user://test_setup/current.json"
 const FIXTURE := "res://tests/fixtures/collection/manifest.json"
+const STYLES_INDEX := {"regular": 0, "irregular": 1}
 
 var _fixture := Collection.load_manifest(FIXTURE)
 var _quits := 0
@@ -24,9 +25,10 @@ func _init() -> void:
 	_test_back_on_setup_quits()
 	await _test_start_twice_launches_once()
 	await _test_start_replaces_the_save()
-	await _test_start_settles_the_preview()
+	await _test_start_uses_the_shown_choices()
 	await _test_unresumable_save_is_set_aside()
 	await _test_unloadable_saved_picture()
+	_test_save_kept_when_pictures_are_unavailable()
 	await _test_completed_home_leaves_no_save()
 	_test_no_save_no_card()
 	_test_main_scene()
@@ -260,7 +262,9 @@ func _test_unresumable_save_is_set_aside() -> void:
 		await _go_home()
 
 
-func _test_start_settles_the_preview() -> void:
+# Start while the preview still waits to settle: the board takes what the labels show, and no
+# preview is drawn for a screen that is leaving.
+func _test_start_uses_the_shown_choices() -> void:
 	var s := current_scene as SetupScreen
 	if s == null:
 		check(false, "precondition: a setup screen")
@@ -271,11 +275,12 @@ func _test_start_settles_the_preview() -> void:
 	var g := s.generations
 	var board := s.start()
 	check(board != null, "Start launches")
-	check(s.generations == g + 1 and s.preview_timer.is_stopped(), "Start draws the waiting preview once")
+	check(s.generations == g and s.preview_timer.is_stopped(), "Start draws no preview and stops the timer")
 	if board != null:
 		var p := board.start_puzzle
-		var expected := CutPreview.outline_segments(CutGenerator.generate_cut(p.image_size.x, p.image_size.y, p.piece_count, p.style, p.cut_seed))
-		check(s.preview.segments == expected, "the last preview is the cut Start launched")
+		check(p.piece_count == s.count and s.count_label.text == "%d pieces" % p.piece_count, "Start launches the shown count")
+		check(p.style == s.style and s.style_buttons[STYLES_INDEX[p.style]].button_pressed, "Start launches the shown style")
+		check(p.image_id == s.picture.id and p.cut_seed == s.cut_seed, "Start launches the shown picture and seed")
 	await _frames()
 	if current_scene is Board:
 		_quiet(current_scene as Board)
@@ -312,6 +317,7 @@ func _test_completed_home_leaves_no_save() -> void:
 
 # The picture's thumbnail loads, so its tile shows, but the full picture does not.
 func _test_unloadable_saved_picture() -> void:
+	DirAccess.remove_absolute(SaveFile.bad_path(SAVE))
 	var s := _open()
 	s.select_picture(3)
 	s.start()
@@ -320,6 +326,7 @@ func _test_unloadable_saved_picture() -> void:
 		_quiet(current_scene as Board)
 	await _go_home()
 	check(int(_saved().get("puzzle", {}).get("width", 0)) == 240 and _saved().puzzle.image_id == "fixture-confetti-field", "precondition: a confetti save")
+	var text := FileAccess.get_file_as_string(SAVE)
 	var broken := Collection.load_manifest(FIXTURE)
 	broken.find("fixture-confetti-field").path = broken.find("fixture-tide-stripes").path
 	var capture := LogCapture.new()
@@ -329,11 +336,53 @@ func _test_unloadable_saved_picture() -> void:
 	await _frames()
 	OS.remove_logger(capture)
 	check(capture.warnings.size() == 2 and capture.warnings[0].begins_with("Collection: could not load picture")
-			and capture.warnings[1].begins_with("SetupScreen: could not resume"), "the load and the set-aside warn once each: %s" % [capture.warnings])
+			and capture.warnings[1].begins_with("SetupScreen: could not resume"), "the load and the screen warn once each: %s" % [capture.warnings])
 	check(not s.resume_card.visible and s.saved == null, "no resume card")
 	check(launched == null and current_scene == s and _children_of_type(Board) == 0, "no stand-in puzzle starts")
 	check(s.picture != null and s.picture.id != "fixture-confetti-field", "another picture is selected")
-	check(not FileAccess.file_exists(SAVE) and FileAccess.file_exists(SaveFile.bad_path(SAVE)), "the save is set aside")
+	# The save is fine; only this run's picture failed, so it waits for a later launch.
+	_check_kept(text, "a picture that fails to load")
+
+
+func _check_kept(text: String, label: String) -> void:
+	check(FileAccess.file_exists(SAVE) and FileAccess.get_file_as_string(SAVE) == text, "%s: the save is left untouched" % label)
+	check(not FileAccess.file_exists(SaveFile.bad_path(SAVE)), "%s: nothing is set aside" % label)
+
+
+# Runs on the confetti save the last test left in place.
+func _test_save_kept_when_pictures_are_unavailable() -> void:
+	var text := FileAccess.get_file_as_string(SAVE)
+	check(text.contains("fixture-confetti-field"), "precondition: a confetti save")
+
+	var empty := Collection.parse([], "res://none.json")
+	var capture := LogCapture.new()
+	OS.add_logger(capture)
+	var s := _open(empty)
+	OS.remove_logger(capture)
+	check(capture.warnings.size() == 1 and capture.warnings[0].begins_with("SetupScreen: could not resume"), "empty collection: one warning: %s" % [capture.warnings])
+	check(not s.resume_card.visible and s.saved == null, "empty collection: no resume card")
+	_check_kept(text, "empty collection")
+
+	var no_thumb := Collection.load_manifest(FIXTURE)
+	no_thumb.find("fixture-confetti-field").thumbnail_path = "res://tests/fixtures/collection/thumbs/gone.webp"
+	capture = LogCapture.new()
+	OS.add_logger(capture)
+	s = _open(no_thumb)
+	OS.remove_logger(capture)
+	check(capture.warnings.size() == 1 and capture.warnings[0].begins_with("Collection: could not load thumbnail"), "failed thumbnail: only its warning: %s" % [capture.warnings])
+	# The full picture stands in for the thumbnail, so the game can still be resumed.
+	check(s.resume_card.visible and s.saved != null, "failed thumbnail: the resume card shows")
+	_check_kept(text, "failed thumbnail")
+
+	# Both fail, so the picture has no tile at all.
+	no_thumb.find("fixture-confetti-field").path = no_thumb.find("fixture-tide-stripes").path
+	capture = LogCapture.new()
+	OS.add_logger(capture)
+	s = _open(no_thumb)
+	OS.remove_logger(capture)
+	check(capture.warnings.size() == 3 and capture.warnings[2].begins_with("SetupScreen: could not resume"), "no tile: the loads and the screen warn: %s" % [capture.warnings])
+	check(not s.resume_card.visible and s.saved == null and s.picture_buttons.size() == 5, "no tile: no resume card")
+	_check_kept(text, "no tile")
 
 
 func _test_no_save_no_card() -> void:

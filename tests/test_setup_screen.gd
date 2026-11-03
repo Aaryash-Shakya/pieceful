@@ -20,6 +20,8 @@ func _init() -> void:
 	_test_preview_uses_the_seed()
 	_test_broken_picture_is_dropped()
 	_test_broken_thumbnail_keeps_the_tile()
+	_test_nearest_count_without_options()
+	_test_hover_is_not_a_swipe()
 	_test_drag_resets()
 	await _test_touch()
 	await _test_empty_collection()
@@ -303,6 +305,29 @@ func _test_drag_resets() -> void:
 	s.preview_timer.stop()
 	s.slider.value = 4
 	check(not s.preview_timer.is_stopped(), "leaving the tree ends a drag the slider lost")
+
+
+func _test_nearest_count_without_options() -> void:
+	var capture := LogCapture.new()
+	OS.add_logger(capture)
+	var n := SetupScreen.nearest_count(PackedInt32Array(), 54)
+	OS.remove_logger(capture)
+	check(n == 54, "no options keeps the target: %d" % n)
+	check(capture.warnings.size() == 1 and capture.errors.is_empty(), "no options warns once: %s %s" % [capture.warnings, capture.errors])
+	check(SetupScreen.nearest_count(PackedInt32Array([16]), 54) == 16, "one option is the answer")
+
+
+# A mouse that moves over a tile without a button held is not dragging it.
+func _test_hover_is_not_a_swipe() -> void:
+	var s := _open()
+	var tile := s.picture_buttons[2]
+	for x in [0.0, 60.0, 120.0]:
+		var motion := InputEventMouseMotion.new()
+		motion.global_position = Vector2(x, 400.0)
+		motion.position = motion.global_position
+		tile.gui_input.emit(motion)
+	tile.pressed.emit()
+	check(s.picture.id == "fixture-tide-stripes", "a press after hovering chooses the tile")
 
 
 func _test_broken_thumbnail_keeps_the_tile() -> void:
