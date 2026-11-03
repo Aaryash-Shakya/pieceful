@@ -2,6 +2,7 @@ class_name Board
 extends Node2D
 ## The world: the board rectangle, the loose pieces around it and the camera.
 
+const IMAGE_ID := "test-gradient"
 const IMAGE_SIZE := Vector2i(1536, 1024)
 const PIECE_COUNT := 400
 const SEED := 1
@@ -13,6 +14,8 @@ const EDGE_PAN_MARGIN := 48.0
 const EDGE_PAN_SPEED := 600.0
 const WHEEL_ZOOM_STEP := 1.1
 const CLEANUP_DURATION := 0.4
+# A hitch or a frame the system held back counts no more than this toward the clock.
+const ELAPSED_STEP_LIMIT := 0.25
 
 # HOLD_PINCHING: the dragging finger keeps its piece while it and one other finger move the camera.
 enum Mode { IDLE, DRAGGING, PANNING, PINCHING, HOLD_PINCHING, PINCH_ENDED }
@@ -30,12 +33,17 @@ class TidyMove:
 	var from: Vector2
 	var to: Vector2
 
+## Set before the board enters the tree.
+var save_path := SaveFile.DEFAULT_PATH
+var puzzle: SaveGame.Puzzle
+## Seconds of play, counted only while the app has focus and the puzzle is unfinished.
+var elapsed := 0.0
 var camera: Camera2D
 var cut: Array[CutPiece]
 var state: PuzzleState
 var locked_pieces: Node2D
 var pieces: Node2D
-# True only while the system forces a drop (focus loss, pause). The signals still fire, but feedback stays silent.
+# True only while the system forces a drop (focus loss, pause, close, back). The signals still fire, but feedback stays silent.
 var releasing_for_system := false
 
 var _base_bounds := Rect2(Vector2.ZERO, Vector2(IMAGE_SIZE)).grow(LOOSE_MARGIN)
@@ -57,15 +65,24 @@ var _pinch_a := -1
 var _pinch_b := -1
 var _pinch_distance := 0.0
 var _pinch_mid := Vector2.ZERO
+var _focused := true
 
 
 func _ready() -> void:
+	puzzle = SaveGame.Puzzle.new()
+	puzzle.image_id = IMAGE_ID
+	puzzle.image_size = IMAGE_SIZE
+	puzzle.style = STYLE
+	puzzle.piece_count = PIECE_COUNT
+	puzzle.cut_seed = SEED
+
 	RenderingServer.set_default_clear_color(Palette.felt())
 
 	var texture := _make_test_texture()
-	cut = CutGenerator.generate_cut(IMAGE_SIZE.x, IMAGE_SIZE.y, PIECE_COUNT, STYLE, SEED)
-	var offsets := Scatter.scatter(cut, Vector2(IMAGE_SIZE), LOOSE_MARGIN, SEED)
-	state = PuzzleState.new(cut, offsets, PuzzleState.tolerance_for(IMAGE_SIZE.x, IMAGE_SIZE.y, cut.size()))
+	var size := puzzle.image_size
+	cut = CutGenerator.generate_cut(size.x, size.y, puzzle.piece_count, puzzle.style, puzzle.cut_seed)
+	var offsets := Scatter.scatter(cut, Vector2(size), LOOSE_MARGIN, puzzle.cut_seed)
+	state = PuzzleState.new(cut, offsets, PuzzleState.tolerance_for(size.x, size.y, cut.size()))
 
 	# Added first so locked pieces draw below every loose one.
 	locked_pieces = Node2D.new()
@@ -121,7 +138,7 @@ func cleanup() -> void:
 	for root in roots:
 		rects.append(cluster_home_rect(root))
 	var cell := sqrt(float(IMAGE_SIZE.x) * IMAGE_SIZE.y / cut.size())
-	var result := CleanupLayout.layout(rects, Vector2(IMAGE_SIZE), cell, SEED, _cleanup_count, state.tolerance)
+	var result := CleanupLayout.layout(rects, Vector2(IMAGE_SIZE), cell, puzzle.cut_seed, _cleanup_count, state.tolerance)
 	_cleanup_count += 1
 	for k in roots.size():
 		var move := TidyMove.new()
@@ -171,7 +188,35 @@ func _finish_cleanup() -> void:
 	_tidy_moves.clear()
 
 
+## Reads the state, never the nodes, so a save during a tidy holds where the tidy lands.
+func snapshot() -> SaveGame.Snapshot:
+	var s := SaveGame.Snapshot.new()
+	s.puzzle = puzzle
+	s.clusters = SaveGame.clusters_of(state)
+	for child in pieces.get_children():
+		s.loose_order.append((child as PieceNode).piece_id)
+	s.elapsed = elapsed
+	s.tidy_count = _cleanup_count
+	return s
+
+
+## Writes the game, or deletes the save once the puzzle is complete. False when nothing could be saved.
+func save_game() -> bool:
+	if state == null:
+		return false
+	if state.is_complete():
+		SaveFile.remove(save_path)
+		return true
+	var err := SaveFile.write_atomic(save_path, SaveGame.to_json(snapshot()))
+	if err != OK:
+		push_warning("Board: could not save to %s (error %d)" % [save_path, err])
+		return false
+	return true
+
+
 func _process(delta: float) -> void:
+	if _focused and not state.is_complete():
+		elapsed += minf(delta, ELAPSED_STEP_LIMIT)
 	if _mode != Mode.DRAGGING:
 		return
 	var velocity := CameraRig.edge_pan_velocity(_touches[_drag_index], get_viewport_rect().size, EDGE_PAN_MARGIN, EDGE_PAN_SPEED)
@@ -180,13 +225,25 @@ func _process(delta: float) -> void:
 	_set_camera_position(camera.position + velocity / camera.zoom.x * delta)
 
 
-# Touch-up events can be lost while the app is in the background, so nothing may stay held.
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
-		_finish_cleanup()
-		releasing_for_system = true
-		_cancel_gesture()
-		releasing_for_system = false
+	match what:
+		NOTIFICATION_APPLICATION_FOCUS_IN, NOTIFICATION_APPLICATION_RESUMED:
+			_focused = true
+		NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_APPLICATION_PAUSED:
+			_focused = false
+			_leave()
+		NOTIFICATION_WM_CLOSE_REQUEST, NOTIFICATION_WM_GO_BACK_REQUEST:
+			_leave()
+
+
+# Touch-up events can be lost while the app is in the background, so nothing may stay held.
+# The drop comes before the save, so the save holds where the piece landed.
+func _leave() -> void:
+	_finish_cleanup()
+	releasing_for_system = true
+	_cancel_gesture()
+	releasing_for_system = false
+	save_game()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -379,6 +436,8 @@ func _settle(result: PuzzleState.DropResult) -> void:
 		cluster_locked.emit(result.root, nodes.size())
 	if result.locked and state.is_complete():
 		puzzle_completed.emit()
+	if result.locked:
+		save_game()
 
 
 # Moves the nodes to the top of the loose layer, keeping their order among themselves.

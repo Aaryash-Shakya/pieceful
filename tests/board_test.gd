@@ -1,6 +1,8 @@
 extends "res://tests/base_test.gd"
 ## Shared setup and input helpers for tests that drive a real Board.
 
+const TEST_SAVE_PATH := "user://test_save/current.json"
+
 var board: Board
 var camera: Camera2D
 var pieces: Node2D
@@ -12,6 +14,9 @@ var bounds: Rect2
 # so the caller awaits process_frame first.
 func make_board() -> void:
 	board = load("res://src/game/board.tscn").instantiate()
+	# Every board test starts with no save and never writes the player's real one.
+	board.save_path = TEST_SAVE_PATH
+	SaveFile.remove(TEST_SAVE_PATH)
 	root.add_child(board)
 	# Real playback would leave the audio server holding streams when a headless test exits.
 	var feedback := board.get_node("Feedback") as Feedback
@@ -21,6 +26,12 @@ func make_board() -> void:
 	pieces = board.pieces
 	viewport_size = board.get_viewport_rect().size
 	bounds = Rect2(Vector2.ZERO, Vector2(Board.IMAGE_SIZE)).grow(Board.LOOSE_MARGIN)
+
+
+func finish() -> void:
+	SaveFile.remove(TEST_SAVE_PATH)
+	DirAccess.remove_absolute(TEST_SAVE_PATH.get_base_dir())
+	super()
 
 
 func _touch(index: int, position: Vector2, pressed: bool, canceled := false) -> void:
