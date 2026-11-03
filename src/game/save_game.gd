@@ -4,9 +4,9 @@ extends RefCounted
 ## style, count and seed make the cut, plus where the clusters are. Never any piece geometry.
 ## The file is untrusted input, so from_dict checks every key and type before using a value.
 
-# A deliberate change to any golden cut checksum (tests/test_cut_generator.gd) must also bump this,
-# or an old save would restore clusters whose pieces no longer fit.
-const VERSION := 1
+# 2 added puzzle.cut_checksum. The board sets aside a save whose cut no longer matches it, so a
+# deliberate change to a golden cut checksum (tests/test_cut_generator.gd) loses no data, only that game.
+const VERSION := 2
 const MAX_PIECE_COUNT := 400
 ## About 31 years of play, far beyond any real game. A file claiming more is rejected rather than
 ## loaded, so the clock stays well inside the range the millisecond rounding keeps exact.
@@ -21,6 +21,8 @@ class Puzzle:
 	var style := ""
 	var piece_count := 0
 	var cut_seed := 0
+	## CutGenerator.checksum of the cut these fields make, taken when the cut was generated.
+	var cut_checksum := 0
 
 
 class Cluster:
@@ -62,6 +64,7 @@ static func to_dict(snapshot: Snapshot) -> Dictionary:
 			"style": snapshot.puzzle.style,
 			"piece_count": snapshot.puzzle.piece_count,
 			"seed": snapshot.puzzle.cut_seed,
+			"cut_checksum": snapshot.puzzle.cut_checksum,
 		},
 		"clusters": clusters,
 		"loose_order": Array(snapshot.loose_order),
@@ -95,7 +98,7 @@ static func from_dict(data: Variant) -> Loaded:
 	if not root.puzzle is Dictionary:
 		return _fail("puzzle")
 	var puzzle_data: Dictionary = root.puzzle
-	if not _has_exactly(puzzle_data, ["image_id", "width", "height", "style", "piece_count", "seed"]):
+	if not _has_exactly(puzzle_data, ["image_id", "width", "height", "style", "piece_count", "seed", "cut_checksum"]):
 		return _fail("puzzle has missing or unknown keys")
 	if not puzzle_data.image_id is String or (puzzle_data.image_id as String).is_empty():
 		return _fail("puzzle.image_id")
@@ -110,6 +113,9 @@ static func from_dict(data: Variant) -> Loaded:
 		return _fail("puzzle.height")
 	if not _is_int(puzzle_data.seed):
 		return _fail("puzzle.seed")
+	if not _is_int(puzzle_data.cut_checksum) or int(puzzle_data.cut_checksum) < 0 \
+			or int(puzzle_data.cut_checksum) > SeededRng.MASK:
+		return _fail("puzzle.cut_checksum")
 	if not root.clusters is Array:
 		return _fail("clusters")
 	if not root.loose_order is Array:
@@ -125,6 +131,7 @@ static func from_dict(data: Variant) -> Loaded:
 	snapshot.puzzle.style = puzzle_data.style
 	snapshot.puzzle.piece_count = int(puzzle_data.piece_count)
 	snapshot.puzzle.cut_seed = int(puzzle_data.seed)
+	snapshot.puzzle.cut_checksum = int(puzzle_data.cut_checksum)
 	snapshot.elapsed = float(root.elapsed)
 	snapshot.tidy_count = int(root.tidy_count)
 

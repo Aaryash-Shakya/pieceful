@@ -13,13 +13,16 @@ var bounds: Rect2
 # Root only enters the tree once the main loop starts and Board._ready needs it,
 # so the caller awaits process_frame first.
 ## A fresh board starts with no save; otherwise it resumes whatever is at TEST_SAVE_PATH.
-func make_board(fresh := true) -> void:
+## With focus, a board that starts without window focus (headless, say) is given it, so its clock runs.
+func make_board(fresh := true, focus := true) -> void:
 	board = load("res://src/game/board.tscn").instantiate()
 	# Board tests never read or write the player's real save.
 	board.save_path = TEST_SAVE_PATH
 	if fresh:
 		SaveFile.remove(TEST_SAVE_PATH)
 	root.add_child(board)
+	if focus and not board._focused:
+		board._notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
 	# Real playback would leave the audio server holding streams when a headless test exits.
 	var feedback := board.get_node("Feedback") as Feedback
 	feedback.sound_enabled = false
@@ -32,6 +35,7 @@ func make_board(fresh := true) -> void:
 
 func finish() -> void:
 	SaveFile.remove(TEST_SAVE_PATH)
+	DirAccess.remove_absolute(SaveFile.bad_path(TEST_SAVE_PATH))
 	DirAccess.remove_absolute(TEST_SAVE_PATH.get_base_dir())
 	super()
 

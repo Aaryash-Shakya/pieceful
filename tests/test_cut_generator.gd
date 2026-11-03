@@ -92,14 +92,9 @@ func check_cut(w: int, h: int, count: int, style: String, seed_value: int) -> vo
 	check(symmetric, "%s: neighbours are symmetric, never self, no duplicates" % label)
 
 
-## Chains SeededRng.hash2 from 0 over every outline point's x then y, in thousandths, in piece order.
+# Saves store the same checksum, so a golden change here sets every older save aside on restore.
 func cut_checksum(pieces: Array[CutPiece]) -> int:
-	var h := 0
-	for p in pieces:
-		for point in p.outline:
-			h = SeededRng.hash2(h, roundi(point.x * 1000.0))
-			h = SeededRng.hash2(h, roundi(point.y * 1000.0))
-	return h
+	return CutGenerator.checksum(pieces)
 
 
 func same_cut(a: Array[CutPiece], b: Array[CutPiece]) -> bool:

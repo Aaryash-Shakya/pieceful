@@ -43,6 +43,7 @@ func _sample() -> SaveGame.Snapshot:
 	snapshot.puzzle.style = "grid"
 	snapshot.puzzle.piece_count = 6
 	snapshot.puzzle.cut_seed = 1
+	snapshot.puzzle.cut_checksum = CutGenerator.checksum(cut)
 	snapshot.clusters = SaveGame.clusters_of(_played())
 	snapshot.loose_order = PackedInt32Array([3, 2, 0, 1, 4])
 	snapshot.elapsed = 754.2166666666667
@@ -66,7 +67,7 @@ func _test_clusters_of() -> void:
 func _test_dict_shape() -> void:
 	var d := SaveGame.to_dict(_sample())
 	check(_sorted_keys(d) == ["clusters", "elapsed", "loose_order", "puzzle", "tidy_count", "version"], "top-level keys")
-	check(_sorted_keys(d.puzzle) == ["height", "image_id", "piece_count", "seed", "style", "width"], "puzzle keys")
+	check(_sorted_keys(d.puzzle) == ["cut_checksum", "height", "image_id", "piece_count", "seed", "style", "width"], "puzzle keys")
 	var found_locked := false
 	for c in d.clusters:
 		check(_sorted_keys(c) == ["locked", "offset", "pieces", "root"], "cluster keys")
@@ -74,7 +75,8 @@ func _test_dict_shape() -> void:
 			found_locked = true
 			check(c.locked == true and Vector2(c.offset[0], c.offset[1]) == Vector2.ZERO, "locked cluster sits at zero")
 	check(found_locked, "the locked cluster is saved")
-	check(d.version == 1, "version is 1")
+	check(d.version == 2, "version is 2")
+	check(d.puzzle.cut_checksum == CutGenerator.checksum(cut), "cut checksum saved")
 	check(d.puzzle.seed == 1, "seed saved")
 	check(d.puzzle.width == 300, "width saved")
 
@@ -94,7 +96,8 @@ func _test_json_round_trip_is_exact() -> void:
 		return
 	var p := l.snapshot.puzzle
 	check(p.image_id == s.puzzle.image_id and p.image_size == s.puzzle.image_size and p.style == s.puzzle.style \
-			and p.piece_count == s.puzzle.piece_count and p.cut_seed == s.puzzle.cut_seed, "puzzle fields round trip")
+			and p.piece_count == s.puzzle.piece_count and p.cut_seed == s.puzzle.cut_seed \
+			and p.cut_checksum == s.puzzle.cut_checksum, "puzzle fields round trip")
 	check(l.snapshot.clusters.size() == s.clusters.size(), "cluster count round trips")
 	if l.snapshot.clusters.size() == s.clusters.size():
 		for i in s.clusters.size():
@@ -134,11 +137,26 @@ func _test_rejects_bad_data() -> void:
 	var cases := {}
 	cases["not a Dictionary"] = []
 	var c := base.duplicate(true)
-	c.version = 2
-	cases["version 2"] = c
+	c.version = 1
+	cases["version 1 (no cut checksum)"] = c
 	c = base.duplicate(true)
-	c.version = "1"
+	c.version = 3
+	cases["version 3"] = c
+	c = base.duplicate(true)
+	c.version = "2"
 	cases["version string"] = c
+	c = base.duplicate(true)
+	c.puzzle.erase("cut_checksum")
+	cases["cut_checksum missing"] = c
+	c = base.duplicate(true)
+	c.puzzle.cut_checksum = "1"
+	cases["cut_checksum string"] = c
+	c = base.duplicate(true)
+	c.puzzle.cut_checksum = -1
+	cases["cut_checksum negative"] = c
+	c = base.duplicate(true)
+	c.puzzle.cut_checksum = 4294967296
+	cases["cut_checksum above 32 bits"] = c
 	c = base.duplicate(true)
 	c.erase("version")
 	cases["version missing"] = c

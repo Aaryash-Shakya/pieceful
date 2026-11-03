@@ -24,8 +24,20 @@ func _init() -> void:
 	bad_cases["truncated"] = good_text.substr(0, good_text.length() / 2)
 	bad_cases["array"] = "[]"
 	var c := _good.duplicate(true)
-	c.version = 2
-	bad_cases["wrong version"] = _text(c)
+	c.version = SaveGame.VERSION - 1
+	bad_cases["older version"] = _text(c)
+	c = _good.duplicate(true)
+	c.version = SaveGame.VERSION + 1
+	bad_cases["newer version"] = _text(c)
+	c = _good.duplicate(true)
+	c.puzzle.cut_checksum = (int(c.puzzle.cut_checksum) + 1) % 4294967296
+	bad_cases["cut drift"] = _text(c)
+	c = _good.duplicate(true)
+	c.clusters[0].offset = [1.0e30, 0.0]
+	bad_cases["far offset"] = _text(c)
+	c = _good.duplicate(true)
+	c.clusters[0].offset = [0.0, -8.0 * Board.IMAGE_SIZE.x - 1.0]
+	bad_cases["offset just past the limit"] = _text(c)
 	c = _good.duplicate(true)
 	c.erase("loose_order")
 	bad_cases["missing key"] = _text(c)
@@ -62,6 +74,7 @@ func _init() -> void:
 	bad_cases["bad draw order"] = _text(c)
 	for label: String in bad_cases:
 		_test_bad_file(label, bad_cases[label])
+	_test_unreadable_file()
 
 	board.free()
 	finish()
@@ -221,6 +234,7 @@ func _test_other_identity() -> void:
 	s.puzzle.style = "regular"
 	s.puzzle.piece_count = 55
 	s.puzzle.cut_seed = 7
+	s.puzzle.cut_checksum = CutGenerator.checksum(cut55)
 	for i in cut55.size():
 		var cluster := SaveGame.Cluster.new()
 		cluster.root = i
@@ -258,7 +272,6 @@ func _test_sizes_follow_the_puzzle() -> void:
 	var base := Rect2(Vector2.ZERO, Vector2(size)).grow(Board.LOOSE_MARGIN)
 	check(board._base_bounds == base, "the base bounds follow the puzzle's size")
 	check(board._bounds.encloses(base), "the camera bounds take in the base bounds")
-	check(board._board_rect() == Rect2(Vector2.ZERO, Vector2(size)), "the board rectangle follows the puzzle's size")
 	check(board._texture.width == size.x and board._texture.height == size.y, "the image follows the puzzle's size")
 	check(is_equal_approx(board.camera.zoom.x, board.get_viewport_rect().size.x / (size.x * Board.BORDER)),
 			"the camera fits the puzzle's width")
@@ -288,20 +301,38 @@ func _test_sizes_follow_the_puzzle() -> void:
 func _test_missing_file_starts_fresh() -> void:
 	board.free()
 	SaveFile.remove(TEST_SAVE_PATH)
+	DirAccess.remove_absolute(SaveFile.bad_path(TEST_SAVE_PATH))
 	_quiet(_resume(), "no save")
 	check(_is_fresh(), "no save starts a fresh puzzle")
+	check(not FileAccess.file_exists(SaveFile.bad_path(TEST_SAVE_PATH)), "no save sets nothing aside")
 	_good = SaveGame.to_dict(board.snapshot())
 
 
 func _test_bad_file(label: String, text: String) -> void:
 	board.free()
 	SaveFile.write_atomic(TEST_SAVE_PATH, text)
-	var capture := _resume()
-	check(capture.warnings.size() == 1 and capture.warnings[0].begins_with("Board: discarding the save at"),
-			"%s: one discard warning (%s)" % [label, capture.warnings])
+	_check_set_aside(label, text, _resume())
+
+
+func _check_set_aside(label: String, text: String, capture: LogCapture) -> void:
+	check(capture.warnings.size() == 1 and capture.warnings[0].begins_with("Board: could not use the save at"),
+			"%s: one warning (%s)" % [label, capture.warnings])
 	check(capture.errors.is_empty(), "%s: no error (%s)" % [label, capture.errors])
-	check(not FileAccess.file_exists(TEST_SAVE_PATH), "%s: the bad save is deleted" % label)
+	check(not FileAccess.file_exists(TEST_SAVE_PATH), "%s: the save path is free" % label)
+	var bad := SaveFile.read(SaveFile.bad_path(TEST_SAVE_PATH))
+	check(bad.error == OK and bad.text == text, "%s: the save survives, set aside" % label)
 	check(_is_fresh(), "%s: a fresh puzzle starts" % label)
+
+
+# Linux only: chmod takes the read permission away, and the move aside keeps it.
+func _test_unreadable_file() -> void:
+	board.free()
+	var text := _text(_good)
+	SaveFile.write_atomic(TEST_SAVE_PATH, text)
+	OS.execute("chmod", ["000", ProjectSettings.globalize_path(TEST_SAVE_PATH)])
+	var capture := _resume()
+	OS.execute("chmod", ["644", ProjectSettings.globalize_path(SaveFile.bad_path(TEST_SAVE_PATH))])
+	_check_set_aside("unreadable", text, capture)
 
 
 func _is_fresh() -> bool:

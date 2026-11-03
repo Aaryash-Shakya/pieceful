@@ -29,9 +29,11 @@ func _init() -> void:
 	_test_notification_saves(Node.NOTIFICATION_WM_CLOSE_REQUEST, "close request")
 	_test_notification_saves(Node.NOTIFICATION_WM_GO_BACK_REQUEST, "back request")
 	_test_forced_join_is_saved()
+	_test_one_write_per_leave()
 	_test_tidy_does_not_save()
 	await _test_elapsed_counts()
 	_test_completion_deletes_save()
+	_test_launch_focus()
 	_test_pause_completing_drop_leaves_no_save()
 
 	board.free()
@@ -147,7 +149,7 @@ func _test_no_geometry_keys() -> void:
 	_collect_keys(_saved(), keys)
 	var found: Array = keys.keys()
 	found.sort()
-	check(found == ["clusters", "elapsed", "height", "image_id", "locked", "loose_order", "offset", "piece_count",
+	check(found == ["clusters", "cut_checksum", "elapsed", "height", "image_id", "locked", "loose_order", "offset", "piece_count",
 			"pieces", "puzzle", "root", "seed", "style", "tidy_count", "version", "width"],
 			"the save holds no geometry: %s" % [found])
 	check(FileAccess.get_file_as_bytes(TEST_SAVE_PATH).size() < 131072, "the save stays small")
@@ -197,6 +199,48 @@ func _test_forced_join_is_saved() -> void:
 	check((_cluster_of(_saved(), pair.x).get("pieces", []) as Array).has(float(pair.y)),
 			"the save holds the join the forced drop made")
 	board._notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+
+
+# One trip to the background sends PAUSED and FOCUS_OUT, and a forced drop may lock as well.
+func _test_one_write_per_leave() -> void:
+	var n := _first_loose_singleton()
+	_hold(n, n.position + Vector2(0, 40))
+	var writes := board._save_writes
+	board._notification(Node.NOTIFICATION_APPLICATION_PAUSED)
+	check(board._save_writes == writes + 1, "a pause with a held piece writes once")
+	board._notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	check(board._save_writes == writes + 1, "the focus loss of the same trip does not write again")
+	board._notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+
+	var m := _first_loose_singleton()
+	_hold(m, Vector2.ZERO)
+	writes = board._save_writes
+	board._notification(Node.NOTIFICATION_APPLICATION_PAUSED)
+	check(board.state.is_locked(m.piece_id), "the forced drop locks")
+	check(board._save_writes == writes + 1, "a pause whose drop locks writes once")
+	board._notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	check(board._save_writes == writes + 1, "and its focus loss does not write again")
+	board._notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+
+	SaveFile.remove(TEST_SAVE_PATH)
+	check(board.save_game() and FileAccess.file_exists(TEST_SAVE_PATH), "an unchanged game is written again once its file is gone")
+
+
+# Headless, the window always reports focus, so the unfocused branch below runs only on a desktop
+# or device that launches without it.
+func _test_launch_focus() -> void:
+	var unready: Board = load("res://src/game/board.tscn").instantiate()
+	check(not unready._focused, "a board does not count before it knows the window's focus")
+	unready.free()
+	board.free()
+	make_board(true, false)
+	check(board._focused == board.get_window().has_focus(), "the clock starts with the window's focus")
+	if not board._focused:
+		board._process(0.1)
+		check(board.elapsed == 0.0, "a board launched without focus does not count")
+	board._notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	board._process(0.1)
+	check(board.elapsed > 0.0, "focus starts the clock")
 
 
 func _test_tidy_does_not_save() -> void:

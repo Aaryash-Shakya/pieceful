@@ -16,6 +16,8 @@ const WHEEL_ZOOM_STEP := 1.1
 const CLEANUP_DURATION := 0.4
 # A hitch or a frame the system held back counts no more than this toward the clock.
 const ELAPSED_STEP_LIMIT := 0.25
+# A restored loose offset beyond this many longest image sides is damage, not play.
+const FAR_OFFSET_FACTOR := 8
 
 # HOLD_PINCHING: the dragging finger keeps its piece while it and one other finger move the camera.
 enum Mode { IDLE, DRAGGING, PANNING, PINCHING, HOLD_PINCHING, PINCH_ENDED }
@@ -67,11 +69,17 @@ var _pinch_a := -1
 var _pinch_b := -1
 var _pinch_distance := 0.0
 var _pinch_mid := Vector2.ZERO
-var _focused := true
+var _focused := false
+# The text of the last successful write, so a second leave in one trip writes nothing.
+var _last_saved_text := ""
+# Successful writes, so tests can tell a skipped write from a repeated one.
+var _save_writes := 0
 
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Palette.felt())
+	# The app can start behind the lock screen; the clock waits for real focus.
+	_focused = get_window().has_focus()
 
 	var loose_order := _restore()
 	if state == null:
@@ -105,39 +113,58 @@ func _ready() -> void:
 # Loads the save into puzzle, cut and state and returns its loose draw order. With no save, or
 # one that fails a check, state stays null and the board starts fresh. Restoring emits no signal.
 func _restore() -> PackedInt32Array:
-	if not FileAccess.file_exists(save_path):
+	var file := SaveFile.read(save_path)
+	if file.error == ERR_FILE_NOT_FOUND:
 		return PackedInt32Array()
-	var loaded := SaveGame.from_json(SaveFile.read(save_path))
+	if file.error != OK:
+		_set_save_aside("it could not be read (error %d)" % file.error)
+		return PackedInt32Array()
+	var loaded := SaveGame.from_json(file.text)
 	if loaded.snapshot == null:
-		_discard_save(loaded.error)
+		_set_save_aside(loaded.error)
 		return PackedInt32Array()
 	var saved := loaded.snapshot
 	var p := saved.puzzle
 	# Until real images arrive, the board can draw only its test image at its one size.
 	if p.image_id != IMAGE_ID or p.image_size != IMAGE_SIZE:
-		_discard_save("unknown image %s at %dx%d" % [p.image_id, p.image_size.x, p.image_size.y])
+		_set_save_aside("unknown image %s at %dx%d" % [p.image_id, p.image_size.x, p.image_size.y])
 		return PackedInt32Array()
 	var saved_cut := CutGenerator.generate_cut(p.image_size.x, p.image_size.y, p.piece_count, p.style, p.cut_seed)
+	if CutGenerator.checksum(saved_cut) != p.cut_checksum:
+		_set_save_aside("the cut no longer matches the one it was saved with")
+		return PackedInt32Array()
 	var tolerance := PuzzleState.tolerance_for(p.image_size.x, p.image_size.y, saved_cut.size())
 	var saved_state := SaveGame.state_from(saved.clusters, saved_cut, tolerance)
 	# A broken partition gives the empty state, which counts as complete; a finished puzzle never has a save.
 	if saved_state.is_complete():
-		_discard_save("the clusters do not fit the cut or the puzzle is complete")
+		_set_save_aside("the clusters do not fit the cut or the puzzle is complete")
 		return PackedInt32Array()
+	# A damaged offset far out would stretch the camera bounds and strand the piece out of reach.
+	var reach := FAR_OFFSET_FACTOR * maxi(p.image_size.x, p.image_size.y)
+	for root in saved_state.roots():
+		if not saved_state.is_locked(root) and saved_state.offset_of(root).length() > reach:
+			_set_save_aside("cluster %d lies too far from the board" % root)
+			return PackedInt32Array()
 	if not SaveGame.loose_order_valid(saved.loose_order, saved_state):
-		_discard_save("the draw order does not list every loose piece once")
+		_set_save_aside("the draw order does not list every loose piece once")
 		return PackedInt32Array()
 	puzzle = p
 	cut = saved_cut
 	state = saved_state
 	elapsed = saved.elapsed
 	_cleanup_count = saved.tidy_count
+	# The file already holds this game, so leaving again before anything changes writes nothing.
+	_last_saved_text = file.text
 	return saved.loose_order
 
 
-func _discard_save(reason: String) -> void:
-	push_warning("Board: discarding the save at %s: %s" % [save_path, reason])
-	SaveFile.remove(save_path)
+# A save the game cannot use may still be wanted (a newer version wrote it, or the read failed
+# only this once), so it is kept beside the save path instead of deleted.
+func _set_save_aside(reason: String) -> void:
+	var error := SaveFile.move_aside(save_path)
+	var outcome := "moved it to %s" % SaveFile.bad_path(save_path) if error == OK \
+			else "could not move it aside (error %d)" % error
+	push_warning("Board: could not use the save at %s: %s; %s" % [save_path, reason, outcome])
 
 
 # A new puzzle from the constants, scattered around the board. Returns its draw order: by id.
@@ -150,6 +177,7 @@ func _start_fresh() -> PackedInt32Array:
 	puzzle.cut_seed = SEED
 	var size := puzzle.image_size
 	cut = CutGenerator.generate_cut(size.x, size.y, puzzle.piece_count, puzzle.style, puzzle.cut_seed)
+	puzzle.cut_checksum = CutGenerator.checksum(cut)
 	var offsets := Scatter.scatter(cut, Vector2(size), LOOSE_MARGIN, puzzle.cut_seed)
 	state = PuzzleState.new(cut, offsets, PuzzleState.tolerance_for(size.x, size.y, cut.size()))
 	var order := PackedInt32Array()
@@ -276,11 +304,18 @@ func save_game() -> bool:
 		return false
 	if state.is_complete():
 		SaveFile.remove(save_path)
+		_last_saved_text = ""
 		return true
-	var err := SaveFile.write_atomic(save_path, SaveGame.to_json(snapshot()))
+	var text := SaveGame.to_json(snapshot())
+	# One trip to the background sends several notifications; only the first needs the write.
+	if text == _last_saved_text and FileAccess.file_exists(save_path):
+		return true
+	var err := SaveFile.write_atomic(save_path, text)
 	if err != OK:
 		push_warning("Board: could not save to %s (error %d)" % [save_path, err])
 		return false
+	_last_saved_text = text
+	_save_writes += 1
 	return true
 
 
@@ -543,12 +578,8 @@ func _to_world(screen_position: Vector2) -> Vector2:
 	return camera.position + (screen_position - get_viewport_rect().size / 2.0) / camera.zoom.x
 
 
-func _board_rect() -> Rect2:
-	return Rect2(Vector2.ZERO, Vector2(puzzle.image_size))
-
-
 func _draw() -> void:
-	var rect := _board_rect()
+	var rect := Rect2(Vector2.ZERO, Vector2(puzzle.image_size))
 	draw_rect(rect, Palette.board())
 	draw_rect(rect, Palette.accent(), false, BOARD_OUTLINE_WIDTH)
 

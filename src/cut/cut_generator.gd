@@ -207,3 +207,14 @@ static func generate_cut(width: int, height: int, target_count: int, style: Stri
 	if graph == null:
 		return []
 	return graph.to_pieces()
+
+
+## A 32-bit fingerprint of the outlines: SeededRng.hash2 chained from 0 over every point's x then y,
+## in thousandths, in piece order. Saves store it, so a cut that drifts is never restored.
+static func checksum(pieces: Array[CutPiece]) -> int:
+	var h := 0
+	for p in pieces:
+		for point in p.outline:
+			h = SeededRng.hash2(h, roundi(point.x * 1000.0))
+			h = SeededRng.hash2(h, roundi(point.y * 1000.0))
+	return h
