@@ -13,10 +13,27 @@ func _init() -> void:
 	_test_unknown_picture_is_set_aside()
 	_test_size_mismatch_is_set_aside()
 	_test_rejected_resume_falls_back()
+	_test_rejected_resume_loads_nothing()
+	_test_unloadable_picture_is_set_aside()
+	_test_round_trip_inexact_count()
 	_test_unusable_start_puzzle()
+	_test_bad_style_or_count()
+	_test_fallback_never_saves()
 	_test_test_picture()
 	board.free()
 	finish()
+
+
+# Lists a real picture under another picture's id and size, so the manifest check passes but the load fails.
+func _broken_collection() -> Collection:
+	var broken := Collection.new()
+	var picture := Collection.Picture.new()
+	picture.id = "fixture-confetti-field"
+	picture.path = _fixture.find("fixture-tide-stripes").path
+	picture.width = 240
+	picture.height = 180
+	broken.pictures.append(picture)
+	return broken
 
 
 func _puzzle(id: String, size: Vector2i, style: String, count: int, cut_seed: int) -> SaveGame.Puzzle:
@@ -29,20 +46,21 @@ func _puzzle(id: String, size: Vector2i, style: String, count: int, cut_seed: in
 	return p
 
 
-func _launch(puzzle: SaveGame.Puzzle, resume: bool, fresh: bool) -> void:
+func _launch(puzzle: SaveGame.Puzzle, resume: bool, fresh: bool, source: Collection = null) -> void:
 	if board != null:
 		board.free()
 		board = null
+	var used := source if source != null else _fixture
 	make_board(fresh, true, func(b: Board) -> void:
-		b.collection = _fixture
+		b.collection = used
 		b.start_puzzle = puzzle
 		b.resume = resume)
 
 
-func _captured_launch(puzzle: SaveGame.Puzzle, resume: bool, fresh: bool) -> LogCapture:
+func _captured_launch(puzzle: SaveGame.Puzzle, resume: bool, fresh: bool, source: Collection = null) -> LogCapture:
 	var capture := LogCapture.new()
 	OS.add_logger(capture)
-	_launch(puzzle, resume, fresh)
+	_launch(puzzle, resume, fresh, source)
 	OS.remove_logger(capture)
 	return capture
 
@@ -84,6 +102,8 @@ func _test_start_puzzle() -> void:
 			"start: the checksum is computed")
 	check(board._texture.resource_path == _fixture.find("fixture-ember-rings").path, "start: the picture is drawn")
 	check((board.node_for(0).get_child(1) as Polygon2D).texture == board._texture, "start: pieces use the picture")
+	check(board._base_bounds == Rect2(0, 0, 240, 160).grow(Board.LOOSE_MARGIN) and bounds == board._base_bounds,
+			"start: the bounds follow the picture (%s)" % board._base_bounds)
 	var saved := _saved()
 	check(not saved.is_empty() and saved.puzzle.image_id == "fixture-ember-rings" and int(saved.puzzle.seed) == 99,
 			"a new game saves at once")
@@ -98,8 +118,7 @@ func _test_start_ignores_the_save() -> void:
 
 
 func _test_resume_collection_picture() -> void:
-	camera.zoom = Vector2(CameraRig.MIN_ZOOM, CameraRig.MIN_ZOOM)
-	camera.position = Vector2(board.puzzle.image_size) / 2.0
+	_show_everything()
 	var moved: PieceNode = null
 	for i in board.state.piece_count():
 		if _is_loose_singleton(i) and _grab_point(board.node_for(i)) != Vector2.INF:
@@ -121,6 +140,8 @@ func _test_resume_collection_picture() -> void:
 	check(board.puzzle.cut_seed == 5, "resume: the saved seed comes back")
 	check(board.state.offset_of(id) == expected, "resume: the moved piece comes back where it was")
 	check(board._texture.resource_path == _fixture.find("fixture-tide-stripes").path, "resume: the saved picture is drawn")
+	check(board._base_bounds == Rect2(0, 0, 240, 240).grow(Board.LOOSE_MARGIN) and bounds == board._base_bounds,
+			"resume: the bounds follow the saved picture (%s)" % board._base_bounds)
 
 
 func _test_unknown_picture_is_set_aside() -> void:
@@ -149,6 +170,73 @@ func _test_rejected_resume_falls_back() -> void:
 	check(p.image_id == "fixture-confetti-field" and p.style == "irregular" and p.piece_count == 48
 			and p.cut_seed == 77, "cut drift: the caller's puzzle starts")
 	check(board.cut.size() == 48, "cut drift: the caller's cut is built")
+
+
+# The board left by _test_rejected_resume_falls_back is a saved fixture-confetti-field game.
+func _test_rejected_resume_loads_nothing() -> void:
+	_edited(func(d: Dictionary) -> void:
+		d.puzzle.cut_checksum = (int(d.puzzle.cut_checksum) + 1) % 4294967296)
+	var capture := _captured_launch(null, true, false, _broken_collection())
+	_check_one_set_aside("rejected before loading", capture, "no longer matches")
+
+
+func _test_unloadable_picture_is_set_aside() -> void:
+	_launch(_puzzle("fixture-confetti-field", Vector2i(240, 180), "regular", 12, 8), false, true)
+	var capture := _captured_launch(null, true, false, _broken_collection())
+	var set_aside := PackedStringArray()
+	for w in capture.warnings:
+		if w.begins_with("Board: could not use the save at"):
+			set_aside.append(w)
+	check(set_aside.size() == 1 and set_aside[0].contains("could not load image fixture-confetti-field"),
+			"unloadable picture: the save is set aside with its own reason (%s)" % capture.warnings)
+	check(FileAccess.file_exists(SaveFile.bad_path(TEST_SAVE_PATH)), "unloadable picture: the save is kept aside")
+	check(board.puzzle.image_id == Board.IMAGE_ID, "unloadable picture: the test puzzle starts")
+
+
+# 23 has no rows-by-columns split, so the cut has another count and the save keeps the one asked.
+func _test_round_trip_inexact_count() -> void:
+	_launch(_puzzle("fixture-ember-rings", Vector2i(240, 160), "regular", 23, 6), false, true)
+	var pieces_cut := board.cut.size()
+	check(pieces_cut != 23, "inexact count: the cut snaps to a valid split (%d)" % pieces_cut)
+	var capture := _captured_launch(_puzzle("fixture-tide-stripes", Vector2i(240, 240), "regular", 16, 1), true, false)
+	check(capture.warnings.is_empty() and capture.errors.is_empty(),
+			"inexact count: resumes quietly (%s %s)" % [capture.warnings, capture.errors])
+	check(board.puzzle.image_id == "fixture-ember-rings" and board.puzzle.piece_count == 23
+			and board.puzzle.cut_seed == 6, "inexact count: the asked count comes back")
+	check(board.cut.size() == pieces_cut, "inexact count: the same cut comes back")
+	check(board._base_bounds == Rect2(0, 0, 240, 160).grow(Board.LOOSE_MARGIN), "inexact count: the bounds follow the picture")
+
+
+func _test_bad_style_or_count() -> void:
+	var cases := [["wild", 12], ["regular", 0], ["regular", SaveGame.MAX_PIECE_COUNT + 1]]
+	for c: Array in cases:
+		var label := "%s %d" % [c[0], c[1]]
+		var capture := _captured_launch(_puzzle("fixture-ember-rings", Vector2i(240, 160), c[0], c[1], 2), false, true)
+		check(capture.warnings.size() == 1 and capture.warnings[0].begins_with("Board: could not start fixture-ember-rings"),
+				"%s: one warning (%s)" % [label, capture.warnings])
+		check(capture.errors.is_empty(), "%s: no error (%s)" % [label, capture.errors])
+		check(board.puzzle.image_id == Board.IMAGE_ID, "%s: the test puzzle starts" % label)
+
+
+# The stand-in test puzzle must never overwrite the player's real save, on pause or on a lock.
+func _test_fallback_never_saves() -> void:
+	_launch(_puzzle("fixture-ember-rings", Vector2i(240, 160), "regular", 12, 9), false, true)
+	var real := FileAccess.get_file_as_string(TEST_SAVE_PATH)
+	check(real != "", "fallback: a real save exists")
+	_launch(_puzzle("fixture-gone", Vector2i(240, 160), "regular", 12, 1), false, false)
+	check(board.puzzle.image_id == Board.IMAGE_ID, "fallback: the test puzzle starts")
+	board._notification(Node.NOTIFICATION_APPLICATION_PAUSED)
+	_show_everything()
+	var locked: PieceNode = null
+	for i in board.state.piece_count():
+		if _is_loose_singleton(i) and _grab_point(board.node_for(i)) != Vector2.INF:
+			locked = board.node_for(i)
+			break
+	if locked != null:
+		_move_by_touch(locked, Vector2.ZERO)
+	check(locked != null and board.state.is_locked(locked.piece_id), "fallback: a piece locks")
+	check(not board.save_game(), "fallback: save_game refuses")
+	check(FileAccess.get_file_as_string(TEST_SAVE_PATH) == real, "fallback: the real save is untouched")
 
 
 func _test_unusable_start_puzzle() -> void:

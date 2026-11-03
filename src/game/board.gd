@@ -80,6 +80,8 @@ var _focused := false
 var _last_saved_text := ""
 # Successful writes, so tests can tell a skipped write from a repeated one.
 var _save_writes := 0
+# Set when the caller's puzzle could not start and the test puzzle stands in for it.
+var _saving_disabled := false
 
 
 func _ready() -> void:
@@ -92,9 +94,13 @@ func _ready() -> void:
 	if state == null:
 		var texture: Texture2D = null
 		if start_puzzle != null:
-			texture = picture_texture(start_puzzle.image_id, start_puzzle.image_size)
+			var p := start_puzzle
+			if CutGenerator.STYLES.has(p.style) and p.piece_count >= 1 and p.piece_count <= SaveGame.MAX_PIECE_COUNT:
+				texture = picture_texture(p.image_id, p.image_size)
 			if texture == null:
-				push_warning("Board: could not start %s; starting the test puzzle" % start_puzzle.image_id)
+				push_warning("Board: could not start %s; starting the test puzzle" % p.image_id)
+				# The player's save is still on disk; this stand-in game must never overwrite it.
+				_saving_disabled = true
 		from_caller = texture != null
 		if from_caller:
 			loose_order = _start_fresh(start_puzzle)
@@ -145,8 +151,8 @@ func _restore() -> PackedInt32Array:
 		return PackedInt32Array()
 	var saved := loaded.snapshot
 	var p := saved.puzzle
-	var texture := picture_texture(p.image_id, p.image_size)
-	if texture == null:
+	# Only whether the picture exists here: loading a full picture waits until every cheaper check passes.
+	if not has_picture(p.image_id, p.image_size):
 		_set_save_aside("unknown image %s at %dx%d" % [p.image_id, p.image_size.x, p.image_size.y])
 		return PackedInt32Array()
 	var saved_cut := CutGenerator.generate_cut(p.image_size.x, p.image_size.y, p.piece_count, p.style, p.cut_seed)
@@ -167,6 +173,10 @@ func _restore() -> PackedInt32Array:
 			return PackedInt32Array()
 	if not SaveGame.loose_order_valid(saved.loose_order, saved_state):
 		_set_save_aside("the draw order does not list every loose piece once")
+		return PackedInt32Array()
+	var texture := picture_texture(p.image_id, p.image_size)
+	if texture == null:
+		_set_save_aside("could not load image %s" % p.image_id)
 		return PackedInt32Array()
 	puzzle = p
 	cut = saved_cut
@@ -332,7 +342,7 @@ func snapshot() -> SaveGame.Snapshot:
 
 ## Writes the game, or deletes the save once the puzzle is complete. False when nothing could be saved.
 func save_game() -> bool:
-	if state == null:
+	if state == null or _saving_disabled:
 		return false
 	if state.is_complete():
 		SaveFile.remove(save_path)
@@ -619,14 +629,21 @@ func _draw() -> void:
 ## The picture for an image id at the given size, or null when neither the test picture nor the
 ## collection has it at that size.
 func picture_texture(image_id: String, size: Vector2i) -> Texture2D:
-	if image_id == IMAGE_ID and size == IMAGE_SIZE:
+	if not has_picture(image_id, size):
+		return null
+	if image_id == IMAGE_ID:
 		return _make_test_texture()
+	return collection.load_texture(collection.find(image_id))
+
+
+## Whether picture_texture can be asked for this picture, without loading it.
+func has_picture(image_id: String, size: Vector2i) -> bool:
+	if image_id == IMAGE_ID:
+		return size == IMAGE_SIZE
 	if collection == null:
-		return null
+		return false
 	var picture := collection.find(image_id)
-	if picture == null or picture.size() != size:
-		return null
-	return collection.load_texture(picture)
+	return picture != null and picture.size() == size
 
 
 # Sized by _apply_image_size, so it always matches the puzzle's image.
