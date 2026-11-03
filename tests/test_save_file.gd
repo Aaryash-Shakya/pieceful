@@ -17,6 +17,8 @@ func _init() -> void:
 	OS.remove_logger(capture)
 	check(capture.warnings.is_empty() and capture.errors.is_empty(), "the file layer prints nothing")
 	_test_write_failure()
+	_test_failed_write_keeps_old_save()
+	_test_rename_failure()
 	_clean()
 	finish()
 
@@ -24,6 +26,10 @@ func _init() -> void:
 func _clean() -> void:
 	if not DirAccess.dir_exists_absolute(DIR):
 		return
+	for sub in DirAccess.get_directories_at(DIR):
+		for file in DirAccess.get_files_at(DIR + "/" + sub):
+			DirAccess.remove_absolute(DIR + "/" + sub + "/" + file)
+		DirAccess.remove_absolute(DIR + "/" + sub)
 	for file in DirAccess.get_files_at(DIR):
 		DirAccess.remove_absolute(DIR + "/" + file)
 	DirAccess.remove_absolute(DIR)
@@ -78,3 +84,24 @@ func _test_write_failure() -> void:
 	_write_raw(DIR + "/blocker", "keep")
 	check(SaveFile.write_atomic(DIR + "/blocker/x.json", "x") != OK, "a write under a file fails")
 	check(SaveFile.read(DIR + "/blocker") == "keep", "the blocking file is untouched")
+
+
+func _test_failed_write_keeps_old_save() -> void:
+	_clean()
+	check(SaveFile.write_atomic(PATH, "good") == OK, "a good save is written")
+	# A directory in the temp file's place makes the temp open fail.
+	DirAccess.make_dir_recursive_absolute(PATH + SaveFile.TEMP_SUFFIX)
+	check(SaveFile.write_atomic(PATH, "new") != OK, "a write that cannot create its temp file fails")
+	check(SaveFile.read(PATH) == "good", "the previous save survives a failed write")
+	_clean()
+
+
+func _test_rename_failure() -> void:
+	_clean()
+	var target := DIR + "/dir_save"
+	DirAccess.make_dir_recursive_absolute(target)
+	_write_raw(target + "/inner", "keep")
+	check(SaveFile.write_atomic(target, "x") != OK, "a rename onto a non-empty directory fails")
+	check(not FileAccess.file_exists(target + SaveFile.TEMP_SUFFIX), "the temp file is removed after a failed rename")
+	check(DirAccess.dir_exists_absolute(target), "the directory is still there")
+	check(FileAccess.file_exists(target + "/inner"), "the directory's contents are intact")
