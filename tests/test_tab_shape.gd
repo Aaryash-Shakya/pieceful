@@ -1,4 +1,4 @@
-extends BaseTest
+extends "res://tests/base_test.gd"
 
 
 func check_bounds(pts: PackedVector2Array, label: String) -> void:

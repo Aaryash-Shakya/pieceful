@@ -1,5 +1,4 @@
-class_name BoardTest
-extends BaseTest
+extends "res://tests/base_test.gd"
 ## Shared setup and input helpers for tests that drive a real Board.
 
 var board: Board
@@ -16,8 +15,8 @@ func make_board() -> void:
 	root.add_child(board)
 	# Real playback would leave the audio server holding streams when a headless test exits.
 	var feedback := board.get_node("Feedback") as Feedback
-	feedback.play_sound = func(_sound: StringName) -> void: pass
-	feedback.vibrate = func(_duration_ms: int, _amplitude: float) -> void: pass
+	feedback.sound_enabled = false
+	feedback.vibration_enabled = false
 	camera = board.camera
 	pieces = board.pieces
 	viewport_size = board.get_viewport_rect().size

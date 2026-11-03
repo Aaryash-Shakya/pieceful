@@ -17,7 +17,8 @@ const WHEEL_ZOOM_STEP := 1.1
 enum Mode { IDLE, DRAGGING, PANNING, PINCHING, HOLD_PINCHING, PINCH_ENDED }
 
 signal cluster_lifted(cluster_root: int, piece_count: int)
-signal pieces_joined(cluster_root: int, piece_count: int)
+# locked: the same drop also locked the joined cluster, so cluster_locked follows.
+signal pieces_joined(cluster_root: int, piece_count: int, locked: bool)
 signal cluster_locked(cluster_root: int, piece_count: int)
 signal puzzle_completed
 
@@ -26,6 +27,8 @@ var cut: Array[CutPiece]
 var state: PuzzleState
 var locked_pieces: Node2D
 var pieces: Node2D
+# True only while the system forces a drop (focus loss, pause). The signals still fire, but feedback stays silent.
+var releasing_for_system := false
 
 var _bounds := Rect2(Vector2.ZERO, Vector2(IMAGE_SIZE)).grow(LOOSE_MARGIN)
 var _mode := Mode.IDLE
@@ -96,7 +99,9 @@ func _process(delta: float) -> void:
 # Touch-up events can be lost while the app is in the background, so nothing may stay held.
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
+		releasing_for_system = true
 		_cancel_gesture()
+		releasing_for_system = false
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -284,7 +289,7 @@ func _settle(result: PuzzleState.DropResult) -> void:
 	elif result.joined:
 		_raise(nodes)
 	if result.joined:
-		pieces_joined.emit(result.root, nodes.size())
+		pieces_joined.emit(result.root, nodes.size(), result.locked)
 	if result.locked:
 		cluster_locked.emit(result.root, nodes.size())
 	if result.locked and state.is_complete():

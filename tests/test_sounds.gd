@@ -1,10 +1,15 @@
-extends BaseTest
+extends "res://tests/base_test.gd"
 
 const Synth := preload("res://tools/sound_synth.gd")
 const LENGTHS := {&"pick": 0.05, &"join": 0.07, &"lock": 0.12, &"complete": 0.93}
 
 
+var _rendered: Dictionary[StringName, AudioStreamWAV] = {}
+
+
 func _init() -> void:
+	for sound_name: StringName in Synth.SOUNDS:
+		_rendered[sound_name] = Synth.render(sound_name)
 	_test_render_format()
 	_test_render_is_deterministic()
 	_test_files_exist_and_load()
@@ -29,7 +34,7 @@ func _peak(stream: AudioStreamWAV, from_frame: int, to_frame: int) -> int:
 
 func _test_render_format() -> void:
 	for sound_name: StringName in Synth.SOUNDS:
-		var s: AudioStreamWAV = Synth.render(sound_name)
+		var s := _rendered[sound_name]
 		check(s.format == AudioStreamWAV.FORMAT_16_BITS, "%s is 16-bit" % sound_name)
 		check(not s.stereo, "%s is mono" % sound_name)
 		check(s.mix_rate == 44100, "%s mix rate is 44100" % sound_name)
@@ -38,7 +43,7 @@ func _test_render_format() -> void:
 
 func _test_render_is_deterministic() -> void:
 	for sound_name: StringName in Synth.SOUNDS:
-		check(Synth.render(sound_name).data == Synth.render(sound_name).data, "%s renders the same twice" % sound_name)
+		check(_rendered[sound_name].data == Synth.render(sound_name).data, "%s renders the same twice" % sound_name)
 
 
 func _test_files_exist_and_load() -> void:
@@ -68,7 +73,7 @@ func _test_lengths() -> void:
 
 func _test_onset() -> void:
 	for sound_name: StringName in Synth.SOUNDS:
-		var s: AudioStreamWAV = Synth.render(sound_name)
+		var s := _rendered[sound_name]
 		var frames := s.data.size() / 2
 		var whole := _peak(s, 0, frames)
 		check(_peak(s, 0, 132) >= 0.1 * whole, "%s is audible within the first 3 ms" % sound_name)
@@ -77,7 +82,7 @@ func _test_onset() -> void:
 
 func _test_no_clipping() -> void:
 	for sound_name: StringName in Synth.SOUNDS:
-		var s: AudioStreamWAV = Synth.render(sound_name)
+		var s := _rendered[sound_name]
 		var peak := _peak(s, 0, s.data.size() / 2)
 		check(peak < 32767, "%s does not clip (peak %d)" % [sound_name, peak])
 
@@ -89,7 +94,7 @@ func _test_files_match_generator() -> void:
 			check(false, "%s did not load" % sound_name)
 			continue
 		var from_file: AudioStreamWAV = loaded
-		var rendered: AudioStreamWAV = Synth.render(sound_name)
+		var rendered := _rendered[sound_name]
 		check(from_file.data.size() == rendered.data.size(), "%s file and generator have the same size" % sound_name)
 		if from_file.data.size() != rendered.data.size():
 			continue

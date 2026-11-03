@@ -1,7 +1,8 @@
-extends BoardTest
+extends "res://tests/board_test.gd"
 
 # Member variables, not locals: the signal lambdas would capture locals by value.
 var _joined: Array[Vector2i] = []
+var _joined_locked: Array[bool] = []
 var _locked: Array[Vector2i] = []
 var _lifted: Array[Vector2i] = []
 var _completed := 0
@@ -21,7 +22,9 @@ func _init() -> void:
 	make_board()
 	_show_everything()
 	tol = board.state.tolerance
-	board.pieces_joined.connect(func(root: int, count: int) -> void: _joined.append(Vector2i(root, count)))
+	board.pieces_joined.connect(func(root: int, count: int, locked: bool) -> void:
+		_joined.append(Vector2i(root, count))
+		_joined_locked.append(locked))
 	board.cluster_locked.connect(func(root: int, count: int) -> void: _locked.append(Vector2i(root, count)))
 	board.cluster_lifted.connect(func(root: int, count: int) -> void: _lifted.append(Vector2i(root, count)))
 	board.puzzle_completed.connect(func() -> void:
@@ -72,6 +75,7 @@ func _test_drop_beside_neighbour_joins() -> void:
 	check(q.position == q_before, "the neighbour it joined does not move")
 	check(_joined.size() == 1 and _joined[0] == Vector2i(board.state.find(p.piece_id), 2), "a join reports the root and two pieces")
 	check(_locked.is_empty(), "a join away from home does not lock")
+	check(_joined_locked == [false], "a join away from home is not flagged as locked")
 	check(_lifted.size() == lifted_before + 1 and _lifted.back() == Vector2i(_pair_1.x, 1), "the press lifted a singleton")
 	var last := pieces.get_child_count() - 1
 	var top := [pieces.get_child(last), pieces.get_child(last - 1)]

@@ -52,11 +52,29 @@ func _ready() -> void:
 
 
 func attach(target: Board) -> void:
+	if board != null and board != target:
+		_link(board, false)
 	board = target
-	board.cluster_lifted.connect(_on_cluster_lifted)
-	board.pieces_joined.connect(_on_pieces_joined)
-	board.cluster_locked.connect(_on_cluster_locked)
-	board.puzzle_completed.connect(_on_puzzle_completed)
+	_link(board, true)
+
+
+# Safe to repeat: a signal is only connected or disconnected when it is not already so.
+func _link(source: Board, connected: bool) -> void:
+	var pairs: Array[Array] = [
+		[source.cluster_lifted, _on_cluster_lifted],
+		[source.pieces_joined, _on_pieces_joined],
+		[source.cluster_locked, _on_cluster_locked],
+		[source.puzzle_completed, _on_puzzle_completed],
+	]
+	for pair in pairs:
+		var sig: Signal = pair[0]
+		var handler: Callable = pair[1]
+		if sig.is_connected(handler) == connected:
+			continue
+		if connected:
+			sig.connect(handler)
+		else:
+			sig.disconnect(handler)
 
 
 func _play(sound: StringName) -> void:
@@ -67,9 +85,9 @@ func _on_cluster_lifted(_root: int, _count: int) -> void:
 	_sound(SOUND_PICK)
 
 
-func _on_pieces_joined(root: int, _count: int) -> void:
+func _on_pieces_joined(_root: int, _count: int, locked: bool) -> void:
 	# A drop that joins and locks emits both signals; the lock that follows is the stronger feedback.
-	if board.state.is_locked(root):
+	if locked:
 		return
 	_sound(SOUND_JOIN)
 	_buzz(JOIN_VIBRATION_MS, JOIN_VIBRATION_AMPLITUDE)
@@ -86,10 +104,10 @@ func _on_puzzle_completed() -> void:
 
 
 func _sound(sound: StringName) -> void:
-	if sound_enabled:
+	if sound_enabled and not board.releasing_for_system:
 		play_sound.call(sound)
 
 
 func _buzz(duration_ms: int, amplitude: float) -> void:
-	if vibration_enabled:
+	if vibration_enabled and not board.releasing_for_system:
 		vibrate.call(duration_ms, amplitude)
