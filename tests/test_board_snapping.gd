@@ -351,48 +351,9 @@ func _test_completion() -> void:
 	check(total == 400, "lock counts add up to every piece")
 
 
-func _inside_points(node: PieceNode) -> PackedVector2Array:
-	var outline := board.cut[node.piece_id].outline
-	var triangles := Geometry2D.triangulate_polygon(outline)
-	var points := PackedVector2Array()
-	for t in range(0, triangles.size(), 3):
-		points.append((outline[triangles[t]] + outline[triangles[t + 1]] + outline[triangles[t + 2]]) / 3.0)
-	return points
-
-
-func _grab_point(node: PieceNode) -> Vector2:
-	for c in _inside_points(node):
-		if _top_piece_at(c + node.position) == node:
-			return _to_screen(c + node.position)
-	return Vector2.INF
-
-
-func _is_loose_singleton(piece: int) -> bool:
-	return not board.state.is_locked(piece) and board.state.members(piece).size() == 1
-
-
 func _next_loose_singleton() -> PieceNode:
 	for i in board.state.piece_count():
 		if _is_loose_singleton(i) and _grab_point(board.node_for(i)) != Vector2.INF:
 			return board.node_for(i)
 	check(false, "found a loose singleton with a grab point")
 	return board.node_for(0)
-
-
-func _loose_pair(used: PackedInt32Array) -> Vector2i:
-	for p in board.state.piece_count():
-		if used.has(p) or not _is_loose_singleton(p) or _grab_point(board.node_for(p)) == Vector2.INF:
-			continue
-		for q in board.cut[p].neighbours:
-			if not used.has(q) and _is_loose_singleton(q):
-				return Vector2i(p, q)
-	check(false, "found a loose pair of neighbours")
-	return Vector2i(0, 1)
-
-
-func _move_by_touch(node: PieceNode, target: Vector2) -> void:
-	var s := _grab_point(node)
-	var relative := (target - node.position) * camera.zoom.x
-	_touch(0, s, true)
-	_drag(0, s + relative, relative)
-	_touch(0, s + relative, false)

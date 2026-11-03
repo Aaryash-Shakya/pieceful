@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://src/game/board.gd" id="1"]
 [ext_resource type="PackedScene" path="res://src/ui/fps_counter.tscn" id="2"]
 [ext_resource type="Script" path="res://src/game/feedback.gd" id="3"]
+[ext_resource type="Script" path="res://src/ui/hud.gd" id="4"]
 
 [node name="Board" type="Node2D"]
 script = ExtResource("1")
@@ -11,4 +12,8 @@ script = ExtResource("1")
 
 [node name="Feedback" type="Node" parent="." node_paths=PackedStringArray("board")]
 script = ExtResource("3")
+board = NodePath("..")
+
+[node name="Hud" type="CanvasLayer" parent="." node_paths=PackedStringArray("board")]
+script = ExtResource("4")
 board = NodePath("..")
