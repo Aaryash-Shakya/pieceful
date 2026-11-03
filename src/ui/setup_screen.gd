@@ -3,6 +3,8 @@ extends Control
 ## Pick a picture, a style and a piece count, with the real cut previewed over the picture. Built
 ## in code like the HUD so every control takes its look from UiTheme.
 
+const SCENE := "res://src/ui/setup_screen.tscn"
+const BOARD_SCENE := "res://src/game/board.tscn"
 const MIN_COUNT := 12
 const MAX_COUNT := 400
 const DEFAULT_COUNT := 54
@@ -50,8 +52,11 @@ var start_button: Button
 var resume_card: PanelContainer
 var resume_button: Button
 var resume_label: Label
+var resume_thumb: TextureRect
 
 var _dragging := false
+# Set by the first launch: a double tap or Start then Resume must not open two boards.
+var _launched := false
 var _picture_group := ButtonGroup.new()
 var _style_group := ButtonGroup.new()
 var _rows: VBoxContainer
@@ -72,6 +77,31 @@ static func nearest_count(options: PackedInt32Array, target: int) -> int:
 	return best
 
 
+## The save at path when it can be resumed with a picture of source at its saved size and a
+## player-facing style, else null. Prints nothing, so the caller decides what to say.
+static func resumable(path: String, source: Collection) -> SaveGame.Snapshot:
+	if source == null:
+		return null
+	var file := SaveFile.read(path)
+	if file.error != OK:
+		return null
+	var snapshot := SaveGame.from_json(file.text).snapshot
+	if snapshot == null or not STYLES.has(snapshot.puzzle.style):
+		return null
+	var found := source.find(snapshot.puzzle.image_id)
+	if found == null or found.size() != snapshot.puzzle.image_size:
+		return null
+	return snapshot
+
+
+static func open(tree: SceneTree, path: String, source: Collection) -> SetupScreen:
+	var screen := (load(SCENE) as PackedScene).instantiate() as SetupScreen
+	screen.save_path = path
+	screen.collection = source
+	tree.change_scene_to_node(screen)
+	return screen
+
+
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Palette.page_background())
 	theme = UiTheme.build()
@@ -87,10 +117,22 @@ func _ready() -> void:
 	preview_timer.timeout.connect(regenerate_preview)
 	add_child(preview_timer)
 
+	saved = resumable(save_path, collection)
+	# Kept beside the save rather than deleted; it also clears an old test-picture save on first launch.
+	if saved == null and FileAccess.file_exists(save_path):
+		SaveFile.move_aside(save_path)
+		push_warning("SetupScreen: could not resume the save at %s; moved it to %s" % [save_path, SaveFile.bad_path(save_path)])
+
 	_build_ui()
+	start_button.pressed.connect(start)
+	resume_button.pressed.connect(resume)
 
 	if saved != null:
 		var puzzle := saved.puzzle
+		var saved_picture := collection.find(puzzle.image_id)
+		resume_thumb.texture = collection.load_thumbnail(saved_picture)
+		resume_label.text = "%s · %d pieces · %s" % [saved_picture.title, puzzle.piece_count, STYLE_NAMES[puzzle.style]]
+		resume_card.visible = true
 		style = puzzle.style
 		count = puzzle.piece_count
 		select_style(style)
@@ -105,6 +147,54 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST and quit_app.is_valid():
 		quit_app.call()
+
+
+## A new game from the current choices and the previewed seed. It replaces any save.
+func start() -> Board:
+	if _launched or picture == null:
+		return null
+	var puzzle := SaveGame.Puzzle.new()
+	puzzle.image_id = picture.id
+	puzzle.image_size = picture.size()
+	puzzle.style = style
+	puzzle.piece_count = count
+	puzzle.cut_seed = cut_seed
+	return _launch(puzzle, false)
+
+
+## Continues the save. The board checks it again; if it fails there, the saved picture starts fresh.
+func resume() -> Board:
+	if _launched or saved == null:
+		return null
+	var puzzle := SaveGame.Puzzle.new()
+	puzzle.image_id = saved.puzzle.image_id
+	puzzle.image_size = saved.puzzle.image_size
+	puzzle.style = saved.puzzle.style
+	puzzle.piece_count = saved.puzzle.piece_count
+	puzzle.cut_seed = cut_seed
+	return _launch(puzzle, true)
+
+
+# The swap frees this screen, its timer and its textures. The board is freed in turn when it goes
+# home, so its one-way home flag never needs resetting.
+func _launch(puzzle: SaveGame.Puzzle, resume_save: bool) -> Board:
+	_launched = true
+	start_button.disabled = true
+	resume_button.disabled = true
+	preview_timer.stop()
+	var board := (load(BOARD_SCENE) as PackedScene).instantiate() as Board
+	board.save_path = save_path
+	board.collection = collection
+	board.start_puzzle = puzzle
+	board.resume = resume_save
+	var tree := get_tree()
+	var path := save_path
+	var source := collection
+	# Handed on so a test's quit seam survives the round trip through the board.
+	var quit := quit_app
+	board.home_requested.connect(func() -> void: SetupScreen.open(tree, path, source).quit_app = quit)
+	tree.change_scene_to_node(board)
+	return board
 
 
 func select_picture(index: int) -> void:
@@ -307,7 +397,7 @@ func _build_ui() -> void:
 	page.add_child(start_button)
 
 
-# Task 6 fills and shows it when a resumable save exists.
+# _ready fills and shows it when a resumable save exists.
 func _build_resume_card() -> void:
 	resume_card = PanelContainer.new()
 	resume_card.visible = false
@@ -315,12 +405,12 @@ func _build_resume_card() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", ROW_GAP)
 	resume_card.add_child(row)
-	var thumb := TextureRect.new()
-	thumb.name = "Thumbnail"
-	thumb.custom_minimum_size = RESUME_THUMB_SIZE
-	thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	row.add_child(thumb)
+	resume_thumb = TextureRect.new()
+	resume_thumb.name = "Thumbnail"
+	resume_thumb.custom_minimum_size = RESUME_THUMB_SIZE
+	resume_thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	resume_thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	row.add_child(resume_thumb)
 	resume_label = Label.new()
 	resume_label.size_flags_horizontal = SIZE_EXPAND_FILL
 	resume_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
