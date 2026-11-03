@@ -16,9 +16,17 @@ func _init() -> void:
 	_test_press_tidies(hud)
 	_test_attach_is_guarded(hud)
 	_test_hud_without_board()
+	_test_home_button(hud)
+	_test_home_press_goes_home(hud)
+	_test_fps_counter_clears_the_buttons()
 
 	board.free()
 	finish()
+
+
+# FpsCounter writes its margin out rather than reading the HUD's, so this keeps the two in step.
+func _test_fps_counter_clears_the_buttons() -> void:
+	check(FpsCounter.MARGIN_TOP >= Hud.MARGIN_TOP + Hud.BUTTON_SIZE.y, "the frame counter sits below the HUD buttons")
 
 
 func _test_hud_is_screen_space(hud: Hud) -> void:
@@ -45,7 +53,7 @@ func _test_button_placement(hud: Hud) -> void:
 	var r := hud.cleanup_button.get_global_rect()
 	check(r.size.is_equal_approx(Hud.BUTTON_SIZE), "the button is its fixed size")
 	check(is_equal_approx(r.end.x, viewport_size.x - Hud.MARGIN_RIGHT), "the button sits at the right margin")
-	check(is_equal_approx(r.position.y, FpsCounter.MARGIN_TOP), "the button clears the status bar")
+	check(is_equal_approx(r.position.y, Hud.MARGIN_TOP), "the button clears the status bar")
 	check(r.end.y <= viewport_size.y * 0.25, "the bottom stays free for slots")
 	var label = board.get_node("FpsCounter")._label
 	if label != null:
@@ -135,6 +143,15 @@ func _test_attach_is_guarded(hud: Hud) -> void:
 	check(pressed.get_connections().size() == 1, "re-pointing leaves one connection")
 	hud.attach(board)
 	check(pressed.is_connected(board.cleanup) and not pressed.is_connected(other.cleanup), "attaching back restores the board")
+
+	var home := hud.home_button.pressed
+	hud.attach(board)
+	check(home.get_connections().size() == 1, "attaching the same board twice connects Home once")
+	hud.attach(other)
+	check(home.is_connected(other.go_home) and not home.is_connected(board.go_home), "re-pointing moves Home to the new board")
+	check(home.get_connections().size() == 1, "re-pointing leaves one Home connection")
+	hud.attach(board)
+	check(home.is_connected(board.go_home) and not home.is_connected(other.go_home), "attaching back restores Home")
 	other.free()
 
 
@@ -143,6 +160,33 @@ func _test_press_tidies(hud: Hud) -> void:
 	check(board.is_tidying(), "pressing Tidy starts the animation")
 	board._notification(Node.NOTIFICATION_APPLICATION_PAUSED)
 	check(not board.is_tidying(), "an app pause completes it")
+
+
+func _test_home_button(hud: Hud) -> void:
+	var b := hud.home_button
+	check(b.text == "Home", "the Home button says Home")
+	check(b.mouse_filter == Control.MOUSE_FILTER_STOP, "the Home button stops touches")
+	check(b.focus_mode == Control.FOCUS_NONE, "the Home button takes no focus")
+	var r := b.get_global_rect()
+	check(r.size.is_equal_approx(Hud.BUTTON_SIZE), "the Home button is its fixed size")
+	check(r.position.is_equal_approx(Vector2(Hud.MARGIN_LEFT, Hud.MARGIN_TOP)), "the Home button sits top left")
+	check(not r.intersects(hud.cleanup_button.get_global_rect()), "Home does not cover Tidy")
+	var label = board.get_node("FpsCounter")._label
+	if label != null:
+		check(not (label as Label).get_global_rect().intersects(r), "Home does not cover the frame-rate counter")
+	check(r.end.y <= viewport_size.y * 0.25, "Home leaves the bottom free for slots")
+	var normal := b.get_theme_stylebox("normal") as StyleBoxFlat
+	var tidy := hud.cleanup_button.get_theme_stylebox("normal") as StyleBoxFlat
+	check(normal.bg_color == tidy.bg_color and normal.border_color == tidy.border_color, "Home is styled like Tidy")
+
+
+func _test_home_press_goes_home(hud: Hud) -> void:
+	var count := [0]
+	board.home_requested.connect(func() -> void: count[0] += 1)
+	SaveFile.remove(TEST_SAVE_PATH)
+	hud.home_button.pressed.emit()
+	check(count[0] == 1, "pressing Home asks to go home once")
+	check(FileAccess.file_exists(TEST_SAVE_PATH), "pressing Home saves")
 
 
 func _test_hud_without_board() -> void:

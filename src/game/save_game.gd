@@ -24,6 +24,16 @@ class Puzzle:
 	## CutGenerator.checksum of the cut these fields make, taken when the cut was generated.
 	var cut_checksum := 0
 
+	func copy() -> Puzzle:
+		var p := Puzzle.new()
+		p.image_id = image_id
+		p.image_size = image_size
+		p.style = style
+		p.piece_count = piece_count
+		p.cut_seed = cut_seed
+		p.cut_checksum = cut_checksum
+		return p
+
 
 class Cluster:
 	var root := -1
@@ -93,7 +103,7 @@ static func from_dict(data: Variant) -> Loaded:
 	var root: Dictionary = data
 	if not _has_exactly(root, ["version", "puzzle", "clusters", "loose_order", "elapsed", "tidy_count"]):
 		return _fail("save has missing or unknown keys")
-	if not _is_int(root.version) or int(root.version) != VERSION:
+	if not is_int(root.version) or int(root.version) != VERSION:
 		return _fail("version")
 	if not root.puzzle is Dictionary:
 		return _fail("puzzle")
@@ -104,16 +114,16 @@ static func from_dict(data: Variant) -> Loaded:
 		return _fail("puzzle.image_id")
 	if not puzzle_data.style is String or not CutGenerator.STYLES.has(puzzle_data.style):
 		return _fail("puzzle.style")
-	if not _is_int(puzzle_data.piece_count) or int(puzzle_data.piece_count) < 1 \
+	if not is_int(puzzle_data.piece_count) or int(puzzle_data.piece_count) < 1 \
 			or int(puzzle_data.piece_count) > MAX_PIECE_COUNT:
 		return _fail("puzzle.piece_count")
-	if not _is_int(puzzle_data.width) or int(puzzle_data.width) < 1:
+	if not is_int(puzzle_data.width) or int(puzzle_data.width) < 1:
 		return _fail("puzzle.width")
-	if not _is_int(puzzle_data.height) or int(puzzle_data.height) < 1:
+	if not is_int(puzzle_data.height) or int(puzzle_data.height) < 1:
 		return _fail("puzzle.height")
-	if not _is_int(puzzle_data.seed):
+	if not is_int(puzzle_data.seed):
 		return _fail("puzzle.seed")
-	if not _is_int(puzzle_data.cut_checksum) or int(puzzle_data.cut_checksum) < 0 \
+	if not is_int(puzzle_data.cut_checksum) or int(puzzle_data.cut_checksum) < 0 \
 			or int(puzzle_data.cut_checksum) > SeededRng.MASK:
 		return _fail("puzzle.cut_checksum")
 	if not root.clusters is Array:
@@ -122,7 +132,7 @@ static func from_dict(data: Variant) -> Loaded:
 		return _fail("loose_order")
 	if not _is_number(root.elapsed) or float(root.elapsed) < 0.0 or float(root.elapsed) > MAX_ELAPSED:
 		return _fail("elapsed")
-	if not _is_int(root.tidy_count) or int(root.tidy_count) < 0:
+	if not is_int(root.tidy_count) or int(root.tidy_count) < 0:
 		return _fail("tidy_count")
 
 	var snapshot := Snapshot.new()
@@ -142,7 +152,7 @@ static func from_dict(data: Variant) -> Loaded:
 		var cluster_data: Dictionary = entry
 		if not _has_exactly(cluster_data, ["root", "pieces", "offset", "locked"]):
 			return _fail("clusters[%d] has missing or unknown keys" % i)
-		if not _is_int(cluster_data.root):
+		if not is_int(cluster_data.root):
 			return _fail("clusters[%d].root" % i)
 		var ids: Variant = _int_array(cluster_data.pieces)
 		if ids == null:
@@ -234,7 +244,7 @@ static func _is_number(value: Variant) -> bool:
 
 # Godot's JSON reader returns every number as a float, so a whole float counts as an integer.
 # Native ints are held to the same 2^53 limit, so a value never changes when it goes through text.
-static func _is_int(value: Variant) -> bool:
+static func is_int(value: Variant) -> bool:
 	if value is int:
 		return absi(value) <= int(MAX_EXACT_INT)
 	return value is float and is_finite(value) and value == floorf(value) and absf(value) <= MAX_EXACT_INT
@@ -247,7 +257,7 @@ static func _int_array(value: Variant) -> Variant:
 		return null
 	var result := PackedInt32Array()
 	for item in value:
-		if not _is_int(item) or absf(float(item)) > 2147483647.0:
+		if not is_int(item) or absf(float(item)) > 2147483647.0:
 			return null
 		result.append(int(item))
 	return result

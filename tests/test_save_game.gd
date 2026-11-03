@@ -16,7 +16,30 @@ func _init() -> void:
 	_test_loose_order_valid()
 	_test_elapsed_is_kept_to_the_millisecond()
 	_test_number_ranges()
+	_test_puzzle_copy()
+	_test_is_int()
 	finish()
+
+
+func _test_puzzle_copy() -> void:
+	var p := SaveGame.Puzzle.new()
+	p.image_id = "a"
+	p.image_size = Vector2i(30, 20)
+	p.style = "irregular"
+	p.piece_count = 24
+	p.cut_seed = 77
+	p.cut_checksum = 5
+	var c := p.copy()
+	check(c != p, "copy is a new object")
+	check(c.image_id == "a" and c.image_size == Vector2i(30, 20) and c.style == "irregular" and c.piece_count == 24
+			and c.cut_seed == 77 and c.cut_checksum == 5, "copy keeps every field")
+	c.cut_seed = 1
+	check(p.cut_seed == 77, "changing the copy leaves the original")
+
+
+func _test_is_int() -> void:
+	check(SaveGame.is_int(3) and SaveGame.is_int(3.0), "whole numbers are ints")
+	check(not SaveGame.is_int(3.5) and not SaveGame.is_int("3") and not SaveGame.is_int(null), "others are not")
 
 
 func _played() -> PuzzleState:

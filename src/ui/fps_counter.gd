@@ -6,8 +6,8 @@ extends CanvasLayer
 const REFRESH_INTERVAL := 0.25
 const FONT_SIZE := 22
 const MARGIN_LEFT := 16
-# Clears the Android status bar, which sits over the top of the viewport.
-const MARGIN_TOP := 56
+# Below the HUD's button row, so the readout never sits under Home or Tidy.
+const MARGIN_TOP := Hud.MARGIN_TOP + Hud.BUTTON_SIZE.y + 12.0
 
 var _label: Label
 var _timer: Timer

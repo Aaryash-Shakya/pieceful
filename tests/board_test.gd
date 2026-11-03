@@ -14,12 +14,15 @@ var bounds: Rect2
 # so the caller awaits process_frame first.
 ## A fresh board starts with no save; otherwise it resumes whatever is at TEST_SAVE_PATH.
 ## With focus, a board that starts without window focus (headless, say) is given it, so its clock runs.
-func make_board(fresh := true, focus := true) -> void:
+## A valid configure is called with the board before it enters the tree.
+func make_board(fresh := true, focus := true, configure := Callable()) -> void:
 	board = load("res://src/game/board.tscn").instantiate()
 	# Board tests never read or write the player's real save.
 	board.save_path = TEST_SAVE_PATH
 	if fresh:
 		SaveFile.remove(TEST_SAVE_PATH)
+	if configure.is_valid():
+		configure.call(board)
 	root.add_child(board)
 	if focus and not board._focused:
 		board._notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
@@ -30,7 +33,8 @@ func make_board(fresh := true, focus := true) -> void:
 	camera = board.camera
 	pieces = board.pieces
 	viewport_size = board.get_viewport_rect().size
-	bounds = Rect2(Vector2.ZERO, Vector2(Board.IMAGE_SIZE)).grow(Board.LOOSE_MARGIN)
+	# From the board's own puzzle, so a collection picture or a restored size is framed correctly.
+	bounds = Rect2(Vector2.ZERO, Vector2(board.puzzle.image_size)).grow(Board.LOOSE_MARGIN)
 
 
 func finish() -> void:
@@ -83,9 +87,10 @@ func _show_everything() -> void:
 
 
 func _fit_board() -> void:
-	var fit := viewport_size.x / (Board.IMAGE_SIZE.x * Board.BORDER)
+	var size := Vector2(board.puzzle.image_size)
+	var fit := viewport_size.x / (size.x * Board.BORDER)
 	camera.zoom = Vector2(fit, fit)
-	camera.position = Vector2(Board.IMAGE_SIZE) / 2.0
+	camera.position = size / 2.0
 
 
 # The board's own picking rule, so tests cannot drift from it.

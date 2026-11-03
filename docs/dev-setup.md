@@ -107,6 +107,10 @@ Checked on 2026-10-22 with the Nothing Phone (4a).
 
 With the Mobile renderer, the export preset shows Min SDK 29 (Android 10), so the Galaxy On7 Pro (Android 6) cannot install a Mobile build.
 
+## Build and install from the command line
+
+`tools/build_apk.sh` exports `build/pieceful-debug.apk` and installs it on the one connected phone with `adb install -r`, which keeps the app's data and save. `tools/build_apk.sh --no-install` only builds. `GODOT`, `ADB` and `ANDROID_SERIAL` override the defaults (`godot` on the PATH, `~/Android/Sdk/platform-tools/adb`, and the only connected device). If install reports a signature mismatch, run `adb uninstall io.github.aaryash_shakya.pieceful` first, which deletes the save. Remote Deploy in the editor still works for a quick run.
+
 ## Where everything lives
 
 - `~/Android/`: the Android SDK and the download folder.
@@ -115,7 +119,7 @@ With the Mobile renderer, the export preset shows Min SDK 29 (Android 10), so th
 - `~/.local/share/godot/`: Godot's export templates and its auto-generated debug keystore.
 - `~/.cache/godot/`: Godot's cache.
 - `~/.gradle/`: only appears if a Gradle build is used later. Not created by the steps above.
-- In the project folder, generated and ignored by git: `.godot/`, `android/` and any `*.apk` or `*.aab` files.
+- In the project folder, generated and ignored by git: `.godot/`, `android/`, `build/` (the script's APK) and any `*.apk` or `*.aab` files.
 - The release keystore is kept outside the repository, in a location chosen when it is created. Add it to this list then.
 
 ## Remove everything
@@ -131,7 +135,7 @@ Do this in order. It deletes your Godot settings and the SDK. It does not touch 
 7. If you installed `android-udev`: `sudo pacman -Rns android-udev`
 8. Check for leftovers. This lists orphans, packages nobody needs. Read the list and remove only what you recognise as part of this setup: `pacman -Qdtq`
 9. On the phone, open Developer options and tap Revoke USB debugging authorisations, then turn off USB debugging and Developer options.
-10. Optionally clear generated project files: `rm -r .godot android` and any `*.apk` files in the project folder.
+10. Optionally clear generated project files: `rm -r .godot android build` and any `*.apk` files in the project folder.
 
 To confirm it is clean, run the same checks as the baseline above. `command -v godot java adb` should print nothing, and the folders listed under "Where everything lives" should not exist.
 

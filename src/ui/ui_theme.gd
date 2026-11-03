@@ -24,9 +24,16 @@ const BUTTON_PADDING_Y := 8
 const PANEL_PADDING := 12
 const SHEET_PADDING := 20
 const LINE_WIDTH := 1
+const OPTION_RADIUS := 9
+const OPTION_PADDING := 8
+const SLIDER_RADIUS := 6
+const SLIDER_TRACK_MARGIN := 5
+const GRABBER_SIZE := Vector2i(44, 30)
+const DISABLED_ALPHA := 0.45
 
 const TITLE := &"Title"
 const SHEET := &"Sheet"
+const OPTION := &"Option"
 
 
 static func weighted(path: String, weight: int) -> FontVariation:
@@ -59,6 +66,16 @@ static func build(dark := Palette.is_dark()) -> Theme:
 	theme.set_stylebox("pressed", "Button", sunk)
 	theme.set_stylebox("hover_pressed", "Button", sunk)
 	theme.set_stylebox("focus", "Button", StyleBoxEmpty.new())
+	var faded := _button_box(dark, BUTTON_DEPTH)
+	faded.bg_color.a = DISABLED_ALPHA
+	faded.border_color.a = DISABLED_ALPHA
+	theme.set_stylebox("disabled", "Button", faded)
+	var faded_text := Palette.text_on_accent(dark)
+	faded_text.a = DISABLED_ALPHA
+	theme.set_color("font_disabled_color", "Button", faded_text)
+
+	_add_option(theme, dark)
+	_add_slider(theme, dark)
 
 	theme.set_stylebox("panel", "PanelContainer", _panel_box(dark, PANEL_RADIUS, PANEL_PADDING))
 	theme.add_type(SHEET)
@@ -69,12 +86,12 @@ static func build(dark := Palette.is_dark()) -> Theme:
 
 # A pressed button keeps its footprint: the top edge drops by the depth that was
 # lost, so the label sinks while the bottom stays put.
-static func _button_box(dark: bool, depth: int) -> StyleBoxFlat:
+static func _button_box(dark: bool, depth: int, radius := BUTTON_RADIUS) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
 	box.bg_color = Palette.accent(dark)
 	box.border_color = Palette.accent_shadow(dark)
 	box.border_width_bottom = depth
-	box.set_corner_radius_all(BUTTON_RADIUS)
+	box.set_corner_radius_all(radius)
 	var sunk := BUTTON_DEPTH - depth
 	box.expand_margin_top = -sunk
 	box.content_margin_left = BUTTON_PADDING_X
@@ -92,3 +109,63 @@ static func _panel_box(dark: bool, radius: int, padding: int) -> StyleBoxFlat:
 	box.set_corner_radius_all(radius)
 	box.set_content_margin_all(padding)
 	return box
+
+
+# Option tiles (pictures, styles) keep one footprint on and off: equal content margins, and the
+# accent's shadow edge is drawn inside the box where the off tile has its line.
+static func _add_option(theme: Theme, dark: bool) -> void:
+	theme.add_type(OPTION)
+	theme.set_type_variation(OPTION, &"Button")
+	var off := StyleBoxFlat.new()
+	off.bg_color = Palette.raised_surface(dark)
+	off.border_color = Palette.lines(dark)
+	off.set_border_width_all(LINE_WIDTH)
+	off.set_corner_radius_all(OPTION_RADIUS)
+	off.set_content_margin_all(OPTION_PADDING)
+	theme.set_stylebox("normal", OPTION, off)
+	theme.set_stylebox("hover", OPTION, off)
+	var on := _button_box(dark, BUTTON_DEPTH, OPTION_RADIUS)
+	on.set_content_margin_all(OPTION_PADDING)
+	theme.set_stylebox("pressed", OPTION, on)
+	theme.set_stylebox("hover_pressed", OPTION, on)
+	for color_name in ["font_color", "font_hover_color", "font_focus_color"]:
+		theme.set_color(color_name, OPTION, Palette.text(dark))
+	for color_name in ["font_pressed_color", "font_hover_pressed_color"]:
+		theme.set_color(color_name, OPTION, Palette.text_on_accent(dark))
+
+
+static func _add_slider(theme: Theme, dark: bool) -> void:
+	var track := _flat(Palette.raised_surface(dark), SLIDER_RADIUS)
+	theme.set_stylebox("slider", "HSlider", track)
+	var fill := _flat(Palette.accent(dark), SLIDER_RADIUS)
+	theme.set_stylebox("grabber_area", "HSlider", fill)
+	theme.set_stylebox("grabber_area_highlight", "HSlider", fill)
+	var grabber := _rounded_tile(GRABBER_SIZE, OPTION_RADIUS, Palette.accent(dark))
+	theme.set_icon("grabber", "HSlider", grabber)
+	theme.set_icon("grabber_highlight", "HSlider", grabber)
+
+
+# The slider takes the track's height from its content margins.
+static func _flat(color: Color, radius: int) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = color
+	box.set_corner_radius_all(radius)
+	box.content_margin_top = SLIDER_TRACK_MARGIN
+	box.content_margin_bottom = SLIDER_TRACK_MARGIN
+	return box
+
+
+# Slider icons are textures, not styleboxes, so the rounded grabber is painted here. A corner pixel
+# keeps the share of it inside the radius, which smooths the curve.
+static func _rounded_tile(tile_size: Vector2i, radius: int, color: Color) -> ImageTexture:
+	var image := Image.create(tile_size.x, tile_size.y, false, Image.FORMAT_RGBA8)
+	image.fill(color)
+	var r := float(radius)
+	for y in tile_size.y:
+		for x in tile_size.x:
+			var p := Vector2(x + 0.5, y + 0.5)
+			var centre := Vector2(clampf(p.x, r, tile_size.x - r), clampf(p.y, r, tile_size.y - r))
+			var coverage := clampf(r - p.distance_to(centre) + 0.5, 0.0, 1.0)
+			if coverage < 1.0:
+				image.set_pixel(x, y, Color(color, color.a * coverage))
+	return ImageTexture.create_from_image(image)
