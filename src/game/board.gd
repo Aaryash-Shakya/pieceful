@@ -12,6 +12,7 @@ const BOARD_OUTLINE_WIDTH := 3.0
 const EDGE_PAN_MARGIN := 48.0
 const EDGE_PAN_SPEED := 600.0
 const WHEEL_ZOOM_STEP := 1.1
+const CLEANUP_DURATION := 0.4
 
 # HOLD_PINCHING: the dragging finger keeps its piece while it and one other finger move the camera.
 enum Mode { IDLE, DRAGGING, PANNING, PINCHING, HOLD_PINCHING, PINCH_ENDED }
@@ -30,7 +31,14 @@ var pieces: Node2D
 # True only while the system forces a drop (focus loss, pause). The signals still fire, but feedback stays silent.
 var releasing_for_system := false
 
-var _bounds := Rect2(Vector2.ZERO, Vector2(IMAGE_SIZE)).grow(LOOSE_MARGIN)
+var _base_bounds := Rect2(Vector2.ZERO, Vector2(IMAGE_SIZE)).grow(LOOSE_MARGIN)
+var _bounds := _base_bounds
+# Each tidy deals a new order, so pressing it again reshuffles.
+var _cleanup_count := 0
+var _tidy_tween: Tween
+var _tidy_nodes: Array[PieceNode] = []
+var _tidy_from := PackedVector2Array()
+var _tidy_to := PackedVector2Array()
 var _mode := Mode.IDLE
 var _touches: Dictionary[int, Vector2] = {}
 var _nodes: Array[PieceNode] = []
@@ -87,6 +95,64 @@ func piece_at(world: Vector2) -> PieceNode:
 	return null
 
 
+## Deals every loose cluster into the bands above and below the board. The state takes the
+## new offsets at once; only the nodes animate, and anything that needs them exact lands them first.
+func cleanup() -> void:
+	_finish_cleanup()
+	if _held_root != -1:
+		return
+	var roots := PackedInt32Array()
+	for root in state.roots():
+		if not state.is_locked(root):
+			roots.append(root)
+	if roots.is_empty():
+		return
+	var rects: Array[Rect2] = []
+	for root in roots:
+		var members := state.members(root)
+		var rect := cut[members[0]].bounds()
+		for id in members:
+			rect = rect.merge(cut[id].bounds())
+		rects.append(rect)
+	var cell := sqrt(float(IMAGE_SIZE.x) * IMAGE_SIZE.y / cut.size())
+	var result := CleanupLayout.layout(rects, Vector2(IMAGE_SIZE), cell, SEED, _cleanup_count)
+	_cleanup_count += 1
+	for k in roots.size():
+		state.move_cluster(roots[k], result.offsets[k])
+		for id in state.members(roots[k]):
+			_tidy_nodes.append(_nodes[id])
+			_tidy_from.append(_nodes[id].position)
+			_tidy_to.append(result.offsets[k])
+	_bounds = _base_bounds.merge(result.extent)
+	_set_camera_position(camera.position)
+
+	_tidy_tween = create_tween()
+	_tidy_tween.tween_method(_step_cleanup, 0.0, 1.0, CLEANUP_DURATION).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_tidy_tween.finished.connect(_finish_cleanup)
+
+
+func is_tidying() -> bool:
+	return _tidy_tween != null and _tidy_tween.is_running()
+
+
+func _step_cleanup(t: float) -> void:
+	for i in _tidy_nodes.size():
+		_tidy_nodes[i].position = _tidy_from[i].lerp(_tidy_to[i], t)
+
+
+# The last eased step need not land exactly on the target, so every node is set from the state.
+func _finish_cleanup() -> void:
+	if _tidy_tween == null:
+		return
+	_tidy_tween.kill()
+	_tidy_tween = null
+	for node in _tidy_nodes:
+		node.position = state.offset_of(node.piece_id)
+	_tidy_nodes.clear()
+	_tidy_from.clear()
+	_tidy_to.clear()
+
+
 func _process(delta: float) -> void:
 	if _mode != Mode.DRAGGING:
 		return
@@ -99,6 +165,7 @@ func _process(delta: float) -> void:
 # Touch-up events can be lost while the app is in the background, so nothing may stay held.
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
+		_finish_cleanup()
 		releasing_for_system = true
 		_cancel_gesture()
 		releasing_for_system = false
@@ -114,6 +181,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _on_touch(event: InputEventScreenTouch) -> void:
+	# A finger must find each piece where the state says it is.
+	if event.pressed:
+		_finish_cleanup()
 	if event.canceled:
 		# The system took the gesture (a notification pulled down, say), so every finger is gone.
 		_cancel_gesture()
