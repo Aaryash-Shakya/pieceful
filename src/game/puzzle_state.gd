@@ -6,6 +6,7 @@ extends RefCounted
 
 const TOLERANCE_FRACTION := 0.22
 const MIN_TOLERANCE := 10.0
+const SLOT_COUNT := 4
 
 
 class DropResult:
@@ -23,6 +24,9 @@ var _offsets := PackedVector2Array()
 var _members: Array[PackedInt32Array] = []
 var _locked := PackedByteArray()
 var _locked_pieces := 0
+# Slot index by root, -1 when loose on the table. A slotted cluster never joins or locks.
+var _slot_of := PackedInt32Array()
+var _slots: Array[PackedInt32Array] = []
 
 
 # Invalid input gives an empty state, so nothing indexes past the offsets or by a wrong id.
@@ -42,6 +46,9 @@ func _init(pieces: Array[CutPiece], offsets: PackedVector2Array, tolerance_value
 	_locked.resize(count)
 	_locked.fill(0)
 	_members.resize(count)
+	_slot_of.resize(count)
+	_slot_of.fill(-1)
+	_slots.resize(SLOT_COUNT)
 	for i in count:
 		_parents[i] = i
 		_members[i] = PackedInt32Array([i])
@@ -51,7 +58,8 @@ func _init(pieces: Array[CutPiece], offsets: PackedVector2Array, tolerance_value
 ## ids, offset and lock flag. The input comes from a file, so anything inconsistent gives the
 ## empty state without logging; pieces with bad ids still reach _init's error.
 static func restored(pieces: Array[CutPiece], tolerance_value: float, roots: PackedInt32Array,
-		groups: Array[PackedInt32Array], offsets: PackedVector2Array, locked: PackedByteArray) -> PuzzleState:
+		groups: Array[PackedInt32Array], offsets: PackedVector2Array, locked: PackedByteArray,
+		slots: Array[PackedInt32Array] = []) -> PuzzleState:
 	var empty_pieces: Array[CutPiece] = []
 	var empty := PuzzleState.new(empty_pieces, PackedVector2Array(), tolerance_value)
 	var count := pieces.size()
@@ -95,6 +103,16 @@ static func restored(pieces: Array[CutPiece], tolerance_value: float, roots: Pac
 		state._locked[root] = locked[k]
 		if locked[k] == 1:
 			state._locked_pieces += sorted_group.size()
+	if not slots.is_empty():
+		if slots.size() != SLOT_COUNT:
+			return empty
+		for s in SLOT_COUNT:
+			for root in slots[s]:
+				if root < 0 or root >= count or state._parents[root] != root \
+						or state._locked[root] == 1 or state._slot_of[root] != -1:
+					return empty
+				state._slot_of[root] = s
+				state._slots[s].append(root)
 	return state
 
 
@@ -141,6 +159,42 @@ func is_locked(piece: int) -> bool:
 
 func is_complete() -> bool:
 	return _locked_pieces == _parents.size()
+
+
+## The slot holding the piece's cluster, or -1.
+func slot_of(piece: int) -> int:
+	return _slot_of[find(piece)]
+
+
+## Cluster roots in a slot, bottom of the stack first.
+func slot_roots(slot: int) -> PackedInt32Array:
+	return _slots[slot].duplicate()
+
+
+func slot_piece_count(slot: int) -> int:
+	var total := 0
+	for root in _slots[slot]:
+		total += _members[root].size()
+	return total
+
+
+## False when the cluster is locked, already in a slot, or the slot does not exist.
+func put_in_slot(piece: int, slot: int) -> bool:
+	var root := find(piece)
+	if slot < 0 or slot >= SLOT_COUNT or _locked[root] == 1 or _slot_of[root] != -1:
+		return false
+	_slot_of[root] = slot
+	_slots[slot].append(root)
+	return true
+
+
+## Empties a slot and returns the roots it held, bottom first.
+func take_slot(slot: int) -> PackedInt32Array:
+	var taken := _slots[slot]
+	_slots[slot] = PackedInt32Array()
+	for root in taken:
+		_slot_of[root] = -1
+	return taken
 
 
 func move_cluster(piece: int, offset: Vector2) -> void:
@@ -227,7 +281,7 @@ func _absorbable_roots(root: int) -> Array[int]:
 				# Offsets do not change during a pass, so a rejected root stays rejected
 				# and is recorded too, never measured twice.
 				seen[r] = true
-				if _locked[r] == 0 and _offsets[r].distance_to(dropped) <= tolerance:
+				if _locked[r] == 0 and _slot_of[r] == -1 and _offsets[r].distance_to(dropped) <= tolerance:
 					absorbed.append(r)
 					pending.append(r)
 	return absorbed

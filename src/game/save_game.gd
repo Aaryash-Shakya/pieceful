@@ -6,7 +6,9 @@ extends RefCounted
 
 # 2 added puzzle.cut_checksum. The board sets aside a save whose cut no longer matches it, so a
 # deliberate change to a golden cut checksum (tests/test_cut_generator.gd) loses no data, only that game.
-const VERSION := 2
+# 3 added slots: four stacks of cluster roots, left out of loose_order.
+# 4 added puzzle.ghost, the ghost-image overlay setting the result card reports.
+const VERSION := 4
 const MAX_PIECE_COUNT := 400
 ## About 31 years of play, far beyond any real game. A file claiming more is rejected rather than
 ## loaded, so the clock stays well inside the range the millisecond rounding keeps exact.
@@ -23,6 +25,8 @@ class Puzzle:
 	var cut_seed := 0
 	## CutGenerator.checksum of the cut these fields make, taken when the cut was generated.
 	var cut_checksum := 0
+	## The faint picture over the board. On by default, as the owner specified.
+	var ghost := true
 
 	func copy() -> Puzzle:
 		var p := Puzzle.new()
@@ -32,6 +36,7 @@ class Puzzle:
 		p.piece_count = piece_count
 		p.cut_seed = cut_seed
 		p.cut_checksum = cut_checksum
+		p.ghost = ghost
 		return p
 
 
@@ -46,6 +51,8 @@ class Snapshot:
 	var puzzle := Puzzle.new()
 	var clusters: Array[Cluster] = []
 	var loose_order := PackedInt32Array()
+	## Four stacks of cluster roots, bottom first.
+	var slots: Array[PackedInt32Array] = []
 	var elapsed := 0.0
 	var tidy_count := 0
 
@@ -65,6 +72,9 @@ static func to_dict(snapshot: Snapshot) -> Dictionary:
 			"offset": [c.offset.x, c.offset.y],
 			"locked": c.locked,
 		})
+	var slot_lists := []
+	for s in PuzzleState.SLOT_COUNT:
+		slot_lists.append(Array(snapshot.slots[s]) if s < snapshot.slots.size() else [])
 	return {
 		"version": VERSION,
 		"puzzle": {
@@ -75,9 +85,11 @@ static func to_dict(snapshot: Snapshot) -> Dictionary:
 			"piece_count": snapshot.puzzle.piece_count,
 			"seed": snapshot.puzzle.cut_seed,
 			"cut_checksum": snapshot.puzzle.cut_checksum,
+			"ghost": snapshot.puzzle.ghost,
 		},
 		"clusters": clusters,
 		"loose_order": Array(snapshot.loose_order),
+		"slots": slot_lists,
 		"elapsed": roundf(snapshot.elapsed * 1000.0) / 1000.0,
 		"tidy_count": snapshot.tidy_count,
 	}
@@ -101,15 +113,17 @@ static func from_dict(data: Variant) -> Loaded:
 	if not data is Dictionary:
 		return _fail("save is not an object")
 	var root: Dictionary = data
-	if not _has_exactly(root, ["version", "puzzle", "clusters", "loose_order", "elapsed", "tidy_count"]):
+	if not _has_exactly(root, ["version", "puzzle", "clusters", "loose_order", "slots", "elapsed", "tidy_count"]):
 		return _fail("save has missing or unknown keys")
 	if not is_int(root.version) or int(root.version) != VERSION:
 		return _fail("version")
 	if not root.puzzle is Dictionary:
 		return _fail("puzzle")
 	var puzzle_data: Dictionary = root.puzzle
-	if not _has_exactly(puzzle_data, ["image_id", "width", "height", "style", "piece_count", "seed", "cut_checksum"]):
+	if not _has_exactly(puzzle_data, ["image_id", "width", "height", "style", "piece_count", "seed", "cut_checksum", "ghost"]):
 		return _fail("puzzle has missing or unknown keys")
+	if not puzzle_data.ghost is bool:
+		return _fail("puzzle.ghost")
 	if not puzzle_data.image_id is String or (puzzle_data.image_id as String).is_empty():
 		return _fail("puzzle.image_id")
 	if not puzzle_data.style is String or not CutGenerator.STYLES.has(puzzle_data.style):
@@ -142,6 +156,7 @@ static func from_dict(data: Variant) -> Loaded:
 	snapshot.puzzle.piece_count = int(puzzle_data.piece_count)
 	snapshot.puzzle.cut_seed = int(puzzle_data.seed)
 	snapshot.puzzle.cut_checksum = int(puzzle_data.cut_checksum)
+	snapshot.puzzle.ghost = puzzle_data.ghost
 	snapshot.elapsed = float(root.elapsed)
 	snapshot.tidy_count = int(root.tidy_count)
 
@@ -177,6 +192,14 @@ static func from_dict(data: Variant) -> Loaded:
 		return _fail("loose_order")
 	snapshot.loose_order = order
 
+	if not root.slots is Array or (root.slots as Array).size() != PuzzleState.SLOT_COUNT:
+		return _fail("slots")
+	for i in PuzzleState.SLOT_COUNT:
+		var stack: Variant = _int_array(root.slots[i])
+		if stack == null:
+			return _fail("slots[%d]" % i)
+		snapshot.slots.append(stack)
+
 	var loaded := Loaded.new()
 	loaded.snapshot = snapshot
 	return loaded
@@ -194,7 +217,8 @@ static func clusters_of(state: PuzzleState) -> Array[Cluster]:
 	return result
 
 
-static func state_from(clusters: Array[Cluster], pieces: Array[CutPiece], tolerance: float) -> PuzzleState:
+static func state_from(clusters: Array[Cluster], pieces: Array[CutPiece], tolerance: float,
+		slots: Array[PackedInt32Array] = []) -> PuzzleState:
 	var roots := PackedInt32Array()
 	var groups: Array[PackedInt32Array] = []
 	var offsets := PackedVector2Array()
@@ -204,21 +228,29 @@ static func state_from(clusters: Array[Cluster], pieces: Array[CutPiece], tolera
 		groups.append(c.pieces)
 		offsets.append(c.offset)
 		locked.append(1 if c.locked else 0)
-	return PuzzleState.restored(pieces, tolerance, roots, groups, offsets, locked)
+	return PuzzleState.restored(pieces, tolerance, roots, groups, offsets, locked, slots)
 
 
-## True when the order lists every loose piece of the state exactly once and nothing else.
+static func slots_of(state: PuzzleState) -> Array[PackedInt32Array]:
+	var result: Array[PackedInt32Array] = []
+	for s in PuzzleState.SLOT_COUNT:
+		result.append(state.slot_roots(s))
+	return result
+
+
+## True when the order lists every table piece of the state exactly once and nothing else.
+## Locked pieces and pieces in a slot are not on the table.
 static func loose_order_valid(order: PackedInt32Array, state: PuzzleState) -> bool:
 	var count := state.piece_count()
 	var seen := PackedByteArray()
 	seen.resize(count)
 	seen.fill(0)
 	for id in order:
-		if id < 0 or id >= count or seen[id] == 1 or state.is_locked(id):
+		if id < 0 or id >= count or seen[id] == 1 or state.is_locked(id) or state.slot_of(id) != -1:
 			return false
 		seen[id] = 1
 	for id in count:
-		if seen[id] == 0 and not state.is_locked(id):
+		if seen[id] == 0 and not state.is_locked(id) and state.slot_of(id) == -1:
 			return false
 	return true
 

@@ -16,7 +16,7 @@ All version 1 scope items are built. The exit tests that need a real phone have 
 | Sound and vibration on joins and locks | Built | `src/game/feedback.gd`, spec `2026-11-03-feedback-design.md` |
 | Cleanup button | Built (named Tidy) | `src/game/cleanup_layout.gd`, spec `2026-11-03-ui-cleanup-design.md` |
 | Save and resume | Built | `src/game/save_game.gd`, `save_file.gd`, spec `2026-11-03-save-resume-design.md` |
-| One bundled collection | Built, placeholder art | `assets/collections/abstract/`, `tools/make_collection.gd` |
+| Bundled collections | Built, placeholder art. Version 2 added three more (geometry, landscape, pattern) and a picker on the setup screen | `assets/collections/`, `tools/make_collection.gd`, `src/game/collection_library.gd` |
 | Frame-rate counter in debug builds | Built | `src/ui/fps_counter.gd` |
 
 The exit tests:
@@ -69,7 +69,7 @@ These were made by Claude while the owner had delegated the open choices. The ow
 
 ## Known gaps and deferred work
 
-- Version 2 (slots, completion screen, timer, settings, collection picker, ghost image) and version 3 (Wild, daily puzzle, the collection store, stats, release builds) are not started.
+- Version 2 is built, see `docs/v2-status.md`. Version 3 (Wild, daily puzzle, the collection store, stats, release builds) are not started.
 - The room measure for tabs is average cell width, which suits the grid styles. Wild needs a better one.
 - Picking up or locking a very large cluster costs about 1 to 2.4 ms on the desktop. The phone may be 3 to 5 times slower.
 - The setup screen decodes the full 2048 px picture on every tile tap and generates the preview on the main thread. A `WorkerThreadPool` preview is the fix if the phone hitches.

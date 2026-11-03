@@ -3,7 +3,6 @@ extends RefCounted
 ## A folder of pictures described by a manifest. Bad entries are skipped with one warning, so a
 ## broken picture never stops the game from starting.
 
-const DEFAULT_MANIFEST := "res://assets/collections/abstract/manifest.json"
 const LICENCES: Array[String] = ["CC0-1.0", "public-domain", "CC-BY-4.0"]
 const MIN_SIDE := 64
 const MAX_SIDE := 4096
@@ -33,6 +32,8 @@ class Picture:
 var id := ""
 var title := ""
 var pictures: Array[Picture] = []
+## Set only on a merged collection (see CollectionLibrary): the collections its pictures came from.
+var parts: Array[Collection] = []
 
 
 static func load_manifest(manifest_path: String) -> Collection:

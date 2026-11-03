@@ -1,7 +1,7 @@
 extends "res://tests/base_test.gd"
 
 const ArtSynth := preload("res://tools/art_synth.gd")
-const DIR := "res://assets/collections/abstract"
+const BASE := "res://assets/collections"
 const FIXTURE_DIR := "res://tests/fixtures/collection"
 
 
@@ -13,6 +13,13 @@ func _init() -> void:
 	_test_grain_and_colour_present()
 	_test_fixture_collection()
 	finish()
+
+
+func _all_specs() -> Array[Dictionary]:
+	var all: Array[Dictionary] = []
+	for id in ArtSynth.SETS:
+		all.append_array(ArtSynth.specs_for(id))
+	return all
 
 
 func _read_manifest(dir: String) -> Dictionary:
@@ -33,8 +40,9 @@ func _test_sizes() -> void:
 
 func _test_render_is_deterministic() -> void:
 	var first_data := PackedByteArray()
-	for i in ArtSynth.SPECS.size():
-		var spec: Dictionary = ArtSynth.SPECS[i]
+	var specs := _all_specs()
+	for i in specs.size():
+		var spec: Dictionary = specs[i]
 		var a: Image = ArtSynth.render(spec, Vector2i(96, 64))
 		var b: Image = ArtSynth.render(spec, Vector2i(96, 64))
 		check(a.get_data() == b.get_data(), "%s: same raw pixels" % spec.slug)
@@ -49,24 +57,33 @@ func _test_render_is_deterministic() -> void:
 
 
 func _test_manifest_matches_files() -> void:
-	var m := _read_manifest(DIR)
-	check(m.get("id") == "abstract", "manifest id")
-	check(m.get("title") == "Abstract", "manifest title")
+	for id in ArtSynth.SETS:
+		_test_manifest_of(id)
+
+
+func _test_manifest_of(id: String) -> void:
+	var dir := "%s/%s" % [BASE, id]
+	var specs := ArtSynth.specs_for(id)
+	var m := _read_manifest(dir)
+	check(m.get("id") == id, "%s: manifest id" % id)
+	check(m.get("title") == ArtSynth.SETS[id].title, "%s: manifest title" % id)
 	var pictures: Array = m.get("pictures", [])
-	check(pictures.size() == ArtSynth.SPECS.size(), "six pictures")
-	for i in mini(pictures.size(), ArtSynth.SPECS.size()):
-		var spec: Dictionary = ArtSynth.SPECS[i]
+	check(pictures.size() == specs.size(), "%s: six pictures" % id)
+	var aspects := {}
+	for i in mini(pictures.size(), specs.size()):
+		var spec: Dictionary = specs[i]
 		var p: Dictionary = pictures[i]
 		var slug: String = spec.slug
-		check(p.get("id") == "abstract-" + slug, "%s: id" % slug)
+		aspects[spec.aspect] = true
+		check(p.get("id") == "%s-%s" % [id, slug], "%s: id" % slug)
 		check(p.get("file") == slug + ".webp", "%s: file" % slug)
 		check(p.get("credit") == ArtSynth.CREDIT, "%s: credit" % slug)
 		check(p.get("licence") == "CC-BY-4.0", "%s: licence" % slug)
 		check(p.get("generated") == true, "%s: generated" % slug)
 		var size := Vector2i(int(p.get("width", 0)), int(p.get("height", 0)))
 		check(size == ArtSynth.size_for(spec.aspect, 2048), "%s: manifest size" % slug)
-		var path: String = "%s/%s" % [DIR, p.get("file", "")]
-		var thumb_path: String = "%s/thumbs/%s" % [DIR, p.get("file", "")]
+		var path: String = "%s/%s" % [dir, p.get("file", "")]
+		var thumb_path: String = "%s/thumbs/%s" % [dir, p.get("file", "")]
 		check(ResourceLoader.exists(path), "%s: picture exists" % slug)
 		check(ResourceLoader.exists(thumb_path), "%s: thumbnail exists" % slug)
 		var tex := load(path) as Texture2D
@@ -81,11 +98,17 @@ func _test_manifest_matches_files() -> void:
 			check(false, "%s: thumbnail loads" % slug)
 		var bytes := FileAccess.get_file_as_bytes(path).size()
 		check(bytes >= 100000 and bytes <= 900000, "%s: source size %d" % [slug, bytes])
+	check(aspects.size() == 6, "%s: six different aspect ratios" % id)
 
 
 func _test_import_settings() -> void:
-	for p: Dictionary in _read_manifest(DIR).get("pictures", []):
-		var path: String = "%s/%s" % [DIR, p.file]
+	for id in ArtSynth.SETS:
+		_test_import_settings_of(id)
+
+
+func _test_import_settings_of(id: String) -> void:
+	for p: Dictionary in _read_manifest("%s/%s" % [BASE, id]).get("pictures", []):
+		var path: String = "%s/%s/%s" % [BASE, id, p.file]
 		var tex := load(path) as Texture2D
 		check(tex != null and tex.get_image().has_mipmaps(), "%s: has mipmaps" % p.id)
 		var import_text := FileAccess.get_file_as_string(path + ".import")
@@ -96,8 +119,13 @@ func _test_import_settings() -> void:
 # Only that colour and fine grain are present: neither check sees regions or structure, so whether
 # a picture is pleasant to solve stays an owner check (docs/technical-notes.md).
 func _test_grain_and_colour_present() -> void:
-	for p: Dictionary in _read_manifest(DIR).get("pictures", []):
-		var img := (load("%s/%s" % [DIR, p.file]) as Texture2D).get_image()
+	for id in ArtSynth.SETS:
+		_test_grain_and_colour_of(id)
+
+
+func _test_grain_and_colour_of(id: String) -> void:
+	for p: Dictionary in _read_manifest("%s/%s" % [BASE, id]).get("pictures", []):
+		var img := (load("%s/%s/%s" % [BASE, id, p.file]) as Texture2D).get_image()
 		img.clear_mipmaps()
 		img.convert(Image.FORMAT_RGB8)
 		var w := img.get_width()

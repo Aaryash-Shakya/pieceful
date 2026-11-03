@@ -18,15 +18,24 @@ const CLEANUP_DURATION := 0.4
 const ELAPSED_STEP_LIMIT := 0.25
 # A restored loose offset beyond this many longest image sides is damage, not play.
 const FAR_OFFSET_FACTOR := 8
+# A stack released this close to its own slot, in screen units, goes back into it.
+const NEAR_SLOT_MARGIN := 48.0
+const GHOST_OPACITY := 0.2
 
 # HOLD_PINCHING: the dragging finger keeps its piece while it and one other finger move the camera.
-enum Mode { IDLE, DRAGGING, PANNING, PINCHING, HOLD_PINCHING, PINCH_ENDED }
+# SLOT_DRAGGING: a whole slot's stack is fanned out under one finger; other fingers are ignored.
+enum Mode { IDLE, DRAGGING, PANNING, PINCHING, HOLD_PINCHING, PINCH_ENDED, SLOT_DRAGGING }
 
 signal cluster_lifted(cluster_root: int, piece_count: int)
 # locked: the same drop also locked the joined cluster, so cluster_locked follows.
 signal pieces_joined(cluster_root: int, piece_count: int, locked: bool)
 signal cluster_locked(cluster_root: int, piece_count: int)
 signal puzzle_completed
+## What a slot holds changed (a stack went in or out, or the board just started).
+signal slots_changed
+## A cluster or a whole stack went into a slot, with this many pieces. Not emitted for a system release.
+signal stashed(piece_count: int)
+signal ghost_changed(on: bool)
 ## The player asked to leave the board, by Home or back. The game is already saved.
 signal home_requested
 
@@ -53,6 +62,12 @@ var cut: Array[CutPiece]
 var state: PuzzleState
 var locked_pieces: Node2D
 var pieces: Node2D
+## The whole picture at low opacity over the board, under the pieces.
+var ghost_sprite: Sprite2D
+## Holds the nodes of pieces that sit in a slot. Hidden, and never searched by piece_at.
+var stash: Node2D
+## The four slots' screen rectangles, set by the HUD's tray. The board hit-tests them from raw touches.
+var slot_rects: Array[Rect2] = []
 # True only while the system forces a drop (focus loss, pause, close, back). The signals still fire, but feedback stays silent.
 var releasing_for_system := false
 
@@ -73,6 +88,12 @@ var _held_root := -1
 var _held_nodes: Array[PieceNode] = []
 var _drag_index := -1
 var _held_offset := Vector2.ZERO
+# Where the dragging finger is on screen, kept so a drop over a slot still knows it after the touch is gone.
+var _held_screen := Vector2.ZERO
+# The stack taken out of a slot: cluster roots, the slot it came from, and their home rectangles.
+var _slot_held := PackedInt32Array()
+var _slot_held_from := -1
+var _slot_held_rects: Array[Rect2] = []
 var _pinch_a := -1
 var _pinch_b := -1
 var _pinch_distance := 0.0
@@ -112,6 +133,14 @@ func _ready() -> void:
 			loose_order = _start_fresh(null)
 			_texture = _make_test_texture()
 
+	# The faint picture goes in first, so it draws under every piece, locked or loose.
+	ghost_sprite = Sprite2D.new()
+	ghost_sprite.name = "Ghost"
+	ghost_sprite.texture = _texture
+	ghost_sprite.centered = false
+	ghost_sprite.modulate.a = GHOST_OPACITY
+	ghost_sprite.visible = puzzle.ghost and not state.is_complete()
+	add_child(ghost_sprite)
 	# Added first so locked pieces draw below every loose one.
 	locked_pieces = Node2D.new()
 	locked_pieces.name = "LockedPieces"
@@ -119,6 +148,10 @@ func _ready() -> void:
 	pieces = Node2D.new()
 	pieces.name = "Pieces"
 	add_child(pieces)
+	stash = Node2D.new()
+	stash.name = "Stash"
+	stash.visible = false
+	add_child(stash)
 	for i in cut.size():
 		var node := PieceNode.new()
 		node.setup(cut[i], _texture, Palette.outline())
@@ -127,6 +160,8 @@ func _ready() -> void:
 		_piece_bounds.append(cut[i].bounds())
 		if state.is_locked(i):
 			locked_pieces.add_child(node)
+		elif state.slot_of(i) != -1:
+			stash.add_child(node)
 	for id in loose_order:
 		pieces.add_child(_nodes[id])
 
@@ -137,6 +172,7 @@ func _ready() -> void:
 	# A chosen puzzle is the player's game from its first frame, so it replaces any older save now.
 	if from_caller:
 		save_game()
+	slots_changed.emit()
 
 
 # Loads the save into puzzle, cut and state and returns its loose draw order. With no save, or
@@ -163,7 +199,7 @@ func _restore() -> PackedInt32Array:
 		_set_save_aside("the cut no longer matches the one it was saved with")
 		return PackedInt32Array()
 	var tolerance := PuzzleState.tolerance_for(p.image_size.x, p.image_size.y, saved_cut.size())
-	var saved_state := SaveGame.state_from(saved.clusters, saved_cut, tolerance)
+	var saved_state := SaveGame.state_from(saved.clusters, saved_cut, tolerance, saved.slots)
 	# A broken partition gives the empty state, which counts as complete; a finished puzzle never has a save.
 	if saved_state.is_complete():
 		_set_save_aside("the clusters do not fit the cut or the puzzle is complete")
@@ -171,7 +207,8 @@ func _restore() -> PackedInt32Array:
 	# A damaged offset far out would stretch the camera bounds and strand the piece out of reach.
 	var reach := FAR_OFFSET_FACTOR * maxi(p.image_size.x, p.image_size.y)
 	for root in saved_state.roots():
-		if not saved_state.is_locked(root) and saved_state.offset_of(root).length() > reach:
+		if not saved_state.is_locked(root) and saved_state.slot_of(root) == -1 \
+				and saved_state.offset_of(root).length() > reach:
 			_set_save_aside("cluster %d lies too far from the board" % root)
 			return PackedInt32Array()
 	if not SaveGame.loose_order_valid(saved.loose_order, saved_state):
@@ -237,13 +274,31 @@ func _apply_image_size() -> void:
 	_base_bounds = Rect2(Vector2.ZERO, size).grow(LOOSE_MARGIN)
 	_bounds = _base_bounds
 	for root in state.roots():
-		if not state.is_locked(root):
+		if not state.is_locked(root) and state.slot_of(root) == -1:
 			var rect := cluster_home_rect(root)
 			_bounds = _bounds.merge(Rect2(rect.position + state.offset_of(root), rect.size))
 	camera.position = size / 2.0
 	var fit := get_viewport_rect().size.x / (size.x * BORDER)
 	camera.zoom = Vector2(fit, fit)
 	queue_redraw()
+
+
+## Shows or hides the ghost picture. The choice is part of the puzzle, so it is saved and goes on the result card.
+func set_ghost(on: bool) -> void:
+	if puzzle.ghost == on:
+		return
+	puzzle.ghost = on
+	ghost_sprite.visible = on and not state.is_complete()
+	ghost_changed.emit(on)
+	save_game()
+
+
+## The picture's name for the completion screen.
+func picture_title() -> String:
+	if puzzle.image_id == IMAGE_ID:
+		return "Test picture"
+	var picture := collection.find(puzzle.image_id) if collection != null else null
+	return picture.title if picture != null else puzzle.image_id
 
 
 func node_for(piece_id: int) -> PieceNode:
@@ -269,7 +324,7 @@ func cleanup() -> void:
 		return
 	var roots := PackedInt32Array()
 	for root in state.roots():
-		if not state.is_locked(root):
+		if not state.is_locked(root) and state.slot_of(root) == -1:
 			roots.append(root)
 	if roots.is_empty():
 		return
@@ -335,6 +390,7 @@ func snapshot() -> SaveGame.Snapshot:
 	s.clusters = SaveGame.clusters_of(state)
 	for child in pieces.get_children():
 		s.loose_order.append((child as PieceNode).piece_id)
+	s.slots = SaveGame.slots_of(state)
 	s.elapsed = elapsed
 	s.tidy_count = _cleanup_count
 	return s
@@ -433,6 +489,8 @@ func _on_touch(event: InputEventScreenTouch) -> void:
 		_touches[event.index] = event.position
 		if _touches.size() == 1:
 			_begin_single(event.index, event.position)
+		elif _mode == Mode.SLOT_DRAGGING:
+			pass
 		elif _mode == Mode.DRAGGING:
 			_pair(_drag_index)
 			_mode = Mode.HOLD_PINCHING
@@ -447,6 +505,11 @@ func _on_touch(event: InputEventScreenTouch) -> void:
 		return
 	if _touches.is_empty():
 		_end_gesture()
+	elif _mode == Mode.SLOT_DRAGGING:
+		# The stack follows its own finger; losing that one drops it and the rest are ignored.
+		if event.index == _drag_index:
+			_release_held()
+			_mode = Mode.PINCH_ENDED
 	elif _mode == Mode.HOLD_PINCHING and event.index == _pinch_b:
 		# The holding finger stays down, so it re-pairs or drags on alone from where the piece is.
 		if _touches.size() >= 2:
@@ -467,7 +530,7 @@ func _on_drag(event: InputEventScreenDrag) -> void:
 		return
 	_touches[event.index] = event.position
 	match _mode:
-		Mode.DRAGGING:
+		Mode.DRAGGING, Mode.SLOT_DRAGGING:
 			if event.index == _drag_index:
 				_follow_held()
 		Mode.PANNING:
@@ -508,6 +571,14 @@ func _pinch_step() -> void:
 
 func _begin_single(index: int, screen_position: Vector2) -> void:
 	_release_held()
+	var slot := slot_at(screen_position)
+	if slot != -1:
+		# The tray is not part of the world: a touch on it never pans or picks a table piece.
+		if state.slot_piece_count(slot) > 0:
+			_begin_slot_drag(index, slot, screen_position)
+		else:
+			_mode = Mode.IDLE
+		return
 	var world := _to_world(screen_position)
 	var piece := piece_at(world)
 	if piece == null:
@@ -520,9 +591,40 @@ func _begin_single(index: int, screen_position: Vector2) -> void:
 	for node in _held_nodes:
 		node.set_held(true)
 	_drag_index = index
+	_held_screen = screen_position
 	_held_offset = state.offset_of(_held_root) - world
 	_mode = Mode.DRAGGING
 	cluster_lifted.emit(_held_root, _held_nodes.size())
+
+
+## The slot whose rectangle holds the screen point, or -1.
+func slot_at(screen_position: Vector2) -> int:
+	for s in slot_rects.size():
+		if slot_rects[s].has_point(screen_position):
+			return s
+	return -1
+
+
+# Takes the whole stack out of its slot and fans it under the finger.
+func _begin_slot_drag(index: int, slot: int, screen_position: Vector2) -> void:
+	_finish_cleanup()
+	_slot_held = state.take_slot(slot)
+	_slot_held_from = slot
+	_slot_held_rects.clear()
+	var piece_total := 0
+	for root in _slot_held:
+		_slot_held_rects.append(cluster_home_rect(root))
+		piece_total += state.members(root).size()
+		for id in state.members(root):
+			var node := _nodes[id]
+			node.reparent(pieces, false)
+			node.set_held(true)
+	_drag_index = index
+	_held_screen = screen_position
+	_mode = Mode.SLOT_DRAGGING
+	_follow_held()
+	slots_changed.emit()
+	cluster_lifted.emit(_slot_held[0], piece_total)
 
 
 func _begin_pinch(index: int) -> void:
@@ -550,8 +652,13 @@ func _refresh_pinch() -> void:
 # so it stays under that finger through drags, pans and zooms alike. Every camera move
 # goes through _set_camera_position, which calls this.
 func _follow_held() -> void:
+	if not _slot_held.is_empty():
+		_held_screen = _touches[_drag_index]
+		_place_stack(SlotSpread.fan(_slot_held_rects, _to_world(_held_screen)))
+		return
 	if _held_root == -1:
 		return
+	_held_screen = _touches[_drag_index]
 	var offset := _to_world(_touches[_drag_index]) + _held_offset
 	state.move_cluster(_held_root, offset)
 	for node in _held_nodes:
@@ -571,14 +678,77 @@ func _end_gesture() -> void:
 # Every release is a drop, however the finger went away, so the cluster always settles.
 func _release_held() -> void:
 	_drag_index = -1
+	if not _slot_held.is_empty():
+		_release_stack()
+		return
 	if _held_root == -1:
 		return
 	for node in _held_nodes:
 		node.set_held(false)
+	var over := slot_at(_held_screen)
+	if over != -1 and not releasing_for_system:
+		var piece_total := state.members(_held_root).size()
+		_stash(_held_root, over)
+		stashed.emit(piece_total)
+		_held_root = -1
+		_held_nodes.clear()
+		slots_changed.emit()
+		save_game()
+		return
 	var result := state.drop(_held_root)
 	_held_root = -1
 	_held_nodes.clear()
 	_settle(result)
+
+
+# Moves each cluster of the held stack by its offset, so the nodes and the state agree.
+func _place_stack(offsets: PackedVector2Array) -> void:
+	for k in _slot_held.size():
+		state.move_cluster(_slot_held[k], offsets[k])
+		for id in state.members(_slot_held[k]):
+			_nodes[id].position = offsets[k]
+
+
+# Puts a cluster's pieces away in a slot: hidden, off the table, and out of reach of joins.
+func _stash(root: int, slot: int) -> void:
+	state.put_in_slot(root, slot)
+	for id in state.members(root):
+		var node := _nodes[id]
+		node.set_held(false)
+		node.reparent(stash, false)
+
+
+# The held stack is let go. Near its own slot, or on any slot, it goes in; anywhere else it spreads
+# into an even grid where the finger lifted. A system release always puts it back, never scatters it.
+func _release_stack() -> void:
+	var roots := _slot_held
+	var from := _slot_held_from
+	var rects := _slot_held_rects
+	_slot_held = PackedInt32Array()
+	_slot_held_from = -1
+	_slot_held_rects = []
+	var dest := slot_at(_held_screen)
+	var near_home := from >= 0 and from < slot_rects.size() and slot_rects[from].grow(NEAR_SLOT_MARGIN).has_point(_held_screen)
+	if releasing_for_system or dest != -1 or near_home:
+		var into := from if releasing_for_system or dest == -1 else dest
+		var piece_total := 0
+		for root in roots:
+			piece_total += state.members(root).size()
+			_stash(root, into)
+		if not releasing_for_system:
+			stashed.emit(piece_total)
+	else:
+		var offsets := SlotSpread.grid(rects, _to_world(_held_screen), state.tolerance)
+		for k in roots.size():
+			state.move_cluster(roots[k], offsets[k])
+			for id in state.members(roots[k]):
+				_nodes[id].position = offsets[k]
+				_nodes[id].set_held(false)
+		# Each cluster settles as a normal drop, so one that lands on its place locks.
+		for root in roots:
+			_settle(state.drop(root))
+	slots_changed.emit()
+	save_game()
 
 
 func _settle(result: PuzzleState.DropResult) -> void:
@@ -603,6 +773,7 @@ func _settle(result: PuzzleState.DropResult) -> void:
 	if result.locked:
 		cluster_locked.emit(result.root, nodes.size())
 	if result.locked and state.is_complete():
+		ghost_sprite.visible = false
 		puzzle_completed.emit()
 	if result.locked:
 		save_game()

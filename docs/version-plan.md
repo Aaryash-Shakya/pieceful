@@ -42,6 +42,8 @@ If the first two cannot be fixed, the engine choice is reopened before anything 
 
 ## Version 2: Sorting and finishing
 
+**Status (2026-11-03):** every scope item below is built. The exit tests that need the phone have not been run. See `docs/v2-status.md`.
+
 **Scope**
 
 - The four slots: messy stack, fan-out under the finger, return when released near the slot, even grid spread when released away from it, and a count badge. Only the whole stack can be taken out.

@@ -1,5 +1,5 @@
 extends SceneTree
-## Writes the placeholder collection: pictures, thumbnails and manifest.json.
+## Writes one placeholder collection (abstract, geometry, landscape or pattern): pictures, thumbnails and manifest.json.
 ## Run: godot --headless --script tools/make_collection.gd [-- --out res://dir --id abstract --title Abstract --long-edge 2048]
 
 const ArtSynth := preload("res://tools/art_synth.gd")
@@ -27,7 +27,7 @@ func _init() -> void:
 		_fail("could not create %s (error %d)" % [out, err])
 		return
 	var thumb_edge := mini(ArtSynth.THUMB_LONG_EDGE, long_edge / 2)
-	for spec in ArtSynth.SPECS:
+	for spec in ArtSynth.specs_for(id):
 		var image := ArtSynth.render(spec, ArtSynth.size_for(spec.aspect, long_edge))
 		if not _save(image, "%s/%s.webp" % [out, spec.slug]):
 			return

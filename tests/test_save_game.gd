@@ -18,6 +18,7 @@ func _init() -> void:
 	_test_number_ranges()
 	_test_puzzle_copy()
 	_test_is_int()
+	_test_slots_round_trip()
 	finish()
 
 
@@ -89,8 +90,8 @@ func _test_clusters_of() -> void:
 
 func _test_dict_shape() -> void:
 	var d := SaveGame.to_dict(_sample())
-	check(_sorted_keys(d) == ["clusters", "elapsed", "loose_order", "puzzle", "tidy_count", "version"], "top-level keys")
-	check(_sorted_keys(d.puzzle) == ["cut_checksum", "height", "image_id", "piece_count", "seed", "style", "width"], "puzzle keys")
+	check(_sorted_keys(d) == ["clusters", "elapsed", "loose_order", "puzzle", "slots", "tidy_count", "version"], "top-level keys")
+	check(_sorted_keys(d.puzzle) == ["cut_checksum", "ghost", "height", "image_id", "piece_count", "seed", "style", "width"], "puzzle keys")
 	var found_locked := false
 	for c in d.clusters:
 		check(_sorted_keys(c) == ["locked", "offset", "pieces", "root"], "cluster keys")
@@ -98,7 +99,7 @@ func _test_dict_shape() -> void:
 			found_locked = true
 			check(c.locked == true and Vector2(c.offset[0], c.offset[1]) == Vector2.ZERO, "locked cluster sits at zero")
 	check(found_locked, "the locked cluster is saved")
-	check(d.version == 2, "version is 2")
+	check(d.version == 4, "version is 4")
 	check(d.puzzle.cut_checksum == CutGenerator.checksum(cut), "cut checksum saved")
 	check(d.puzzle.seed == 1, "seed saved")
 	check(d.puzzle.width == 300, "width saved")
@@ -163,8 +164,8 @@ func _test_rejects_bad_data() -> void:
 	c.version = 1
 	cases["version 1 (no cut checksum)"] = c
 	c = base.duplicate(true)
-	c.version = 3
-	cases["version 3"] = c
+	c.version = 5
+	cases["version 5"] = c
 	c = base.duplicate(true)
 	c.version = "2"
 	cases["version string"] = c
@@ -364,3 +365,27 @@ func _with_offset(base: Dictionary, value: float) -> Dictionary:
 	var d := base.duplicate(true)
 	d.clusters[0].offset = [value, 0.0]
 	return d
+
+
+func _test_slots_round_trip() -> void:
+	var s := _sample()
+	s.slots = [PackedInt32Array([1, 3]), PackedInt32Array(), PackedInt32Array(), PackedInt32Array([4])]
+	var loaded := SaveGame.from_json(SaveGame.to_json(s))
+	check(loaded.snapshot != null, "a save with slots loads")
+	if loaded.snapshot == null:
+		return
+	check(loaded.snapshot.slots == s.slots, "slots survive the text")
+	var d := SaveGame.to_dict(s)
+	for bad in [[], [[1], [2], [3]], [[1], [2], [3], "x"], [[1.5], [], [], []]]:
+		var c := d.duplicate(true)
+		c.slots = bad
+		check(SaveGame.from_dict(c).snapshot == null, "rejects slots %s" % [bad])
+	var state := _played()
+	state.put_in_slot(1, 2)
+	var order := PackedInt32Array()
+	for i in 6:
+		if not state.is_locked(i) and state.slot_of(i) == -1:
+			order.append(i)
+	check(SaveGame.loose_order_valid(order, state), "slotted pieces are not on the table")
+	order.append(1)
+	check(not SaveGame.loose_order_valid(order, state), "a slotted piece on the table is refused")

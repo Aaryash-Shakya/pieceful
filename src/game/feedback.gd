@@ -25,6 +25,8 @@ const COMPLETE_VIBRATION_AMPLITUDE := 1.0
 
 @export var board: Board
 
+## Where the sound and vibration switches are read from when the node enters the tree.
+var settings_path := Settings.DEFAULT_PATH
 var sound_enabled := true
 var vibration_enabled := true
 # Seams for tests: called as play_sound.call(sound) and vibrate.call(duration_ms, amplitude).
@@ -40,6 +42,9 @@ func _init() -> void:
 
 
 func _ready() -> void:
+	var settings := Settings.load_from(settings_path)
+	sound_enabled = settings.sound
+	vibration_enabled = settings.vibration
 	for key: StringName in STREAMS:
 		var player := AudioStreamPlayer.new()
 		player.name = String(key).capitalize()
@@ -65,6 +70,7 @@ func _link(source: Board, connected: bool) -> void:
 		[source.pieces_joined, _on_pieces_joined],
 		[source.cluster_locked, _on_cluster_locked],
 		[source.puzzle_completed, _on_puzzle_completed],
+		[source.stashed, _on_stashed],
 	]
 	for pair in pairs:
 		var sig: Signal = pair[0]
@@ -96,6 +102,12 @@ func _on_pieces_joined(_root: int, _count: int, locked: bool) -> void:
 func _on_cluster_locked(_root: int, _count: int) -> void:
 	_sound(SOUND_LOCK)
 	_buzz(LOCK_VIBRATION_MS, LOCK_VIBRATION_AMPLITUDE)
+
+
+func _on_stashed(_count: int) -> void:
+	# The same light click as a join: putting a stack away is a small, certain act.
+	_sound(SOUND_JOIN)
+	_buzz(JOIN_VIBRATION_MS, JOIN_VIBRATION_AMPLITUDE)
 
 
 func _on_puzzle_completed() -> void:
