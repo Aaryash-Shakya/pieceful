@@ -16,7 +16,7 @@ All version 1 scope items are built. The exit tests that need a real phone have 
 | Sound and vibration on joins and locks | Built | `src/game/feedback.gd`, spec `2026-11-03-feedback-design.md` |
 | Cleanup button | Built (named Tidy) | `src/game/cleanup_layout.gd`, spec `2026-11-03-ui-cleanup-design.md` |
 | Save and resume | Built | `src/game/save_game.gd`, `save_file.gd`, spec `2026-11-03-save-resume-design.md` |
-| One bundled collection | Built, placeholder art | `assets/collections/abstract/`, `tools/make_collection.gd` |
+| Bundled collections | Built, placeholder art. Version 2 added three more (geometry, landscape, pattern) and a picker on the setup screen | `assets/collections/`, `tools/make_collection.gd`, `src/game/collection_library.gd` |
 | Frame-rate counter in debug builds | Built | `src/ui/fps_counter.gd` |
 
 The exit tests:

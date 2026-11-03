@@ -4,6 +4,7 @@ extends "res://tests/base_test.gd"
 const LogCapture := preload("res://tests/log_capture.gd")
 const SAVE := "user://test_setup/current.json"
 const FIXTURE := "res://tests/fixtures/collection/manifest.json"
+const Two := preload("res://tests/two_collections.gd")
 const STYLES_INDEX := {"regular": 0, "irregular": 1}
 
 var _fixture := Collection.load_manifest(FIXTURE)
@@ -30,6 +31,7 @@ func _init() -> void:
 	await _test_unloadable_saved_picture()
 	_test_save_kept_when_pictures_are_unavailable()
 	await _test_completed_home_leaves_no_save()
+	await _test_resume_in_another_collection()
 	_test_no_save_no_card()
 	_test_main_scene()
 	if is_instance_valid(current_scene):
@@ -396,5 +398,58 @@ func _test_no_save_no_card() -> void:
 	check(not FileAccess.file_exists(SaveFile.bad_path(SAVE)), "nothing is set aside")
 
 
+func _test_resume_in_another_collection() -> void:
+	_clear()
+	var merged := Two.merged()
+	var s := _open(merged)
+	s.select_collection(1)
+	s.select_picture(3)
+	check(s.picture.id == "second-confetti-field", "precondition: a picture of the second collection")
+	s.start_button.pressed.emit()
+	await _frames()
+	var board := current_scene as Board
+	if board == null:
+		check(false, "precondition: a board")
+		return
+	_quiet(board)
+	check(board.puzzle.image_id == "second-confetti-field", "the board opens a picture of the second collection")
+	board.go_home()
+	await _frames()
+	var home := current_scene as SetupScreen
+	if home == null:
+		check(false, "Home opens the setup screen")
+		return
+	check(home.collection == merged and home.sections.size() == 2, "the screen keeps the merged collection")
+	check(home.resume_card.visible and home.saved != null, "the resume card shows")
+	check(home.section_index == 1 and home.collection_buttons[1].button_pressed, "the picker opens on the saved picture's collection")
+	check(home.picture.id == "second-confetti-field" and home.picture_buttons[3].button_pressed, "the saved picture is chosen")
+	check(home.resume_label.text.begins_with("Confetti Field"), "the card names the picture: %s" % home.resume_label.text)
+	check(home.resume_thumb.texture != null, "the card shows its thumbnail")
+	check(not FileAccess.file_exists(SaveFile.bad_path(SAVE)), "nothing is set aside")
+
+	# A fresh launch reads the same save.
+	var again := _open(merged)
+	check(again.resume_card.visible and again.section_index == 1 and again.picture.id == "second-confetti-field", "a fresh launch opens on the saved collection")
+	again.resume_button.pressed.emit()
+	await _frames()
+	board = current_scene as Board
+	if board != null:
+		_quiet(board)
+		check(board.puzzle.image_id == "second-confetti-field", "Resume opens the saved picture")
+		board.go_home()
+		await _frames()
+	_clear()
+
+
 func _test_main_scene() -> void:
 	check(ProjectSettings.get_setting("application/run/main_scene") == "res://src/ui/setup_screen.tscn", "the app opens on the setup screen")
+	# No collection handed in: the screen loads the bundled library.
+	_clear()
+	if is_instance_valid(current_scene):
+		current_scene.free()
+	var s := (load(SetupScreen.SCENE) as PackedScene).instantiate() as SetupScreen
+	s.save_path = SAVE
+	root.add_child(s)
+	current_scene = s
+	check(s.collection_buttons.size() == 4 and s.collection_buttons[0].text == "Abstract", "the bundled collections are offered")
+	check(s.section_index == 0 and s.picture.id == "abstract-ember-rings", "the first collection's first picture is chosen")
