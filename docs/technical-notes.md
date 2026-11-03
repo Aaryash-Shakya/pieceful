@@ -40,6 +40,7 @@ Decisions and working defaults that are not covered by `INTENT.md` or `AGENTS.md
 - Pieces never rotate. All pieces in a cluster share one offset from their home position.
 - A drop locks a cluster when its offset from home is within a tolerance, about 22% of the average cell size, with a minimum of 10 image pixels. A drop joins two clusters when they are neighbours in the solved picture and their offsets agree within the same tolerance. Joins are checked on drop, not while dragging.
 - Locked pieces are painted into one cached layer, so the screen draws them as a single image.
+- **default** In the Godot build, locked pieces move to their own layer under the loose pieces and are drawn as ordinary pieces. Painting that layer into one cached image is a follow-up, made only if the phone check shows locked pieces cost frames.
 - Only loose pieces within the view are drawn.
 - Dragging a piece near the screen edge pans the camera.
 - The cleanup button packs loose pieces in shuffled order, row by row, in two bands, one above and one below the board, then animates them into place.

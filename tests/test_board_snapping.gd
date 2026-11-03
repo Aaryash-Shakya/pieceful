@@ -8,7 +8,10 @@ var _loose_at_completion := -1
 var tol: float
 var _pair_1: Vector2i
 var _pair_2: Vector2i
+var _pair_3: Vector2i
+var _pair_4: Vector2i
 var _r: PieceNode
+var _t: PieceNode
 
 
 func _init() -> void:
@@ -30,6 +33,12 @@ func _init() -> void:
 	_test_locked_piece_cannot_be_picked_up()
 	_test_cluster_locks_as_one()
 	_test_release_by_cancel_or_pause_drops()
+	_join_pair_3()
+	_test_lift_raises_cluster_in_order()
+	_test_hold_pinch_moves_cluster()
+	_test_holding_finger_lift_joins()
+	_test_holding_finger_lift_locks()
+	_test_edge_pan_carries_cluster()
 	_test_completion()
 
 	board.free()
@@ -98,6 +107,9 @@ func _test_drop_near_home_locks() -> void:
 		if not used.has(i) and _is_loose_singleton(i) and _grab_point(board.node_for(i)) != Vector2.INF:
 			_r = board.node_for(i)
 			break
+	if _r == null:
+		check(false, "found a loose singleton to lock")
+		return
 	_move_by_touch(_r, Vector2(0.5, 0.4) * tol)
 	check(board.state.is_locked(_r.piece_id), "a piece dropped near home locks")
 	check(_r.position == Vector2.ZERO, "a locked piece sits exactly at home")
@@ -107,6 +119,8 @@ func _test_drop_near_home_locks() -> void:
 
 
 func _test_locked_piece_cannot_be_picked_up() -> void:
+	if _r == null:
+		return
 	var c := Vector2.INF
 	for point in _inside_points(_r):
 		if _top_piece_at(point) == null:
@@ -145,15 +159,140 @@ func _test_release_by_cancel_or_pause_drops() -> void:
 	check(u.position == Vector2.ZERO, "a piece dropped by a cancel sits at home")
 	check(u.get_parent() == board.locked_pieces, "a piece dropped by a cancel moves under the locked layer")
 
-	u = _next_loose_singleton()
-	s = _grab_point(u)
-	where = s + (Vector2(0.4 * tol, 0) - u.position) * camera.zoom.x
+	for what: int in [Node.NOTIFICATION_APPLICATION_PAUSED, Node.NOTIFICATION_APPLICATION_FOCUS_OUT]:
+		var label := "a pause" if what == Node.NOTIFICATION_APPLICATION_PAUSED else "focus out"
+		u = _next_loose_singleton()
+		s = _grab_point(u)
+		where = s + (Vector2(0.4 * tol, 0) - u.position) * camera.zoom.x
+		_touch(0, s, true)
+		_drag(0, where, where - s)
+		board.notification(what)
+		check(board.state.is_locked(u.piece_id), "%s drops the piece, so it locks near home" % label)
+		check(u.position == Vector2.ZERO, "a piece dropped by %s sits at home" % label)
+		check(u.get_parent() == board.locked_pieces, "a piece dropped by %s moves under the locked layer" % label)
+
+
+func _join_pair_3() -> void:
+	_pair_3 = _loose_pair(_used_ids())
+	var p := board.node_for(_pair_3.x)
+	var q := board.node_for(_pair_3.y)
+	_move_by_touch(p, q.position)
+	check(board.state.find(p.piece_id) == board.state.find(q.piece_id), "pair 3 joins for the cluster input tests")
+
+
+func _test_lift_raises_cluster_in_order() -> void:
+	_t = _next_loose_singleton()
+	_move_by_touch(_t, _t.position + Vector2(300, 0))
+	check(pieces.get_child(pieces.get_child_count() - 1) == _t, "a piece dropped alone ends on top")
+	var first := board.node_for(_pair_3.x)
+	var second := board.node_for(_pair_3.y)
+	if first.get_index() > second.get_index():
+		var swap := first
+		first = second
+		second = swap
+	var s := _grab_point(second)
 	_touch(0, s, true)
-	_drag(0, where, where - s)
-	board.notification(Node.NOTIFICATION_APPLICATION_PAUSED)
-	check(board.state.is_locked(u.piece_id), "a pause drops the piece, so it locks near home")
-	check(u.position == Vector2.ZERO, "a piece dropped by a pause sits at home")
-	check(u.get_parent() == board.locked_pieces, "a piece dropped by a pause moves under the locked layer")
+	var last := pieces.get_child_count() - 1
+	check(pieces.get_child(last - 1) == first and pieces.get_child(last) == second, "lifting a cluster raises it keeping its order")
+	check(first.z_index == PieceNode.HELD_Z_INDEX and second.z_index == PieceNode.HELD_Z_INDEX, "every piece of a lifted cluster is lifted")
+	check(_t.z_index == 0, "pieces outside the lifted cluster stay on the base layer")
+	_touch(0, s, false)
+	check(first.z_index == 0 and second.z_index == 0, "a dropped cluster returns to the base layer")
+
+
+func _test_hold_pinch_moves_cluster() -> void:
+	var p := board.node_for(_pair_3.x)
+	var q := board.node_for(_pair_3.y)
+	var a := _grab_point(q)
+	var offset := q.position - _to_world(a)
+	var b := a + Vector2(100, 0)
+	_touch(0, a, true)
+	_touch(1, b, true)
+	var swing := Vector2(-100, 100)
+	_drag(1, b + swing, swing)
+	check(_near(q.position, _to_world(a) + offset), "a second finger pans with the cluster under the holding finger")
+	check(_cluster_at_offset(p, q), "a hold and pan moves every piece of the cluster")
+
+	var zoom := camera.zoom.x
+	var spread := Vector2(100, 60)
+	_drag(1, b + swing + spread, spread)
+	check(camera.zoom.x > zoom, "a second finger moving away zooms while a cluster is held")
+	check(_near(q.position, _to_world(a) + offset), "a hold and zoom keeps the cluster under the holding finger")
+	check(_cluster_at_offset(p, q), "a hold and zoom moves every piece of the cluster")
+
+	var before := q.position
+	var delta := Vector2(-20, 15)
+	_drag(0, a + delta, delta)
+	check(_near(q.position, before + delta / camera.zoom.x), "the holding finger moves its cluster during a pinch")
+	check(_cluster_at_offset(p, q), "the holding finger moves every piece of the cluster")
+	_touch(0, a + delta, false)
+	_touch(1, b + swing + spread, false)
+	check(not _is_held(p) and not _is_held(q), "nothing is held after both fingers lift")
+	_show_everything()
+
+
+func _test_holding_finger_lift_joins() -> void:
+	var used := _used_ids()
+	used.append_array([_pair_3.x, _pair_3.y, _t.piece_id])
+	_pair_4 = _loose_pair(used)
+	var p := board.node_for(_pair_4.x)
+	var q := board.node_for(_pair_4.y)
+	var s := _grab_point(p)
+	var relative := (q.position - p.position) * camera.zoom.x
+	_touch(0, s, true)
+	_touch(1, s + Vector2(100, 0), true)
+	_drag(0, s + relative, relative)
+	_touch(0, s + relative, false)
+	_touch(1, s + Vector2(100, 0), false)
+	check(board.state.find(p.piece_id) == board.state.find(q.piece_id), "lifting the holding finger during a pinch joins the neighbour")
+	check(p.position == q.position, "a cluster joined during a pinch snaps together")
+	check(not _joined.is_empty() and _joined.back() == Vector2i(board.state.find(p.piece_id), 2), "a join during a pinch is reported")
+
+
+func _test_holding_finger_lift_locks() -> void:
+	var p := board.node_for(_pair_4.x)
+	var q := board.node_for(_pair_4.y)
+	var s := _grab_point(p)
+	var relative := (Vector2(0.3, 0.2) * tol - p.position) * camera.zoom.x
+	_touch(0, s, true)
+	_touch(1, s + Vector2(100, 0), true)
+	_drag(0, s + relative, relative)
+	_touch(0, s + relative, false)
+	check(board.state.is_locked(p.piece_id) and board.state.is_locked(q.piece_id), "lifting the holding finger during a pinch near home locks the cluster")
+	check(p.position == Vector2.ZERO and q.position == Vector2.ZERO, "a cluster locked during a pinch sits at home")
+	check(p.get_parent() == board.locked_pieces and q.get_parent() == board.locked_pieces, "a cluster locked during a pinch moves under the locked layer")
+	check(not _locked.is_empty() and _locked.back() == Vector2i(board.state.find(p.piece_id), 2), "a lock during a pinch is reported")
+	_touch(1, s + Vector2(100, 0), false)
+
+
+func _test_edge_pan_carries_cluster() -> void:
+	var p := board.node_for(_pair_3.x)
+	var q := board.node_for(_pair_3.y)
+	camera.position = bounds.get_center()
+	var s := _grab_point(q)
+	var edge := Vector2(viewport_size.x, viewport_size.y / 2.0)
+	_touch(0, s, true)
+	_drag(0, edge, edge - s)
+	var q_before := q.position
+	var camera_before := camera.position
+	board._process(0.1)
+	check(camera.position != camera_before, "edge pan moves the camera while a cluster is held")
+	check(_near(q.position, q_before + (camera.position - camera_before)), "edge pan carries the held cluster with the camera")
+	check(_cluster_at_offset(p, q), "edge pan moves every piece of the cluster")
+	_touch(0, edge, false)
+
+
+# Ids the earlier tests chose, so later picks do not reuse them.
+func _used_ids() -> PackedInt32Array:
+	var used := PackedInt32Array([_pair_1.x, _pair_1.y, _pair_2.x, _pair_2.y])
+	if _r != null:
+		used.append(_r.piece_id)
+	return used
+
+
+# Members of a cluster share one offset, so equal positions that match the state mean none was left behind.
+func _cluster_at_offset(p: PieceNode, q: PieceNode) -> bool:
+	return p.position == q.position and q.position == board.state.offset_of(q.piece_id)
 
 
 func _test_completion() -> void:
