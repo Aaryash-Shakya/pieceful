@@ -4,7 +4,7 @@ Context for AI agents working in this repository. Read `INTENT.md` first. It say
 
 ## What this project is
 
-An Android jigsaw puzzle game built in Godot 4. Free, no ads, offline-first, distributed as an APK on GitHub. The code is currently at the planning stage. Nothing has been scaffolded yet.
+An Android jigsaw puzzle game built in Godot 4. Free, no ads, offline-first, distributed as an APK on GitHub. Version 1 is built and waits for testing on a real phone. See `docs/v1-status.md` for what exists, the decisions made while building it, and what is still open.
 
 ## Stack
 
@@ -16,7 +16,7 @@ An Android jigsaw puzzle game built in Godot 4. Free, no ads, offline-first, dis
 
 ## Architecture rules
 
-1. **The cut generator is pure logic.** It lives in its own directory, has no dependency on scenes or nodes, and exposes one function: `generate_cut(width, height, target_count, style, seed)`. It returns pieces, each with a closed outline, a home position in the image and a list of neighbour piece ids.
+1. **The cut generator is pure logic.** It lives in its own directory, has no dependency on scenes or nodes, and its entry point is `generate_cut(width, height, target_count, style, seed)`. It returns pieces, each with a closed outline, a home position in the image and a list of neighbour piece ids. It also exposes `valid_counts(width, height, min_count, max_count)` for the setup slider, and `build_graph` for tests and tools. Game code calls `generate_cut`.
 2. **Generation is deterministic.** The same inputs always give the same output on every device. Use a small seeded random generator written in the project, not the engine's global random. Round generated points to a fixed precision.
 3. **Never store piece geometry.** Saves and the daily puzzle store the image id, style, piece count and seed, and regenerate the cut.
 4. **Every style produces the same intermediate shape.** A cut is a graph of vertices and shared edges, and the pieces are the faces between them. One common step adds tabs and builds outlines. Regular, Irregular and Wild differ only in how they produce the graph. Do not write a separate pipeline per style.
@@ -45,23 +45,36 @@ An Android jigsaw puzzle game built in Godot 4. Free, no ads, offline-first, dis
 - `docs/visual-design.md`: locked colours, fonts and effects.
 - `docs/open-decisions.md`: what is not decided yet. Check it before assuming an answer.
 - `docs/prototype/`: a throwaway browser prototype with a working cut generator to port.
+- `docs/v1-status.md`: what version 1 contains, the decisions made while building it, and the phone checklist.
+- `docs/superpowers/specs/` and `docs/superpowers/plans/`: the design and the implementation plan for each slice that was built.
 
-## Planned layout
+## Layout
 
-This is the intended structure, not what exists today. Create directories as the work needs them.
-
-- `docs/` for design and version plans.
+- `docs/` for design, status and version plans.
 - `src/cut/` for the generator, with no scene dependencies.
-- `src/game/` for the board, camera, input, clusters and slots.
-- `src/ui/` for setup, completion and store screens.
-- `assets/collections/` for bundled image collections, each with a manifest listing file, title, credit and licence.
-- `tests/` for generator and cluster tests.
+- `src/game/` for the board, camera, input, clusters, saving, sound and tidy.
+- `src/ui/` for the setup screen, theme, buttons and the frame-rate counter.
+- `assets/collections/` for bundled image collections, each with a manifest listing file, title, credit and licence. `assets/sounds/` and `assets/fonts/` carry their own licence notes.
+- `tools/` for scripts that generate the sounds and pictures and build the APK. They are excluded from the exported APK.
+- `tests/` for headless tests.
 
 ## Testing
 
 - Generator checks that must always pass: piece areas sum to the image area, every interior edge belongs to exactly two pieces, no piece is below a minimum area, and the same seed gives identical output twice.
 - Test cluster joining and save-and-restore with plain logic tests, not through the UI.
 - Performance is a feature. Keep an on-screen frame-rate counter available in debug builds and check 400 pieces (the maximum) on a real phone before calling a version done.
+
+## Conventions learned while building version 1
+
+- Tests are plain scripts that extend `res://tests/base_test.gd` by path, run with `godot --headless --script tests/<name>.gd`, and print `0 failure(s)` when they pass. Run `godot --headless --import` first after adding a file with a new `class_name`. Test helpers have no `class_name`, so the exported class cache stays clean.
+- A script that errors before `finish()` hangs instead of exiting. Wrap RED runs in `timeout 120`.
+- Some tests print deliberate `ERROR` or `WARNING` lines for invalid input. They are captured and checked. Any other `ERROR` or `WARNING` line is a failure.
+- Tests use their own save path under `user://test_*` and never touch the real save.
+- Generated assets (sounds in `assets/sounds/`, pictures in `assets/collections/`) come from scripts in `tools/` that use only the project's `SeededRng`. Regenerate them with `godot --headless --script tools/<name>.gd`.
+- A deliberate change to a cut, which means to a golden checksum in `tests/test_cut_generator.gd`, changes every saved puzzle. Bump `SaveGame.VERSION` in the same commit.
+- Cuts must be identical on every device. Cut maths uses 64-bit GDScript floats and the project's own functions, never engine random or the system `log`.
+- Never delete a save the game cannot use. Move it aside to `current.bad.json` and log one warning.
+- Prefer a fix that removes the cause over one that scatters guard calls through every entry point. The code reviews in version 1 found this more than anything else.
 
 ## Visual design
 

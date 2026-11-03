@@ -2,19 +2,28 @@
 
 A free, ad-free jigsaw puzzle game for Android. No ads, no tracking, no accounts. It is smooth, tactile and works offline.
 
-**Status:** planning. There is no playable build yet. The design is written up in `docs/`, and the game will be built in Godot 4.
+**Status:** version 1 is built and waiting for testing on a real phone. It is a Godot 4 project written in GDScript.
 
-## What it will do
+## What version 1 does
 
-- Cut a picture into 12 to 400 pieces, in three styles: Regular, Irregular and Wild.
-- Pinch-zoom and pan, with sound and vibration when pieces join and snap into place.
-- Four sorting slots for grouping pieces by colour or type.
-- A daily puzzle that is the same for everyone, with difficulty that changes through the week.
-- Picture collections that download once and then work offline.
+- Pick a picture from the bundled collection, choose Regular or Irregular pieces, and set 12 to 400 pieces on a slider that stops only at valid counts, with a live preview of the cut.
+- Drag pieces with one finger, pinch-zoom and pan, and join pieces that fit into clusters that lock in place. Sound and vibration on joins and locks.
+- A Tidy button packs loose pieces around the board.
+- Leave and come back: the game saves after every lock and when the app pauses, and resumes exactly where you left it.
+
+## What is planned
+
+- Four sorting slots, a completion screen, a timer and settings (version 2).
+- Wild pieces, a daily puzzle that is the same for everyone, and downloadable picture collections (version 3).
+
+## Build and install
+
+Follow `docs/dev-setup.md` to install the tools, then run `tools/build_apk.sh` to build the debug APK and install it on a connected phone. Tests run headless: `godot --headless --script tests/<name>.gd`.
 
 ## Where to read more
 
 - `INTENT.md`: what the project is for and why.
+- `docs/v1-status.md`: what is built, the decisions made while building it, and what to check on the phone.
 - `docs/version-plan.md`: the planned versions.
 - `docs/open-decisions.md`: what is not decided yet.
 - `AGENTS.md`: notes for AI coding agents working in this repository.

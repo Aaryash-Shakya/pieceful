@@ -8,6 +8,8 @@ Assumptions the owner has not rejected: GDScript as the language, the sorting sl
 
 ## Version 1: Playable core
 
+**Status (2026-11-03):** every scope item below is built. The exit tests that need the owner's phone (60fps at 400 pieces, snap feel) have not been run. See `docs/v1-status.md` for the full state, the decisions made while building, and the phone checklist.
+
 Version 1 is also the performance test for Godot. The first milestone is a spike, a throwaway test on the owner's real phone at the 400-piece maximum. The checks are proposed and still need the owner's confirmation. See `docs/engine-decision.md`.
 
 - 60fps while dragging pieces and while pinch-zooming and panning.
@@ -74,6 +76,7 @@ If the first two cannot be fixed, the engine choice is reopened before anything 
 
 ## Open items
 
-- Confirm GDScript as the language.
-- Confirm slots in version 2.
+- Confirm slots in version 2 (built that way; see `docs/v1-status.md`).
 - Confirm Wild pieces have interlocking edges.
+
+GDScript is confirmed (`INTENT.md`). The cleanup button is labelled Tidy in the app. The version 1 scope item "a repeatable way to install the APK on a phone" is `tools/build_apk.sh`.
