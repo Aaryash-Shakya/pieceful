@@ -18,10 +18,14 @@ func _init() -> void:
 	# The shadow is the first child, added before the body.
 	var shadow := node.get_child(0) as Polygon2D
 	check(not shadow.visible, "shadow is hidden after setup")
+	check(shadow.z_index == -1 and shadow.z_as_relative, "shadow draws one layer below its piece")
+	check(node.z_index == 0, "a loose piece sits on the base layer")
 	node.set_held(true)
 	check(shadow.visible, "shadow shows while held")
+	check(node.z_index == PieceNode.HELD_Z_INDEX, "a held piece is lifted above the others")
 	node.set_held(false)
 	check(not shadow.visible, "shadow hides again when released")
+	check(node.z_index == 0, "a released piece returns to the base layer")
 
 	# A tab's notch is inside the bounds but outside the piece.
 	var notched := CutPiece.new()

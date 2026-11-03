@@ -16,13 +16,22 @@ const WHEEL_ZOOM_STEP := 1.1
 # HOLD_PINCHING: the dragging finger keeps its piece while it and one other finger move the camera.
 enum Mode { IDLE, DRAGGING, PANNING, PINCHING, HOLD_PINCHING, PINCH_ENDED }
 
+signal pieces_joined(cluster_root: int, piece_count: int)
+signal cluster_locked(cluster_root: int, piece_count: int)
+signal puzzle_completed
+
 var camera: Camera2D
+var cut: Array[CutPiece]
+var state: PuzzleState
+var locked_pieces: Node2D
 var pieces: Node2D
 
 var _bounds := Rect2(Vector2.ZERO, Vector2(IMAGE_SIZE)).grow(LOOSE_MARGIN)
 var _mode := Mode.IDLE
 var _touches: Dictionary[int, Vector2] = {}
-var _held: PieceNode
+var _nodes: Array[PieceNode] = []
+var _held_root := -1
+var _held_nodes: Array[PieceNode] = []
 var _drag_index := -1
 var _held_offset := Vector2.ZERO
 var _pinch_a := -1
@@ -35,9 +44,14 @@ func _ready() -> void:
 	RenderingServer.set_default_clear_color(Palette.felt())
 
 	var texture := _make_test_texture()
-	var cut := CutGenerator.generate_cut(IMAGE_SIZE.x, IMAGE_SIZE.y, PIECE_COUNT, STYLE, SEED)
+	cut = CutGenerator.generate_cut(IMAGE_SIZE.x, IMAGE_SIZE.y, PIECE_COUNT, STYLE, SEED)
 	var offsets := Scatter.scatter(cut, Vector2(IMAGE_SIZE), LOOSE_MARGIN, SEED)
+	state = PuzzleState.new(cut, offsets, PuzzleState.tolerance_for(IMAGE_SIZE.x, IMAGE_SIZE.y, cut.size()))
 
+	# Added first so locked pieces draw below every loose one.
+	locked_pieces = Node2D.new()
+	locked_pieces.name = "LockedPieces"
+	add_child(locked_pieces)
 	pieces = Node2D.new()
 	pieces.name = "Pieces"
 	add_child(pieces)
@@ -46,6 +60,7 @@ func _ready() -> void:
 		node.setup(cut[i], texture, Palette.outline())
 		node.position = offsets[i]
 		pieces.add_child(node)
+		_nodes.append(node)
 
 	camera = Camera2D.new()
 	camera.name = "Camera"
@@ -53,6 +68,19 @@ func _ready() -> void:
 	camera.position = Vector2(IMAGE_SIZE) / 2.0
 	var fit := get_viewport_rect().size.x / (IMAGE_SIZE.x * BORDER)
 	camera.zoom = Vector2(fit, fit)
+
+
+func node_for(piece_id: int) -> PieceNode:
+	return _nodes[piece_id]
+
+
+## The topmost loose piece containing the world point, or null. Locked pieces are never picked.
+func piece_at(world: Vector2) -> PieceNode:
+	for i in range(pieces.get_child_count() - 1, -1, -1):
+		var piece := pieces.get_child(i) as PieceNode
+		if piece.contains_point(world):
+			return piece
+	return null
 
 
 func _process(delta: float) -> void:
@@ -165,17 +193,19 @@ func _pinch_step() -> void:
 func _begin_single(index: int, screen_position: Vector2) -> void:
 	_release_held()
 	var world := _to_world(screen_position)
-	for i in range(pieces.get_child_count() - 1, -1, -1):
-		var piece := pieces.get_child(i) as PieceNode
-		if piece.contains_point(world):
-			_held = piece
-			_drag_index = index
-			_held_offset = piece.position - world
-			pieces.move_child(piece, -1)
-			piece.set_held(true)
-			_mode = Mode.DRAGGING
-			return
-	_mode = Mode.PANNING
+	var piece := piece_at(world)
+	if piece == null:
+		_mode = Mode.PANNING
+		return
+	_held_root = state.find(piece.piece_id)
+	for id in state.members(_held_root):
+		_held_nodes.append(_nodes[id])
+	_raise(_held_nodes)
+	for node in _held_nodes:
+		node.set_held(true)
+	_drag_index = index
+	_held_offset = state.offset_of(_held_root) - world
+	_mode = Mode.DRAGGING
 
 
 func _begin_pinch(index: int) -> void:
@@ -199,12 +229,16 @@ func _refresh_pinch() -> void:
 	_pinch_mid = (_touches[_pinch_a] + _touches[_pinch_b]) / 2.0
 
 
-# The one way a held piece moves: it keeps the offset it had from the finger at grab time,
+# The one way a held cluster moves: it keeps the offset it had from the finger at grab time,
 # so it stays under that finger through drags, pans and zooms alike. Every camera move
 # goes through _set_camera_position, which calls this.
 func _follow_held() -> void:
-	if _held != null:
-		_held.position = _to_world(_touches[_drag_index]) + _held_offset
+	if _held_root == -1:
+		return
+	var offset := _to_world(_touches[_drag_index]) + _held_offset
+	state.move_cluster(_held_root, offset)
+	for node in _held_nodes:
+		node.position = offset
 
 
 func _cancel_gesture() -> void:
@@ -217,11 +251,57 @@ func _end_gesture() -> void:
 	_mode = Mode.IDLE
 
 
+# Every release is a drop, however the finger went away, so the cluster always settles.
 func _release_held() -> void:
-	if _held != null:
-		_held.set_held(false)
-		_held = null
 	_drag_index = -1
+	if _held_root == -1:
+		return
+	for node in _held_nodes:
+		node.set_held(false)
+	var result := state.drop(_held_root)
+	_held_root = -1
+	_held_nodes.clear()
+	_settle(result)
+
+
+func _settle(result: PuzzleState.DropResult) -> void:
+	# A plain drop changes nothing: the held nodes already sit at the cluster offset.
+	if not result.joined and not result.locked:
+		return
+	var offset := state.offset_of(result.root)
+	var nodes: Array[PieceNode] = []
+	for id in state.members(result.root):
+		var node := _nodes[id]
+		node.position = offset
+		nodes.append(node)
+	if result.locked:
+		# Last child first, so no removal shifts the siblings still to go.
+		nodes.sort_custom(func(a: PieceNode, b: PieceNode) -> bool: return a.get_index() > b.get_index())
+		for node in nodes:
+			node.reparent(locked_pieces, false)
+	elif result.joined:
+		_raise(nodes)
+	if result.joined:
+		pieces_joined.emit(result.root, nodes.size())
+	if result.locked:
+		cluster_locked.emit(result.root, nodes.size())
+	if result.locked and state.is_complete():
+		puzzle_completed.emit()
+
+
+# Moves the nodes to the top of the loose layer, keeping their order among themselves.
+func _raise(nodes: Array[PieceNode]) -> void:
+	# Held shadows draw over other loose pieces only because the held nodes end up last in tree order before set_held raises their z_index.
+	nodes.sort_custom(func(a: PieceNode, b: PieceNode) -> bool: return a.get_index() < b.get_index())
+	# Members already at the tail in order stay put, and the rest slot in just before them,
+	# so re-lifting the cluster just dropped moves nothing.
+	var slot := pieces.get_child_count() - 1
+	var placed := nodes.size()
+	while placed > 0 and nodes[placed - 1].get_index() == slot:
+		placed -= 1
+		slot -= 1
+	for k in placed:
+		pieces.move_child(nodes[k], slot)
 
 
 func _zoom_about(zoom: float, screen_anchor: Vector2) -> void:

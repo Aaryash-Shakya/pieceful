@@ -6,6 +6,9 @@ extends Node2D
 const OUTLINE_WIDTH := 2.3
 const SHADOW_OFFSET := Vector2(4, 5)
 const SHADOW_COLOR := Color(0, 0, 0, 0.35)
+# A lifted cluster draws above every other piece. Its shadows sit one layer below it,
+# so no member's shadow darkens another member's body.
+const HELD_Z_INDEX := 1
 
 var piece_id: int
 
@@ -22,6 +25,7 @@ func setup(piece: CutPiece, texture: Texture2D, outline_color: Color) -> void:
 	_shadow.color = SHADOW_COLOR
 	_shadow.position = SHADOW_OFFSET
 	_shadow.visible = false
+	_shadow.z_index = -1
 	add_child(_shadow)
 
 	# uv equals the outline, so the full image is the texture and no baking is needed.
@@ -46,3 +50,4 @@ func contains_point(world_point: Vector2) -> bool:
 
 func set_held(held: bool) -> void:
 	_shadow.visible = held
+	z_index = HELD_Z_INDEX if held else 0

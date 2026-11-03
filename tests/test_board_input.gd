@@ -1,21 +1,9 @@
-extends BaseTest
-
-var board: Board
-var camera: Camera2D
-var pieces: Node2D
-var viewport_size: Vector2
-var bounds: Rect2
+extends BoardTest
 
 
 func _init() -> void:
-	# Root only enters the tree once the main loop starts, and Board._ready needs it.
 	await process_frame
-	board = load("res://src/game/board.tscn").instantiate()
-	root.add_child(board)
-	camera = board.camera
-	pieces = board.pieces
-	viewport_size = board.get_viewport_rect().size
-	bounds = Rect2(Vector2.ZERO, Vector2(Board.IMAGE_SIZE)).grow(Board.LOOSE_MARGIN)
+	make_board()
 
 	_test_regular_pieces()
 	_test_piece_drag()
@@ -537,54 +525,6 @@ func _test_edge_pan_carries_piece() -> void:
 	check(camera.position == camera_before, "no edge pan once released")
 
 
-func _touch(index: int, position: Vector2, pressed: bool, canceled := false) -> void:
-	var event := InputEventScreenTouch.new()
-	event.index = index
-	event.position = position
-	event.pressed = pressed
-	event.canceled = canceled
-	board._unhandled_input(event)
-
-
-func _drag(index: int, position: Vector2, relative: Vector2) -> void:
-	var event := InputEventScreenDrag.new()
-	event.index = index
-	event.position = position
-	event.relative = relative
-	board._unhandled_input(event)
-
-
-func _is_held(piece: PieceNode) -> bool:
-	return (piece.get_child(0) as Polygon2D).visible
-
-
-func _near(a: Vector2, b: Vector2) -> bool:
-	return a.distance_to(b) < 0.01
-
-
-func _inside_bounds(point: Vector2) -> bool:
-	return point.clamp(bounds.position, bounds.end) == point
-
-
-func _to_world(screen: Vector2) -> Vector2:
-	return camera.position + (screen - viewport_size / 2.0) / camera.zoom.x
-
-
-func _to_screen(world: Vector2) -> Vector2:
-	return (world - camera.position) * camera.zoom.x + viewport_size / 2.0
-
-
-func _show_everything() -> void:
-	camera.zoom = Vector2(CameraRig.MIN_ZOOM, CameraRig.MIN_ZOOM)
-	camera.position = bounds.get_center()
-
-
-func _fit_board() -> void:
-	var fit := viewport_size.x / (Board.IMAGE_SIZE.x * Board.BORDER)
-	camera.zoom = Vector2(fit, fit)
-	camera.position = Vector2(Board.IMAGE_SIZE) / 2.0
-
-
 # A screen point over a piece that is not already the top child, with the piece
 # the board should pick there: the highest-index piece containing the point.
 func _find_covered_point() -> Array:
@@ -610,11 +550,3 @@ func _find_empty_point() -> Vector2:
 				return screen
 	check(false, "found an empty screen point")
 	return Vector2.ZERO
-
-
-func _top_piece_at(world: Vector2) -> PieceNode:
-	for i in range(pieces.get_child_count() - 1, -1, -1):
-		var piece := pieces.get_child(i) as PieceNode
-		if piece.contains_point(world):
-			return piece
-	return null
