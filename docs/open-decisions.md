@@ -44,4 +44,4 @@ See `docs/v1-status.md` for the reasons. The Mobile renderer is in use for now a
 
 ## Still to write
 
-- The written design and implementation plans for version 2 and version 3. Each version 1 slice has its own in `docs/superpowers/specs/` and `docs/superpowers/plans/`.
+- The written design and implementation plans for version 3. Version 2 has one design for slots (`docs/superpowers/specs/2026-11-03-slots-design.md`) and `docs/v2-status.md`. Each version 1 slice has its own in `docs/superpowers/specs/` and `docs/superpowers/plans/`.

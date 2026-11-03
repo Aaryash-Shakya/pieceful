@@ -13,6 +13,7 @@ var _quits := [0]
 func _init() -> void:
 	await process_frame
 	_test_opens()
+	_test_settings_button()
 	await _test_layout()
 	_test_slider_offers_valid_counts()
 	_test_drag_does_not_generate()
@@ -428,3 +429,12 @@ func _test_picker_layout_and_touch() -> void:
 	check(s.section_index == 1 and s.picture.id == "second-ember-rings", "a tap on a chip opens it")
 	_close()
 	phone.free()
+
+
+func _test_settings_button() -> void:
+	var s := _open()
+	check(s.settings_sheet != null and not s.settings_sheet.visible, "the settings sheet starts hidden")
+	s.settings_button.pressed.emit()
+	check(s.settings_sheet.visible, "the Settings button shows the sheet")
+	s.settings_button.pressed.emit()
+	check(not s.settings_sheet.visible, "pressing it again hides the sheet")

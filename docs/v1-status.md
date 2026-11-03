@@ -69,7 +69,7 @@ These were made by Claude while the owner had delegated the open choices. The ow
 
 ## Known gaps and deferred work
 
-- Version 2 (slots, completion screen, timer, settings, collection picker, ghost image) and version 3 (Wild, daily puzzle, the collection store, stats, release builds) are not started.
+- Version 2 is built, see `docs/v2-status.md`. Version 3 (Wild, daily puzzle, the collection store, stats, release builds) are not started.
 - The room measure for tabs is average cell width, which suits the grid styles. Wild needs a better one.
 - Picking up or locking a very large cluster costs about 1 to 2.4 ms on the desktop. The phone may be 3 to 5 times slower.
 - The setup screen decodes the full 2048 px picture on every tile tap and generates the preview on the main thread. A `WorkerThreadPool` preview is the fix if the phone hitches.

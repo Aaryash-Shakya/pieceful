@@ -11,6 +11,7 @@ const STYLES: Array[String] = [CutGenerator.STYLE_REGULAR, CutGenerator.STYLE_IR
 const STYLE_NAMES := {"regular": "Regular", "irregular": "Irregular"}
 const TITLE_TEXT := "Pieceful"
 const START_TEXT := "Start"
+const SETTINGS_TEXT := "Settings"
 const RESUME_TEXT := "Resume"
 const EMPTY_TEXT := "No pictures found"
 const MARGIN := 16
@@ -56,6 +57,9 @@ var split_label: Label
 var picture_label: Label
 var empty_label: Label
 var start_button: Button
+var settings_button: Button
+## Sound and vibration switches; hidden until the Settings button is pressed.
+var settings_sheet: SettingsSheet
 var resume_card: PanelContainer
 var resume_button: Button
 var resume_label: Label
@@ -465,10 +469,17 @@ func _build_ui() -> void:
 	page.add_theme_constant_override("separation", ROW_GAP)
 	add_child(page)
 
+	var title_row := HBoxContainer.new()
+	page.add_child(title_row)
 	var title := Label.new()
 	title.text = TITLE_TEXT
 	title.theme_type_variation = UiTheme.TITLE
-	page.add_child(title)
+	title.size_flags_horizontal = SIZE_EXPAND_FILL
+	title_row.add_child(title)
+	settings_button = Button.new()
+	settings_button.text = SETTINGS_TEXT
+	settings_button.focus_mode = FOCUS_NONE
+	title_row.add_child(settings_button)
 
 	var scroller := ScrollContainer.new()
 	scroller.size_flags_vertical = SIZE_EXPAND_FILL
@@ -480,6 +491,10 @@ func _build_ui() -> void:
 	_rows.size_flags_horizontal = SIZE_EXPAND_FILL
 	_rows.add_theme_constant_override("separation", ROW_GAP)
 	scroller.add_child(_rows)
+	settings_sheet = SettingsSheet.new()
+	settings_sheet.visible = false
+	_rows.add_child(settings_sheet)
+	settings_button.pressed.connect(func() -> void: settings_sheet.visible = not settings_sheet.visible)
 
 	_build_resume_card()
 
