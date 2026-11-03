@@ -297,7 +297,8 @@ func _process(delta: float) -> void:
 
 func _notification(what: int) -> void:
 	match what:
-		NOTIFICATION_APPLICATION_FOCUS_IN, NOTIFICATION_APPLICATION_RESUMED:
+		# Not on RESUMED: Android can resume the app behind the lock screen or in multi-window without focus.
+		NOTIFICATION_APPLICATION_FOCUS_IN:
 			_focused = true
 		NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_APPLICATION_PAUSED:
 			_focused = false

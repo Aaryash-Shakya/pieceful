@@ -4,8 +4,13 @@ extends RefCounted
 ## style, count and seed make the cut, plus where the clusters are. Never any piece geometry.
 ## The file is untrusted input, so from_dict checks every key and type before using a value.
 
+# A deliberate change to any golden cut checksum (tests/test_cut_generator.gd) must also bump this,
+# or an old save would restore clusters whose pieces no longer fit.
 const VERSION := 1
 const MAX_PIECE_COUNT := 400
+## About 31 years of play, far beyond any real game. A file claiming more is rejected rather than
+## loaded, so the clock stays well inside the range the millisecond rounding keeps exact.
+const MAX_ELAPSED := 1.0e9
 ## 2^53, the largest integer a JSON number holds exactly.
 const MAX_EXACT_INT := 9007199254740992.0
 
@@ -109,7 +114,7 @@ static func from_dict(data: Variant) -> Loaded:
 		return _fail("clusters")
 	if not root.loose_order is Array:
 		return _fail("loose_order")
-	if not _is_number(root.elapsed) or float(root.elapsed) < 0.0:
+	if not _is_number(root.elapsed) or float(root.elapsed) < 0.0 or float(root.elapsed) > MAX_ELAPSED:
 		return _fail("elapsed")
 	if not _is_int(root.tidy_count) or int(root.tidy_count) < 0:
 		return _fail("tidy_count")

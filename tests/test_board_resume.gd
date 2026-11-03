@@ -281,6 +281,8 @@ func _test_sizes_follow_the_puzzle() -> void:
 	check(offsets_match, "a tidy lays out around the puzzle's size")
 	check(board._bounds == base.merge(expected.extent), "a tidy's bounds use the puzzle's size")
 	board._finish_cleanup()
+	# This board's puzzle now claims a size its cut was not made for. Nothing saves before
+	# _test_missing_file_starts_fresh frees it and makes the next board, so the size is never written.
 
 
 func _test_missing_file_starts_fresh() -> void:

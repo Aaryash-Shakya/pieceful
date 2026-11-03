@@ -222,17 +222,21 @@ func _test_elapsed_counts() -> void:
 	board._process(5.0)
 	check(board.elapsed == e + Board.ELAPSED_STEP_LIMIT, "a long frame adds at most the step limit")
 
-	for pair: Array in [
-		[Node.NOTIFICATION_APPLICATION_FOCUS_OUT, Node.NOTIFICATION_APPLICATION_FOCUS_IN, "focus"],
-		[Node.NOTIFICATION_APPLICATION_PAUSED, Node.NOTIFICATION_APPLICATION_RESUMED, "pause"],
+	for leave: Array in [
+		[Node.NOTIFICATION_APPLICATION_FOCUS_OUT, "focus out"],
+		[Node.NOTIFICATION_APPLICATION_PAUSED, "pause"],
 	]:
-		board._notification(pair[0])
+		board._notification(leave[0])
 		e = board.elapsed
 		board._process(0.1)
-		check(board.elapsed == e, "the clock stops without %s" % pair[2])
-		board._notification(pair[1])
+		check(board.elapsed == e, "the clock stops on %s" % leave[1])
+		# Android can resume the app behind the lock screen or in multi-window without focus.
+		board._notification(Node.NOTIFICATION_APPLICATION_RESUMED)
 		board._process(0.1)
-		check(is_equal_approx(board.elapsed, e + 0.1), "the clock runs again after %s returns" % pair[2])
+		check(board.elapsed == e, "resuming without focus does not start the clock after %s" % leave[1])
+		board._notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+		board._process(0.1)
+		check(is_equal_approx(board.elapsed, e + 0.1), "focus starts the clock again after %s" % leave[1])
 
 	e = board.elapsed
 	for i in 3:

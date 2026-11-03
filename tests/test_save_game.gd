@@ -227,6 +227,9 @@ func _test_rejects_bad_data() -> void:
 	c.elapsed = INF
 	cases["elapsed INF"] = c
 	c = base.duplicate(true)
+	c.elapsed = 1.0e9 + 1.0
+	cases["elapsed above 1e9"] = c
+	c = base.duplicate(true)
 	c.tidy_count = -1
 	cases["tidy_count -1"] = c
 	c = base.duplicate(true)
@@ -235,6 +238,9 @@ func _test_rejects_bad_data() -> void:
 	for label in cases:
 		var loaded := SaveGame.from_dict(cases[label])
 		check(loaded.snapshot == null and loaded.error != "", "rejects: %s" % label)
+	var at_limit := base.duplicate(true)
+	at_limit.elapsed = SaveGame.MAX_ELAPSED
+	check(SaveGame.from_dict(at_limit).snapshot != null, "accepts elapsed at the limit")
 	var text := SaveGame.to_json(_sample())
 	var texts := {"empty": "", "bad json": "{bad", "truncated": text.substr(0, text.length() >> 1),
 			"array": "[]", "null": "null"}
