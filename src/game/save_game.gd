@@ -60,12 +60,13 @@ static func to_dict(snapshot: Snapshot) -> Dictionary:
 		},
 		"clusters": clusters,
 		"loose_order": Array(snapshot.loose_order),
-		"elapsed": snapshot.elapsed,
+		"elapsed": roundf(snapshot.elapsed * 1000.0) / 1000.0,
 		"tidy_count": snapshot.tidy_count,
 	}
 
 
-# Full precision so offsets and the clock read back bit for bit.
+# Full precision keeps the float32 offsets exact. Godot's number parser is not correctly rounded
+# for long decimals, so the clock is kept to the millisecond, a short decimal that reads back exactly.
 static func to_json(snapshot: Snapshot) -> String:
 	return JSON.stringify(to_dict(snapshot), "\t", true, true)
 
@@ -143,6 +144,9 @@ static func from_dict(data: Variant) -> Loaded:
 		cluster.root = int(cluster_data.root)
 		cluster.pieces = ids
 		cluster.offset = Vector2(float(cluster_data.offset[0]), float(cluster_data.offset[1]))
+		# A finite double above float32's range becomes INF here.
+		if not cluster.offset.is_finite():
+			return _fail("clusters[%d].offset" % i)
 		cluster.locked = cluster_data.locked
 		snapshot.clusters.append(cluster)
 
@@ -217,9 +221,10 @@ static func _is_number(value: Variant) -> bool:
 
 
 # Godot's JSON reader returns every number as a float, so a whole float counts as an integer.
+# Native ints are held to the same 2^53 limit, so a value never changes when it goes through text.
 static func _is_int(value: Variant) -> bool:
 	if value is int:
-		return true
+		return absi(value) <= int(MAX_EXACT_INT)
 	return value is float and is_finite(value) and value == floorf(value) and absf(value) <= MAX_EXACT_INT
 
 

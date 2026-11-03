@@ -14,6 +14,8 @@ func _init() -> void:
 	_test_state_from()
 	_test_rejects_bad_data()
 	_test_loose_order_valid()
+	_test_elapsed_is_kept_to_the_millisecond()
+	_test_number_ranges()
 	finish()
 
 
@@ -101,7 +103,7 @@ func _test_json_round_trip_is_exact() -> void:
 			check(a.root == b.root and a.pieces == b.pieces and a.locked == b.locked, "cluster %d identity round trips" % i)
 			check(a.offset == b.offset, "cluster %d offset is exact" % i)
 	check(l.snapshot.loose_order == s.loose_order, "loose order round trips")
-	check(l.snapshot.elapsed == s.elapsed, "elapsed is exact")
+	check(l.snapshot.elapsed == roundf(s.elapsed * 1000.0) / 1000.0, "elapsed is kept to the millisecond")
 	check(l.snapshot.tidy_count == s.tidy_count, "tidy count round trips")
 	check(SaveGame.to_json(l.snapshot) == text, "re-encoding gives the same text")
 	check(SaveGame.from_dict(SaveGame.to_dict(s)).error == "", "integers as int are accepted")
@@ -252,3 +254,66 @@ func _test_loose_order_valid() -> void:
 		check(SaveGame.loose_order_valid(PackedInt32Array(order), state), "valid order %s" % [order])
 	for label in invalid:
 		check(not SaveGame.loose_order_valid(PackedInt32Array(invalid[label]), state), "invalid order: %s" % label)
+
+
+# Godot's number parser is not correctly rounded for long decimals, so the clock is stored as a
+# short millisecond decimal, which parses back exactly.
+func _test_elapsed_is_kept_to_the_millisecond() -> void:
+	for x in [1234.5678901234567, 0.1 + 0.2, 86399.9995, 0.0, 754.2166666666667, 3.0e6 + 0.0004]:
+		var s := _sample()
+		s.elapsed = x
+		var expected := roundf(x * 1000.0) / 1000.0
+		var text := SaveGame.to_json(s)
+		var l := SaveGame.from_json(text)
+		check(l.snapshot != null and l.snapshot.elapsed == expected, "elapsed %s reads back as %s" % [x, expected])
+		if l.snapshot != null:
+			check(SaveGame.to_json(l.snapshot) == text, "elapsed %s re-encodes to the same text" % x)
+
+
+func _test_number_ranges() -> void:
+	var base := SaveGame.to_dict(_sample())
+	var limit := int(SaveGame.MAX_EXACT_INT)
+	var cases := {
+		"seed 2^53": [_with_puzzle(base, "seed", limit), true],
+		"seed 2^53 + 2": [_with_puzzle(base, "seed", limit + 2), false],
+		"seed -2^53": [_with_puzzle(base, "seed", -limit), true],
+		"piece_count 1": [_with_puzzle(base, "piece_count", 1), true],
+		"piece_count 400": [_with_puzzle(base, "piece_count", 400), true],
+		"piece_count 401": [_with_puzzle(base, "piece_count", 401), false],
+		"piece id 2^32 + 3": [_with_piece(base, (1 << 32) + 3), false],
+		"piece id 2^31 - 1": [_with_piece(base, (1 << 31) - 1), true],
+		"loose_order 2^32 + 3": [_with_loose(base, (1 << 32) + 3), false],
+		"offset 1e300": [_with_offset(base, 1e300), false],
+	}
+	for label in cases:
+		var data: Dictionary = cases[label][0]
+		var want: bool = cases[label][1]
+		# Through text, as a real file arrives: every number is a float there.
+		var loaded := SaveGame.from_json(JSON.stringify(data))
+		check((loaded.snapshot != null) == want and (loaded.error == "") == want, "%s through text, error: %s" % [label, loaded.error])
+	# A native int above 2^53 is rejected too, not only the floats text gives.
+	check(SaveGame.from_dict(_with_puzzle(base, "seed", limit + 1)).snapshot == null, "native seed 2^53 + 1 is rejected")
+
+
+func _with_puzzle(base: Dictionary, key: String, value: Variant) -> Dictionary:
+	var d := base.duplicate(true)
+	d.puzzle[key] = value
+	return d
+
+
+func _with_piece(base: Dictionary, value: int) -> Dictionary:
+	var d := base.duplicate(true)
+	d.clusters[0].pieces = [value]
+	return d
+
+
+func _with_loose(base: Dictionary, value: int) -> Dictionary:
+	var d := base.duplicate(true)
+	d.loose_order = [value]
+	return d
+
+
+func _with_offset(base: Dictionary, value: float) -> Dictionary:
+	var d := base.duplicate(true)
+	d.clusters[0].offset = [value, 0.0]
+	return d
