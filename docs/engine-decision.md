@@ -51,6 +51,10 @@ Run on the owner's real phone, at 400 pieces, the maximum.
 
 If check 1 or 2 cannot be fixed, switch to libGDX with an Oboe or miniaudio add-on. Pieces may need pre-baked sprites instead of `Polygon2D` if rendering is too slow. See "Architecture rules" in `AGENTS.md`.
 
+## Spike results on the Nothing Phone (4a)
+
+Not recorded yet. Version 1 was built before the phone was available for the checks above, so they run on the finished build. Fill this in after running the phone checklist in `docs/v1-status.md`: date, build, renderer, refresh rate, and for each check the lowest frame rate and worst frame time with 400 pieces visible (dragging, then pinch-zoom and pan), whether the edges looked clean, whether the snap sound and vibration felt instant, and whether pinch and pan were reliable. If a frame-rate check is below 60, try pre-baked piece sprites before reopening the engine choice.
+
 ## What was not verified
 
 Godot's Android audio fix status, any Polygon2D batching behaviour, Godot GUT and gdUnit4 test-framework status on current Godot, libGDX gesture and polygon classes in this research pass, Flame camera and effects APIs, and what the large commercial jigsaw apps use.

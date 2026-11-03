@@ -6,8 +6,8 @@ Things that are not settled. For each one, the owner's answer is needed, and whe
 
 | # | Decision | Default if not answered | Why it matters |
 |---|---|---|---|
-| 1 | Confirm the spike checks as the first milestone of version 1 | Yes, as in `docs/engine-decision.md` | They decide whether Godot is kept or replaced. |
-| 2 | Minimum Android version | Android 8 (API 26) | Sets which devices can install the APK. The owner's Galaxy On7 Pro runs Android 6.0 (API 23), so supporting it means a lower minimum, if Godot 4 allows it. Check the export preset's minimum SDK. |
+| 1 | Confirm the spike checks as the first milestone of version 1 | Yes, as in `docs/engine-decision.md`. Version 1 was built on the real board, so the checks run on the finished version 1 build on the phone (see `docs/v1-status.md`) | They decide whether Godot is kept or replaced. |
+| 2 | Minimum Android version | Android 10 (API 29), which is what the Mobile renderer gives. Android 8 (API 26) was the earlier default | Sets which devices can install the APK. The owner's Galaxy On7 Pro runs Android 6.0 (API 23), so it cannot install a Mobile build. Whether the Compatibility renderer lowers the minimum enough is not verified. |
 
 ## Needed before the first release
 
@@ -19,12 +19,12 @@ Things that are not settled. For each one, the owner's answer is needed, and whe
 
 | # | Decision | Default if not answered | Why it matters |
 |---|---|---|---|
-| 4 | Slots in version 1 or version 2 | Version 2 | Sorting is central to how the owner plays, so it may belong in version 1. |
+| 4 | Slots in version 1 or version 2 | Version 2. Version 1 was built that way, and the bottom of the screen is kept free for the slot tray | Sorting is central to how the owner plays, so it may belong in version 1. |
 | 5 | Wild pieces: interlocking edges or plain straight edges | Interlocking, as in the owner's reference screenshots | Changes the Wild generator. |
 | 6 | Daily reminder notification | No notifications | Needs a plugin and, on newer Android, a permission prompt. Push notifications would need a server, which the project avoids. |
 | 7 | How collections are organised on screen | A single library of collection cover cards, with not-yet-downloaded collections shown in the same grid and downloaded in place, replacing the separate store screen | The prototype uses chips and a separate store. The owner has not answered. |
 | 8 | Progress marks and best times per picture | None, so no stats | Needs a small local record of finished puzzles. Stats history is also listed in version 3. |
-| 9 | Which images go in each collection | Not decided | The owner is still thinking about image sources. Only public domain, CC0, the owner's own and AI-generated images are allowed. |
+| 9 | Which images go in each collection | Not decided. Version 1 ships six generated abstract pictures as placeholders (`assets/collections/abstract/`). Replace or add pictures by editing the collection's `manifest.json` | The owner is still thinking about image sources. Only public domain, CC0, the owner's own and AI-generated images are allowed. |
 | 10 | Daily puzzle: the exact ramp | Monday Regular 54, Tuesday Regular 96, Wednesday Irregular 150, Thursday Wild 200, Friday Wild 250, Saturday Wild 300, Sunday Regular 400 | The owner approved the idea of a weekday ramp. The styles and counts are Claude's. |
 | 11 | Accessibility beyond reduced motion | Not planned | Colour-blind safety, text scaling and screen-reader support have not been discussed. |
 | 12 | Licence for the owner's own images and sounds | CC BY 4.0 (reuse allowed with credit, the same idea as the code licence) | The MIT licence covers code only. Third-party images and fonts keep their own licences, recorded in the collection manifests. |
@@ -38,7 +38,10 @@ Things that are not settled. For each one, the owner's answer is needed, and whe
 - Whether the share action uses a community plugin or a small custom plugin.
 - Whether Godot stays at all. The fallback is libGDX with Kotlin. See `docs/engine-decision.md`.
 
+## Settled while building version 1
+
+See `docs/v1-status.md` for the reasons. The Mobile renderer is in use for now and the phone checks may change that. GDScript is confirmed. Slots stay in version 2. Fonts, sounds and the placeholder pictures are the project's own work or under the SIL Open Font License.
+
 ## Still to write
 
-- The written design document that the planning process requires before building.
-- A detailed implementation plan for version 1.
+- The written design and implementation plans for version 2 and version 3. Each version 1 slice has its own in `docs/superpowers/specs/` and `docs/superpowers/plans/`.
