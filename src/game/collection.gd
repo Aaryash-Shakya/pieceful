@@ -8,7 +8,7 @@ const LICENCES: Array[String] = ["CC0-1.0", "public-domain", "CC-BY-4.0"]
 const MIN_SIDE := 64
 const MAX_SIDE := 4096
 const MIN_COUNT := 12
-const MAX_COUNT := 400
+const MAX_COUNT := SaveGame.MAX_PIECE_COUNT
 const THUMBS_DIR := "thumbs"
 
 const _PICTURE_KEYS: Array[String] = ["id", "title", "file", "width", "height", "credit", "licence", "generated"]
@@ -125,7 +125,7 @@ static func _read_picture(entry: Variant, folder: String, seen: Dictionary) -> V
 			or (file as String).contains(".."):
 		return "file"
 	for key in ["width", "height"]:
-		if not SaveGame._is_int(d[key]) or int(d[key]) < MIN_SIDE or int(d[key]) > MAX_SIDE:
+		if not SaveGame.is_int(d[key]) or int(d[key]) < MIN_SIDE or int(d[key]) > MAX_SIDE:
 			return key
 	if not d.licence is String or not LICENCES.has(d.licence):
 		return "licence"

@@ -6,9 +6,8 @@ extends CanvasLayer
 const REFRESH_INTERVAL := 0.25
 const FONT_SIZE := 22
 const MARGIN_LEFT := 16
-# Below the HUD's button row (Hud.MARGIN_TOP + Hud.BUTTON_SIZE.y + 12), written out so this debug
-# counter does not depend on the HUD class.
-const MARGIN_TOP := 132
+# Below the HUD's button row, so the readout never sits under Home or Tidy.
+const MARGIN_TOP := Hud.MARGIN_TOP + Hud.BUTTON_SIZE.y + 12.0
 
 var _label: Label
 var _timer: Timer

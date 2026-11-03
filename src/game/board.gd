@@ -204,14 +204,11 @@ func _set_save_aside(reason: String) -> void:
 # A new puzzle from the given identity, or from the constants when it is null, scattered around
 # the board. Returns its draw order: by id.
 func _start_fresh(from: SaveGame.Puzzle) -> PackedInt32Array:
-	puzzle = SaveGame.Puzzle.new()
+	# A copy, so the caller's puzzle never takes this board's checksum.
 	if from != null:
-		puzzle.image_id = from.image_id
-		puzzle.image_size = from.image_size
-		puzzle.style = from.style
-		puzzle.piece_count = from.piece_count
-		puzzle.cut_seed = from.cut_seed
+		puzzle = from.copy()
 	else:
+		puzzle = SaveGame.Puzzle.new()
 		puzzle.image_id = IMAGE_ID
 		puzzle.image_size = IMAGE_SIZE
 		puzzle.style = STYLE
@@ -389,14 +386,22 @@ func _notification(what: int) -> void:
 			go_home()
 
 
-## Saves and asks to leave. Only the first call counts: a double tap or a back press while the
-## caller is already switching screens must not save or leave twice.
+## Saves and asks to leave. Only the first call in a frame counts: a double tap or a back press
+## while the caller is already switching screens must not save or leave twice.
 func go_home() -> void:
 	if _going_home:
 		return
 	_going_home = true
 	_leave()
 	home_requested.emit()
+	_release_home.call_deferred()
+
+
+# A board nobody swapped away (no listener, or the swap failed) must answer Home and back again.
+# A board the swap took out of the tree stays latched until it is freed.
+func _release_home() -> void:
+	if is_inside_tree() and not is_queued_for_deletion():
+		_going_home = false
 
 
 # Touch-up events can be lost while the app is in the background, so nothing may stay held.

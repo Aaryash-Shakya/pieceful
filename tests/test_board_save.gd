@@ -39,8 +39,11 @@ func _init() -> void:
 	_test_back_goes_home()
 	_test_go_home_runs_once()
 	_test_go_home_lands_a_tidy()
+	await _test_home_without_listener_works_again()
+	await _test_freeing_listener_gets_one_emit()
 
-	board.free()
+	if board != null:
+		board.free()
 	OS.remove_logger(capture)
 	check(capture.warnings.is_empty() and capture.errors.is_empty(), "saving prints no warning or error")
 	finish()
@@ -366,6 +369,50 @@ func _test_go_home_runs_once() -> void:
 	board.go_home()
 	board._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	check(_home == 1 and not FileAccess.file_exists(TEST_SAVE_PATH), "a second go_home does nothing")
+
+
+# Nothing swaps the board away, so a later Home or back must still save and ask again.
+func _test_home_without_listener_works_again() -> void:
+	board.free()
+	make_board()
+	_show_everything()
+	_used = PackedInt32Array()
+	SaveFile.remove(TEST_SAVE_PATH)
+	var emits := [0]
+	var count := func() -> void: emits[0] += 1
+	var writes := board._save_writes
+	board.go_home()
+	check(board._save_writes == writes + 1 and FileAccess.file_exists(TEST_SAVE_PATH), "no listener: the first Home saves")
+	board.home_requested.connect(count)
+	board.go_home()
+	check(emits[0] == 0 and board._save_writes == writes + 1, "no listener: a second Home in the same frame does nothing")
+	await process_frame
+	var n := _first_loose_singleton()
+	var moved := n.position + Vector2(0, 30)
+	board.state.move_cluster(n.piece_id, moved)
+	n.position = moved
+	board._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	check(emits[0] == 1 and board._save_writes == writes + 2, "no listener: back on a later frame saves and asks again")
+	check(_saved_offset(_saved(), n.piece_id) == moved, "no listener: the second save holds the move")
+
+
+# The usual listener swaps the board out and frees it; it must hear Home exactly once.
+func _test_freeing_listener_gets_one_emit() -> void:
+	board.free()
+	make_board()
+	_home = 0
+	var b := board
+	b.home_requested.connect(func() -> void:
+		_home += 1
+		b.get_parent().remove_child(b)
+		b.queue_free())
+	b.go_home()
+	b.go_home()
+	await process_frame
+	await process_frame
+	check(_home == 1, "a freeing listener hears Home once: %d" % _home)
+	check(not is_instance_valid(b), "the board is freed")
+	board = null
 
 
 # Home pressed while a tidy glides: the nodes land and the save holds the tidied offsets.

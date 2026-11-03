@@ -17,20 +17,24 @@ func _init() -> void:
 	texture_filter = TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 
 
+## Each edge once, in piece order. Neighbours share an edge point for point, one reversed, so the
+## later piece finds the reversed pair already drawn; drawn twice, interior lines would look
+## heavier than the border.
 static func outline_segments(pieces: Array[CutPiece]) -> PackedVector2Array:
-	var total := 0
-	for piece in pieces:
-		total += piece.outline.size()
+	var drawn := {}
 	var out := PackedVector2Array()
-	out.resize(2 * total)
-	var i := 0
 	for piece in pieces:
 		var outline := piece.outline
 		var n := outline.size()
 		for k in n:
-			out[i] = outline[k]
-			out[i + 1] = outline[(k + 1) % n]
-			i += 2
+			var a := outline[k]
+			var b := outline[(k + 1) % n]
+			# A Vector4 key hashes by value without allocating an array per edge.
+			if drawn.has(Vector4(b.x, b.y, a.x, a.y)):
+				continue
+			drawn[Vector4(a.x, a.y, b.x, b.y)] = true
+			out.append(a)
+			out.append(b)
 	return out
 
 

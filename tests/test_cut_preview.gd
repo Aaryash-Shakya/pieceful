@@ -8,18 +8,41 @@ func _init() -> void:
 	finish()
 
 
+# Every edge of every outline, keyed so that a shared edge read either way round is one key.
+func _unique_edges(pieces: Array[CutPiece]) -> Dictionary:
+	var edges := {}
+	for piece in pieces:
+		var o := piece.outline
+		for k in o.size():
+			edges[_key(o[k], o[(k + 1) % o.size()])] = true
+	return edges
+
+
+func _key(a: Vector2, b: Vector2) -> Array:
+	return [a, b] if a < b else [b, a]
+
+
 func _test_segments() -> void:
 	var pieces := CutGenerator.generate_cut(300, 200, 6, "grid", 1)
 	var segments := CutPreview.outline_segments(pieces)
-	var total := 0
-	for piece in pieces:
-		total += piece.outline.size()
-	check(total > 0, "the grid cut has outlines")
-	check(segments.size() == 2 * total, "one pair per outline point")
+	check(pieces.size() == 6 and pieces[0].outline.size() == 4, "precondition: a 3 x 2 grid of four-cornered pieces")
+	# A 3 x 2 grid has 3 x 3 horizontal and 2 x 4 vertical edges.
+	check(segments.size() == 2 * 17, "each edge is drawn once: %d pairs" % (segments.size() / 2))
 	var outline := pieces[0].outline
-	var last := 2 * outline.size() - 2
-	check(segments[last] == outline[outline.size() - 1] and segments[last + 1] == outline[0], "the outline closes last to first")
 	check(segments[0] == outline[0] and segments[1] == outline[1], "the first pair is the first edge")
+	for style in ["regular", "irregular"]:
+		var cut := CutGenerator.generate_cut(300, 200, 24, style, 3)
+		var drawn := CutPreview.outline_segments(cut)
+		var unique := _unique_edges(cut)
+		var seen := {}
+		var duplicates := 0
+		for i in range(0, drawn.size(), 2):
+			var key := _key(drawn[i], drawn[i + 1])
+			if seen.has(key):
+				duplicates += 1
+			seen[key] = true
+		check(duplicates == 0, "%s: no edge is drawn twice" % style)
+		check(drawn.size() / 2 == unique.size(), "%s: one pair per unique edge: %d of %d" % [style, drawn.size() / 2, unique.size()])
 
 
 func _test_fit_rect() -> void:
