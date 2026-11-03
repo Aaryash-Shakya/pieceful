@@ -16,6 +16,7 @@ const WHEEL_ZOOM_STEP := 1.1
 # HOLD_PINCHING: the dragging finger keeps its piece while it and one other finger move the camera.
 enum Mode { IDLE, DRAGGING, PANNING, PINCHING, HOLD_PINCHING, PINCH_ENDED }
 
+signal cluster_lifted(cluster_root: int, piece_count: int)
 signal pieces_joined(cluster_root: int, piece_count: int)
 signal cluster_locked(cluster_root: int, piece_count: int)
 signal puzzle_completed
@@ -206,6 +207,7 @@ func _begin_single(index: int, screen_position: Vector2) -> void:
 	_drag_index = index
 	_held_offset = state.offset_of(_held_root) - world
 	_mode = Mode.DRAGGING
+	cluster_lifted.emit(_held_root, _held_nodes.size())
 
 
 func _begin_pinch(index: int) -> void:

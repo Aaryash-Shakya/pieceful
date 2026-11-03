@@ -3,6 +3,7 @@ extends BoardTest
 # Member variables, not locals: the signal lambdas would capture locals by value.
 var _joined: Array[Vector2i] = []
 var _locked: Array[Vector2i] = []
+var _lifted: Array[Vector2i] = []
 var _completed := 0
 var _loose_at_completion := -1
 var tol: float
@@ -22,6 +23,7 @@ func _init() -> void:
 	tol = board.state.tolerance
 	board.pieces_joined.connect(func(root: int, count: int) -> void: _joined.append(Vector2i(root, count)))
 	board.cluster_locked.connect(func(root: int, count: int) -> void: _locked.append(Vector2i(root, count)))
+	board.cluster_lifted.connect(func(root: int, count: int) -> void: _lifted.append(Vector2i(root, count)))
 	board.puzzle_completed.connect(func() -> void:
 		_completed += 1
 		_loose_at_completion = pieces.get_child_count())
@@ -69,6 +71,7 @@ func _test_drop_beside_neighbour_joins() -> void:
 	check(q.position == q_before, "the neighbour it joined does not move")
 	check(_joined.size() == 1 and _joined[0] == Vector2i(board.state.find(p.piece_id), 2), "a join reports the root and two pieces")
 	check(_locked.is_empty(), "a join away from home does not lock")
+	check(_lifted.size() == 1 and _lifted[0] == Vector2i(_pair_1.x, 1), "the press lifted a singleton")
 	var last := pieces.get_child_count() - 1
 	var top := [pieces.get_child(last), pieces.get_child(last - 1)]
 	check(top.has(p) and top.has(q), "the joined cluster is on top")
@@ -92,6 +95,7 @@ func _test_dragging_one_piece_moves_the_cluster() -> void:
 	var s := _grab_point(q)
 	var relative := Vector2(12, -7)
 	_touch(0, s, true)
+	check(_lifted.back() == Vector2i(board.state.find(q.piece_id), 2), "pressing a cluster lifts it with both pieces")
 	_drag(0, s + relative, relative)
 	check(_near(q.position, start + relative / camera.zoom.x), "the dragged piece follows the finger")
 	check(p.position == q.position, "its cluster moves with it")
@@ -129,7 +133,9 @@ func _test_locked_piece_cannot_be_picked_up() -> void:
 			break
 	check(c != Vector2.INF, "found an uncovered point on the locked piece")
 	var s := _to_screen(c)
+	var n := _lifted.size()
 	_touch(0, s, true)
+	check(_lifted.size() == n, "pressing a locked piece lifts nothing")
 	check(board._mode == Board.Mode.PANNING, "pressing a locked piece pans")
 	check(not _is_held(_r), "a locked piece is not picked up")
 	var before := camera.position
@@ -223,9 +229,11 @@ func _test_hold_pinch_moves_cluster() -> void:
 	var offset := q.position - _to_world(a)
 	var b := a + Vector2(100, 0)
 	_touch(0, a, true)
+	var n := _lifted.size()
 	_touch(1, b, true)
 	var swing := Vector2(-100, 100)
 	_drag(1, b + swing, swing)
+	check(_lifted.size() == n, "a second finger lifts nothing")
 	check(_near(q.position, _to_world(a) + offset), "a second finger pans with the cluster under the holding finger")
 	check(_cluster_at_offset(p, q), "a hold and pan moves every piece of the cluster")
 
@@ -239,6 +247,7 @@ func _test_hold_pinch_moves_cluster() -> void:
 	var before := q.position
 	var delta := Vector2(-20, 15)
 	_drag(0, a + delta, delta)
+	check(_lifted.size() == n, "dragging during a pinch lifts nothing")
 	check(_near(q.position, before + delta / camera.zoom.x), "the holding finger moves its cluster during a pinch")
 	check(_cluster_at_offset(p, q), "the holding finger moves every piece of the cluster")
 	_touch(0, a + delta, false)
