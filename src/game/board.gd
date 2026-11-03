@@ -37,6 +37,12 @@ class TidyMove:
 
 ## Set before the board enters the tree.
 var save_path := SaveFile.DEFAULT_PATH
+## Where puzzle pictures come from. Without it only the test picture can be drawn.
+var collection: Collection = null
+## The puzzle to start when there is no save to resume, or resume is off.
+var start_puzzle: SaveGame.Puzzle = null
+## Off when the player chose a new puzzle: the save is ignored, and the new game replaces it.
+var resume := true
 var puzzle: SaveGame.Puzzle
 ## Seconds of play, counted only while the app has focus and the puzzle is unfinished.
 var elapsed := 0.0
@@ -51,7 +57,7 @@ var releasing_for_system := false
 # Both are set from the puzzle's image size in _apply_image_size.
 var _base_bounds: Rect2
 var _bounds: Rect2
-var _texture: GradientTexture2D
+var _texture: Texture2D
 # Each tidy deals a new order, so pressing it again reshuffles.
 var _cleanup_count := 0
 var _tidy_tween: Tween
@@ -81,11 +87,22 @@ func _ready() -> void:
 	# The app can start behind the lock screen; the clock waits for real focus.
 	_focused = get_window().has_focus()
 
-	var loose_order := _restore()
+	var loose_order := _restore() if resume else PackedInt32Array()
+	var from_caller := false
 	if state == null:
-		loose_order = _start_fresh()
+		var texture: Texture2D = null
+		if start_puzzle != null:
+			texture = picture_texture(start_puzzle.image_id, start_puzzle.image_size)
+			if texture == null:
+				push_warning("Board: could not start %s; starting the test puzzle" % start_puzzle.image_id)
+		from_caller = texture != null
+		if from_caller:
+			loose_order = _start_fresh(start_puzzle)
+			_texture = texture
+		else:
+			loose_order = _start_fresh(null)
+			_texture = _make_test_texture()
 
-	_texture = _make_test_texture()
 	# Added first so locked pieces draw below every loose one.
 	locked_pieces = Node2D.new()
 	locked_pieces.name = "LockedPieces"
@@ -108,6 +125,9 @@ func _ready() -> void:
 	camera.name = "Camera"
 	add_child(camera)
 	_apply_image_size()
+	# A chosen puzzle is the player's game from its first frame, so it replaces any older save now.
+	if from_caller:
+		save_game()
 
 
 # Loads the save into puzzle, cut and state and returns its loose draw order. With no save, or
@@ -125,8 +145,8 @@ func _restore() -> PackedInt32Array:
 		return PackedInt32Array()
 	var saved := loaded.snapshot
 	var p := saved.puzzle
-	# Until real images arrive, the board can draw only its test image at its one size.
-	if p.image_id != IMAGE_ID or p.image_size != IMAGE_SIZE:
+	var texture := picture_texture(p.image_id, p.image_size)
+	if texture == null:
 		_set_save_aside("unknown image %s at %dx%d" % [p.image_id, p.image_size.x, p.image_size.y])
 		return PackedInt32Array()
 	var saved_cut := CutGenerator.generate_cut(p.image_size.x, p.image_size.y, p.piece_count, p.style, p.cut_seed)
@@ -153,6 +173,7 @@ func _restore() -> PackedInt32Array:
 	state = saved_state
 	elapsed = saved.elapsed
 	_cleanup_count = saved.tidy_count
+	_texture = texture
 	# The file already holds this game, so leaving again before anything changes writes nothing.
 	_last_saved_text = file.text
 	return saved.loose_order
@@ -167,14 +188,22 @@ func _set_save_aside(reason: String) -> void:
 	push_warning("Board: could not use the save at %s: %s; %s" % [save_path, reason, outcome])
 
 
-# A new puzzle from the constants, scattered around the board. Returns its draw order: by id.
-func _start_fresh() -> PackedInt32Array:
+# A new puzzle from the given identity, or from the constants when it is null, scattered around
+# the board. Returns its draw order: by id.
+func _start_fresh(from: SaveGame.Puzzle) -> PackedInt32Array:
 	puzzle = SaveGame.Puzzle.new()
-	puzzle.image_id = IMAGE_ID
-	puzzle.image_size = IMAGE_SIZE
-	puzzle.style = STYLE
-	puzzle.piece_count = PIECE_COUNT
-	puzzle.cut_seed = SEED
+	if from != null:
+		puzzle.image_id = from.image_id
+		puzzle.image_size = from.image_size
+		puzzle.style = from.style
+		puzzle.piece_count = from.piece_count
+		puzzle.cut_seed = from.cut_seed
+	else:
+		puzzle.image_id = IMAGE_ID
+		puzzle.image_size = IMAGE_SIZE
+		puzzle.style = STYLE
+		puzzle.piece_count = PIECE_COUNT
+		puzzle.cut_seed = SEED
 	var size := puzzle.image_size
 	cut = CutGenerator.generate_cut(size.x, size.y, puzzle.piece_count, puzzle.style, puzzle.cut_seed)
 	puzzle.cut_checksum = CutGenerator.checksum(cut)
@@ -190,8 +219,11 @@ func _start_fresh() -> PackedInt32Array:
 # every loose cluster, so a tidied band from a restored save stays reachable.
 func _apply_image_size() -> void:
 	var size := Vector2(puzzle.image_size)
-	_texture.width = puzzle.image_size.x
-	_texture.height = puzzle.image_size.y
+	# Only the generated test picture can be resized; a collection picture already has its size.
+	if _texture is GradientTexture2D:
+		var gradient := _texture as GradientTexture2D
+		gradient.width = puzzle.image_size.x
+		gradient.height = puzzle.image_size.y
 	_base_bounds = Rect2(Vector2.ZERO, size).grow(LOOSE_MARGIN)
 	_bounds = _base_bounds
 	for root in state.roots():
@@ -582,6 +614,19 @@ func _draw() -> void:
 	var rect := Rect2(Vector2.ZERO, Vector2(puzzle.image_size))
 	draw_rect(rect, Palette.board())
 	draw_rect(rect, Palette.accent(), false, BOARD_OUTLINE_WIDTH)
+
+
+## The picture for an image id at the given size, or null when neither the test picture nor the
+## collection has it at that size.
+func picture_texture(image_id: String, size: Vector2i) -> Texture2D:
+	if image_id == IMAGE_ID and size == IMAGE_SIZE:
+		return _make_test_texture()
+	if collection == null:
+		return null
+	var picture := collection.find(image_id)
+	if picture == null or picture.size() != size:
+		return null
+	return collection.load_texture(picture)
 
 
 # Sized by _apply_image_size, so it always matches the puzzle's image.

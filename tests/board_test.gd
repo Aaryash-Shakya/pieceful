@@ -14,12 +14,15 @@ var bounds: Rect2
 # so the caller awaits process_frame first.
 ## A fresh board starts with no save; otherwise it resumes whatever is at TEST_SAVE_PATH.
 ## With focus, a board that starts without window focus (headless, say) is given it, so its clock runs.
-func make_board(fresh := true, focus := true) -> void:
+## A valid configure is called with the board before it enters the tree.
+func make_board(fresh := true, focus := true, configure := Callable()) -> void:
 	board = load("res://src/game/board.tscn").instantiate()
 	# Board tests never read or write the player's real save.
 	board.save_path = TEST_SAVE_PATH
 	if fresh:
 		SaveFile.remove(TEST_SAVE_PATH)
+	if configure.is_valid():
+		configure.call(board)
 	root.add_child(board)
 	if focus and not board._focused:
 		board._notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
