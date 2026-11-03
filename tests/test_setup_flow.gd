@@ -24,7 +24,10 @@ func _init() -> void:
 	_test_back_on_setup_quits()
 	await _test_start_twice_launches_once()
 	await _test_start_replaces_the_save()
+	await _test_start_settles_the_preview()
 	await _test_unresumable_save_is_set_aside()
+	await _test_unloadable_saved_picture()
+	await _test_completed_home_leaves_no_save()
 	_test_no_save_no_card()
 	_test_main_scene()
 	if is_instance_valid(current_scene):
@@ -40,12 +43,12 @@ func _clear() -> void:
 		DirAccess.remove_absolute(SaveFile.bad_path(SAVE))
 
 
-func _open() -> SetupScreen:
+func _open(collection := _fixture) -> SetupScreen:
 	if is_instance_valid(current_scene):
 		current_scene.free()
 	var s := (load(SetupScreen.SCENE) as PackedScene).instantiate() as SetupScreen
 	s.save_path = SAVE
-	s.collection = _fixture
+	s.collection = collection
 	s.quit_app = func() -> void: _quits += 1
 	root.add_child(s)
 	current_scene = s
@@ -255,6 +258,82 @@ func _test_unresumable_save_is_set_aside() -> void:
 		if current_scene is Board:
 			_quiet(current_scene as Board)
 		await _go_home()
+
+
+func _test_start_settles_the_preview() -> void:
+	var s := current_scene as SetupScreen
+	if s == null:
+		check(false, "precondition: a setup screen")
+		return
+	s.preview_timer.timeout.emit()
+	s.slider.value = (int(s.slider.value) + 3) % s.counts.size()
+	check(not s.preview_timer.is_stopped(), "precondition: the preview is waiting to settle")
+	var g := s.generations
+	var board := s.start()
+	check(board != null, "Start launches")
+	check(s.generations == g + 1 and s.preview_timer.is_stopped(), "Start draws the waiting preview once")
+	if board != null:
+		var p := board.start_puzzle
+		var expected := CutPreview.outline_segments(CutGenerator.generate_cut(p.image_size.x, p.image_size.y, p.piece_count, p.style, p.cut_seed))
+		check(s.preview.segments == expected, "the last preview is the cut Start launched")
+	await _frames()
+	if current_scene is Board:
+		_quiet(current_scene as Board)
+	await _go_home()
+
+
+func _test_completed_home_leaves_no_save() -> void:
+	_clear()
+	var s := _open()
+	s.start()
+	await _frames()
+	var board := current_scene as Board
+	if board == null:
+		check(false, "precondition: a board")
+		return
+	_quiet(board)
+	for root in board.state.roots():
+		if not board.state.is_locked(root):
+			board.state.move_cluster(root, Vector2.ZERO)
+			board.state.drop(root)
+	check(board.state.is_complete(), "precondition: the puzzle is complete")
+	var capture := LogCapture.new()
+	OS.add_logger(capture)
+	board.go_home()
+	await _frames()
+	OS.remove_logger(capture)
+	check(current_scene is SetupScreen, "Home on a finished puzzle opens the setup screen")
+	check(capture.warnings.is_empty() and capture.errors.is_empty(), "a finished puzzle logs nothing: %s %s" % [capture.warnings, capture.errors])
+	check(not FileAccess.file_exists(SAVE), "a finished puzzle leaves no save")
+	check(not FileAccess.file_exists(SaveFile.bad_path(SAVE)), "nothing is set aside")
+	if current_scene is SetupScreen:
+		check(not (current_scene as SetupScreen).resume_card.visible, "no resume card for a finished puzzle")
+
+
+# The picture's thumbnail loads, so its tile shows, but the full picture does not.
+func _test_unloadable_saved_picture() -> void:
+	var s := _open()
+	s.select_picture(3)
+	s.start()
+	await _frames()
+	if current_scene is Board:
+		_quiet(current_scene as Board)
+	await _go_home()
+	check(int(_saved().get("puzzle", {}).get("width", 0)) == 240 and _saved().puzzle.image_id == "fixture-confetti-field", "precondition: a confetti save")
+	var broken := Collection.load_manifest(FIXTURE)
+	broken.find("fixture-confetti-field").path = broken.find("fixture-tide-stripes").path
+	var capture := LogCapture.new()
+	OS.add_logger(capture)
+	s = _open(broken)
+	var launched := s.resume()
+	await _frames()
+	OS.remove_logger(capture)
+	check(capture.warnings.size() == 2 and capture.warnings[0].begins_with("Collection: could not load picture")
+			and capture.warnings[1].begins_with("SetupScreen: could not resume"), "the load and the set-aside warn once each: %s" % [capture.warnings])
+	check(not s.resume_card.visible and s.saved == null, "no resume card")
+	check(launched == null and current_scene == s and _children_of_type(Board) == 0, "no stand-in puzzle starts")
+	check(s.picture != null and s.picture.id != "fixture-confetti-field", "another picture is selected")
+	check(not FileAccess.file_exists(SAVE) and FileAccess.file_exists(SaveFile.bad_path(SAVE)), "the save is set aside")
 
 
 func _test_no_save_no_card() -> void:

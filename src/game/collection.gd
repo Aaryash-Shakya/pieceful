@@ -86,9 +86,16 @@ func load_texture(picture: Picture) -> Texture2D:
 	return texture
 
 
+## The thumbnail, or the full picture when there is none or it fails, so the picture keeps its tile.
 func load_thumbnail(picture: Picture) -> Texture2D:
 	if picture.thumbnail_path != "":
-		return load(picture.thumbnail_path) as Texture2D
+		# Checked first: load() on a missing path logs an engine error.
+		var thumbnail: Texture2D = null
+		if ResourceLoader.exists(picture.thumbnail_path):
+			thumbnail = load(picture.thumbnail_path) as Texture2D
+		if thumbnail != null:
+			return thumbnail
+		push_warning("Collection: could not load thumbnail %s" % picture.thumbnail_path)
 	return load_texture(picture)
 
 

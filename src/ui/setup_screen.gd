@@ -125,10 +125,8 @@ func _ready() -> void:
 	add_child(preview_timer)
 
 	saved = resumable(save_path, collection)
-	# Kept beside the save rather than deleted; it also clears an old test-picture save on first launch.
 	if saved == null and FileAccess.file_exists(save_path):
-		SaveFile.move_aside(save_path)
-		push_warning("SetupScreen: could not resume the save at %s; moved it to %s" % [save_path, SaveFile.bad_path(save_path)])
+		_set_save_aside()
 
 	_build_ui()
 	start_button.pressed.connect(start)
@@ -136,14 +134,19 @@ func _ready() -> void:
 
 	if saved != null:
 		var puzzle := saved.puzzle
-		var saved_picture := collection.find(puzzle.image_id)
-		resume_thumb.texture = collection.load_thumbnail(saved_picture)
-		resume_label.text = "%s · %d pieces · %s" % [saved_picture.title, puzzle.piece_count, STYLE_NAMES[puzzle.style]]
-		resume_card.visible = true
 		style = puzzle.style
 		count = puzzle.piece_count
 		select_style(style)
 		select_picture(maxi(0, pictures.find(collection.find(puzzle.image_id))))
+		# Selecting loads the picture, the last check: one that cannot load would make Resume start
+		# the board's stand-in puzzle instead.
+		if picture != null and picture.id == puzzle.image_id:
+			resume_thumb.texture = picture_buttons[pictures.find(picture)].icon
+			resume_label.text = "%s · %d pieces · %s" % [picture.title, puzzle.piece_count, STYLE_NAMES[puzzle.style]]
+			resume_card.visible = true
+		else:
+			saved = null
+			_set_save_aside()
 	else:
 		style = CutGenerator.STYLE_REGULAR
 		count = DEFAULT_COUNT
@@ -170,6 +173,10 @@ func _notification(what: int) -> void:
 func start() -> Board:
 	if _launched or picture == null:
 		return null
+	# The lines on screen as the board opens should be the cut it opens with.
+	if not preview_timer.is_stopped():
+		preview_timer.stop()
+		regenerate_preview()
 	var puzzle := SaveGame.Puzzle.new()
 	puzzle.image_id = picture.id
 	puzzle.image_size = picture.size()
@@ -190,6 +197,12 @@ func resume() -> Board:
 	puzzle.piece_count = saved.puzzle.piece_count
 	puzzle.cut_seed = cut_seed
 	return _launch(puzzle, true)
+
+
+# Kept beside the save rather than deleted; it also clears an old test-picture save on first launch.
+func _set_save_aside() -> void:
+	SaveFile.move_aside(save_path)
+	push_warning("SetupScreen: could not resume the save at %s; moved it to %s" % [save_path, SaveFile.bad_path(save_path)])
 
 
 # The swap frees this screen, its timer and its textures. The board is freed in turn when it goes

@@ -153,3 +153,13 @@ func _test_textures() -> void:
 	var p := c.pictures[0]
 	p.thumbnail_path = ""
 	check(c.load_thumbnail(p).get_size() == Vector2(p.size()), "no thumbnail: full texture")
+	# A thumbnail that is gone, or is not a texture, must not drop the picture from the strip.
+	for bad in [DIR + "/thumbs/gone.webp", FIXTURE]:
+		p.thumbnail_path = bad
+		capture = LogCapture.new()
+		OS.add_logger(capture)
+		var fallback := c.load_thumbnail(p)
+		OS.remove_logger(capture)
+		check(fallback != null and fallback.get_size() == Vector2(p.size()), "broken thumbnail %s: full texture" % bad)
+		check(capture.warnings.size() == 1 and capture.warnings[0] == "Collection: could not load thumbnail %s" % bad, "broken thumbnail %s: one warning %s" % [bad, capture.warnings])
+		check(capture.errors.is_empty(), "broken thumbnail %s: no errors %s" % [bad, capture.errors])

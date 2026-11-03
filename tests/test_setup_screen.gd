@@ -19,6 +19,7 @@ func _init() -> void:
 	_test_picture_change_keeps_nearest()
 	_test_preview_uses_the_seed()
 	_test_broken_picture_is_dropped()
+	_test_broken_thumbnail_keeps_the_tile()
 	_test_drag_resets()
 	await _test_touch()
 	await _test_empty_collection()
@@ -302,6 +303,18 @@ func _test_drag_resets() -> void:
 	s.preview_timer.stop()
 	s.slider.value = 4
 	check(not s.preview_timer.is_stopped(), "leaving the tree ends a drag the slider lost")
+
+
+func _test_broken_thumbnail_keeps_the_tile() -> void:
+	var broken := Collection.load_manifest(FIXTURE)
+	broken.pictures[1].thumbnail_path = "res://tests/fixtures/collection/thumbs/gone.webp"
+	var capture := LogCapture.new()
+	OS.add_logger(capture)
+	var s := _open(broken)
+	OS.remove_logger(capture)
+	check(capture.warnings.size() == 1 and capture.warnings[0].begins_with("Collection: could not load thumbnail"), "one thumbnail warning: %s" % [capture.warnings])
+	check(s.picture_buttons.size() == 6, "the picture keeps its tile")
+	check(s.picture_buttons.size() == 6 and s.picture_buttons[1].icon != null, "the tile shows the full picture instead")
 
 
 func _test_empty_collection() -> void:
