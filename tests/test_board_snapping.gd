@@ -12,6 +12,7 @@ var _pair_3: Vector2i
 var _pair_4: Vector2i
 var _r: PieceNode
 var _t: PieceNode
+var _reorders := 0
 
 
 func _init() -> void:
@@ -199,6 +200,21 @@ func _test_lift_raises_cluster_in_order() -> void:
 	_touch(0, s, false)
 	check(first.z_index == 0 and second.z_index == 0, "a dropped cluster returns to the base layer")
 
+	# Lifting the cluster just dropped finds it already on top, so nothing is reordered.
+	_reorders = 0
+	pieces.child_order_changed.connect(_count_reorder)
+	_touch(0, s, true)
+	pieces.child_order_changed.disconnect(_count_reorder)
+	check(_reorders == 0, "re-lifting the cluster on top moves no children")
+	check(pieces.get_child(last - 1) == first and pieces.get_child(last) == second, "a re-lifted cluster keeps its order")
+	_touch(0, s, false)
+
+	# Only the member already on top stays; the other slots in just below it.
+	pieces.move_child(first, 0)
+	_touch(0, s, true)
+	check(pieces.get_child(last - 1) == first and pieces.get_child(last) == second, "a partly raised cluster is lifted in order")
+	_touch(0, s, false)
+
 
 func _test_hold_pinch_moves_cluster() -> void:
 	var p := board.node_for(_pair_3.x)
@@ -280,6 +296,10 @@ func _test_edge_pan_carries_cluster() -> void:
 	check(_near(q.position, q_before + (camera.position - camera_before)), "edge pan carries the held cluster with the camera")
 	check(_cluster_at_offset(p, q), "edge pan moves every piece of the cluster")
 	_touch(0, edge, false)
+
+
+func _count_reorder() -> void:
+	_reorders += 1
 
 
 # Ids the earlier tests chose, so later picks do not reuse them.

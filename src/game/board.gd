@@ -74,6 +74,15 @@ func node_for(piece_id: int) -> PieceNode:
 	return _nodes[piece_id]
 
 
+## The topmost loose piece containing the world point, or null. Locked pieces are never picked.
+func piece_at(world: Vector2) -> PieceNode:
+	for i in range(pieces.get_child_count() - 1, -1, -1):
+		var piece := pieces.get_child(i) as PieceNode
+		if piece.contains_point(world):
+			return piece
+	return null
+
+
 func _process(delta: float) -> void:
 	if _mode != Mode.DRAGGING:
 		return
@@ -184,20 +193,19 @@ func _pinch_step() -> void:
 func _begin_single(index: int, screen_position: Vector2) -> void:
 	_release_held()
 	var world := _to_world(screen_position)
-	for i in range(pieces.get_child_count() - 1, -1, -1):
-		var piece := pieces.get_child(i) as PieceNode
-		if piece.contains_point(world):
-			_held_root = state.find(piece.piece_id)
-			for id in state.members(_held_root):
-				_held_nodes.append(_nodes[id])
-			_raise(_held_nodes)
-			for node in _held_nodes:
-				node.set_held(true)
-			_drag_index = index
-			_held_offset = state.offset_of(_held_root) - world
-			_mode = Mode.DRAGGING
-			return
-	_mode = Mode.PANNING
+	var piece := piece_at(world)
+	if piece == null:
+		_mode = Mode.PANNING
+		return
+	_held_root = state.find(piece.piece_id)
+	for id in state.members(_held_root):
+		_held_nodes.append(_nodes[id])
+	_raise(_held_nodes)
+	for node in _held_nodes:
+		node.set_held(true)
+	_drag_index = index
+	_held_offset = state.offset_of(_held_root) - world
+	_mode = Mode.DRAGGING
 
 
 func _begin_pinch(index: int) -> void:
@@ -257,6 +265,9 @@ func _release_held() -> void:
 
 
 func _settle(result: PuzzleState.DropResult) -> void:
+	# A plain drop changes nothing: the held nodes already sit at the cluster offset.
+	if not result.joined and not result.locked:
+		return
 	var offset := state.offset_of(result.root)
 	var nodes: Array[PieceNode] = []
 	for id in state.members(result.root):
@@ -264,6 +275,8 @@ func _settle(result: PuzzleState.DropResult) -> void:
 		node.position = offset
 		nodes.append(node)
 	if result.locked:
+		# Last child first, so no removal shifts the siblings still to go.
+		nodes.sort_custom(func(a: PieceNode, b: PieceNode) -> bool: return a.get_index() > b.get_index())
 		for node in nodes:
 			node.reparent(locked_pieces, false)
 	elif result.joined:
@@ -280,8 +293,15 @@ func _settle(result: PuzzleState.DropResult) -> void:
 func _raise(nodes: Array[PieceNode]) -> void:
 	# Held shadows draw over other loose pieces only because the held nodes end up last in tree order before set_held raises their z_index.
 	nodes.sort_custom(func(a: PieceNode, b: PieceNode) -> bool: return a.get_index() < b.get_index())
-	for node in nodes:
-		pieces.move_child(node, -1)
+	# Members already at the tail in order stay put, and the rest slot in just before them,
+	# so re-lifting the cluster just dropped moves nothing.
+	var slot := pieces.get_child_count() - 1
+	var placed := nodes.size()
+	while placed > 0 and nodes[placed - 1].get_index() == slot:
+		placed -= 1
+		slot -= 1
+	for k in placed:
+		pieces.move_child(nodes[k], slot)
 
 
 func _zoom_about(zoom: float, screen_anchor: Vector2) -> void:

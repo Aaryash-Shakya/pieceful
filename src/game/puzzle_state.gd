@@ -25,13 +25,22 @@ var _locked := PackedByteArray()
 var _locked_pieces := 0
 
 
+# Invalid input gives an empty state, so nothing indexes past the offsets or by a wrong id.
 func _init(pieces: Array[CutPiece], offsets: PackedVector2Array, tolerance_value: float) -> void:
-	_pieces = pieces
 	tolerance = tolerance_value
+	if offsets.size() != pieces.size():
+		push_error("PuzzleState: %d offsets for %d pieces" % [offsets.size(), pieces.size()])
+		return
+	for i in pieces.size():
+		if pieces[i].id != i:
+			push_error("PuzzleState: piece at index %d has id %d" % [i, pieces[i].id])
+			return
+	_pieces = pieces
 	_offsets = offsets.duplicate()
 	var count := pieces.size()
 	_parents.resize(count)
 	_locked.resize(count)
+	_locked.fill(0)
 	_members.resize(count)
 	for i in count:
 		_parents[i] = i
@@ -40,6 +49,9 @@ func _init(pieces: Array[CutPiece], offsets: PackedVector2Array, tolerance_value
 
 ## Snap distance in pixels: a fraction of the cell size, never below a thumb-friendly minimum.
 static func tolerance_for(width: int, height: int, piece_count: int) -> float:
+	if piece_count <= 0:
+		push_error("PuzzleState.tolerance_for: piece_count must be at least 1, got %d" % piece_count)
+		return MIN_TOLERANCE
 	return maxf(MIN_TOLERANCE, TOLERANCE_FRACTION * sqrt(float(width) * height / piece_count))
 
 
@@ -99,12 +111,19 @@ func drop(piece: int) -> DropResult:
 	# The merged cluster moves, so a neighbour out of reach of the drop point can be in reach
 	# of the new offset. Each pass starts from the merged cluster, so the result stays
 	# deterministic; the loop ends because every pass removes at least one cluster.
+	var first_pass := true
 	while true:
 		var absorbed := _absorbable_roots(root)
 		if absorbed.is_empty():
 			break
-		root = _merge(root, absorbed)
+		var before := _offsets[root]
+		root = _merge(root, absorbed, first_pass)
 		result.joined = true
+		first_pass = false
+		# Each spread is complete for the offset it measured against, so another pass can
+		# only find something if the merged cluster moved.
+		if _offsets[root] == before:
+			break
 	result.root = root
 	if result.joined and _offsets[root].length() <= tolerance:
 		_lock(root)
@@ -114,11 +133,13 @@ func drop(piece: int) -> DropResult:
 
 # Joins the absorbed clusters into root's and returns the new root. Both picks scan every
 # candidate and break ties by id, so neither depends on the order neighbours were visited in.
-func _merge(root: int, absorbed: Array[int]) -> int:
+# On the first pass the dropped cluster snaps onto what it was dropped against. Later passes
+# start from a cluster already resting there, so it keeps its place unless something bigger joins.
+func _merge(root: int, absorbed: Array[int], first_pass: bool) -> int:
 	var joining := absorbed.duplicate()
 	joining.append(root)
 	var new_root := _largest(joining)
-	var target := _offsets[_largest(absorbed)]
+	var target := _offsets[_largest(absorbed if first_pass else joining)]
 	var merged := PackedInt32Array()
 	for r in joining:
 		merged.append_array(_members[r])
@@ -150,10 +171,12 @@ func _absorbable_roots(root: int) -> Array[int]:
 		for piece in _members[current]:
 			for q in _pieces[piece].neighbours:
 				var r := find(q)
-				if seen.has(r) or _locked[r] == 1:
+				if seen.has(r):
 					continue
-				if _offsets[r].distance_to(dropped) <= tolerance:
-					seen[r] = true
+				# Offsets do not change during a pass, so a rejected root stays rejected
+				# and is recorded too, never measured twice.
+				seen[r] = true
+				if _locked[r] == 0 and _offsets[r].distance_to(dropped) <= tolerance:
 					absorbed.append(r)
 					pending.append(r)
 	return absorbed

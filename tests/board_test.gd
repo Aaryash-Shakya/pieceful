@@ -68,9 +68,6 @@ func _fit_board() -> void:
 	camera.position = Vector2(Board.IMAGE_SIZE) / 2.0
 
 
+# The board's own picking rule, so tests cannot drift from it.
 func _top_piece_at(world: Vector2) -> PieceNode:
-	for i in range(pieces.get_child_count() - 1, -1, -1):
-		var piece := pieces.get_child(i) as PieceNode
-		if piece.contains_point(world):
-			return piece
-	return null
+	return board.piece_at(world)

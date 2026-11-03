@@ -22,6 +22,8 @@ func _init() -> void:
 	_test_join_then_lock()
 	_test_drop_is_deterministic()
 	_test_merge_keeps_joining_near_fits()
+	_test_resting_cluster_keeps_its_place_on_later_passes()
+	_test_invalid_input_is_rejected()
 	_test_larger_dropped_cluster_moves_onto_absorbed()
 	_test_neighbour_order_does_not_matter()
 	finish()
@@ -276,9 +278,42 @@ func _test_merge_keeps_joining_near_fits() -> void:
 	check(result.joined and not result.locked, "the drop joins without locking")
 	check(result.root == 0, "root comes from the largest cluster")
 	check(state.members(1) == PackedInt32Array([0, 1, 2]), "piece 2 joins at the merged cluster's new offset")
-	check(state.offset_of(0) == Vector2(509, 0), "the second pass moves the cluster onto piece 2")
-	check(state.offset_of(2) == Vector2(509, 0), "piece 2 stays put")
+	# Pass 1 snaps piece 1 onto piece 0 at 500. Pass 2 absorbs the single piece 2, and the
+	# merged pair is bigger, so the cluster stays at 500 and piece 2 moves onto it.
+	check(state.offset_of(0) == Vector2(500, 0), "the merged pair keeps its place on the second pass")
+	check(state.offset_of(2) == Vector2(500, 0), "piece 2 moves onto the bigger merged cluster")
 	check(state.roots() == PackedInt32Array([0]), "one cluster remains")
+
+
+# A cluster resting on the table that the drop reaches on the first pass must not jump to a
+# single piece that only the second pass picks up.
+func _test_resting_cluster_keeps_its_place_on_later_passes() -> void:
+	var a := Vector2(500, 0)
+	var state := _fresh({0: a})
+	var tol := state.tolerance
+	state.move_cluster(1, a + Vector2(1, 0))
+	check(state.drop(1).joined, "pieces 0 and 1 rest together at a")
+	# Placed without a drop: in reach of the pair, out of reach of where piece 4 lands.
+	state.move_cluster(2, a - Vector2(0.7 * tol, 0))
+	state.move_cluster(4, a + Vector2(0.7 * tol, 0))
+	var result := state.drop(4)
+	check(result.joined and not result.locked, "piece 4 joins the resting pair")
+	check(result.root == 0, "the resting pair supplies the root")
+	check(state.members(4) == PackedInt32Array([0, 1, 2, 4]), "the second pass picks up piece 2")
+	for i in [0, 1, 2, 4]:
+		check(state.offset_of(i) == a, "piece %d sits where the resting pair was" % i)
+
+
+func _test_invalid_input_is_rejected() -> void:
+	check(PuzzleState.tolerance_for(300, 200, 0) == PuzzleState.MIN_TOLERANCE, "no pieces gives the minimum tolerance")
+	check(PuzzleState.tolerance_for(300, 200, -3) == PuzzleState.MIN_TOLERANCE, "a negative count gives the minimum tolerance")
+	var short := PackedVector2Array([Vector2.ZERO])
+	check(PuzzleState.new(cut, short, 22.0).piece_count() == 0, "offsets that do not match the pieces give an empty state")
+	var shuffled := CutGenerator.generate_cut(300, 200, 6, CutGenerator.STYLE_GRID, 1)
+	shuffled[2].id = 7
+	var offsets := PackedVector2Array()
+	offsets.resize(shuffled.size())
+	check(PuzzleState.new(shuffled, offsets, 22.0).piece_count() == 0, "pieces whose ids are not their indices give an empty state")
 
 
 func _test_larger_dropped_cluster_moves_onto_absorbed() -> void:
