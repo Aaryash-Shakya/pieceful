@@ -65,13 +65,14 @@ func _test_drop_beside_neighbour_joins() -> void:
 	var p := board.node_for(_pair_1.x)
 	var q := board.node_for(_pair_1.y)
 	var q_before := q.position
+	var lifted_before := _lifted.size()
 	_move_by_touch(p, q.position + Vector2(0.5, -0.3) * tol)
 	check(board.state.find(p.piece_id) == board.state.find(q.piece_id), "a piece dropped beside its neighbour joins it")
 	check(p.position == q.position, "the joined piece snaps to its neighbour's offset")
 	check(q.position == q_before, "the neighbour it joined does not move")
 	check(_joined.size() == 1 and _joined[0] == Vector2i(board.state.find(p.piece_id), 2), "a join reports the root and two pieces")
 	check(_locked.is_empty(), "a join away from home does not lock")
-	check(_lifted.size() == 1 and _lifted[0] == Vector2i(_pair_1.x, 1), "the press lifted a singleton")
+	check(_lifted.size() == lifted_before + 1 and _lifted.back() == Vector2i(_pair_1.x, 1), "the press lifted a singleton")
 	var last := pieces.get_child_count() - 1
 	var top := [pieces.get_child(last), pieces.get_child(last - 1)]
 	check(top.has(p) and top.has(q), "the joined cluster is on top")

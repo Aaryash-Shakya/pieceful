@@ -31,7 +31,7 @@ The sounds are short files, as `docs/technical-notes.md` asks, but they are made
 
 ## The sounds
 
-Ported from the prototype's `sfx` table in `docs/prototype/pieceful-prototype.html`, with the same pitches, waveforms and relative volumes. A tone sweeps its frequency exponentially from its start to its end pitch over its length, rises linearly to its volume over 1 ms and then decays exponentially to 0.0001 of its volume at its end. A click is white noise shaped by `(1 - t / length)^3`, starting at full volume. Components are summed, multiplied by a master gain of 1.5 (so the loudest moment, in the lock, stays below full scale), clamped and quantised to 16 bits.
+Ported from the prototype's `sfx` table in `docs/prototype/pieceful-prototype.html`, with the same pitches, waveforms and relative volumes. A tone sweeps its frequency exponentially from its start to its end pitch over its length, rises linearly to its volume over 1 ms and then decays exponentially to an absolute level of 0.0001 at its end. A click is white noise shaped by `(1 - t / length)^3`, starting at full volume. Components are summed, multiplied by a master gain of 1.5 (so the loudest moment, in the lock, stays below full scale), clamped and quantised to 16 bits.
 
 | File | Components (start, length, volume) | Length |
 |---|---|---|

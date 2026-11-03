@@ -45,7 +45,6 @@ func _ready() -> void:
 		player.name = String(key).capitalize()
 		player.stream = STREAMS[key]
 		player.max_polyphony = MAX_POLYPHONY
-		player.bus = &"Master"
 		add_child(player)
 		_players[key] = player
 	if board != null:

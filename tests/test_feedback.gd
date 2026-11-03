@@ -86,6 +86,8 @@ func _test_default_seams() -> void:
 	var fresh := Feedback.new()
 	check(fresh.play_sound.is_valid(), "play_sound has a default")
 	check(fresh.vibrate.is_valid(), "vibrate has a default")
+	check(fresh.play_sound.get_method() == &"_play", "play_sound defaults to the player method")
+	check(fresh.vibrate.get_method() == &"vibrate_handheld", "vibrate defaults to Input.vibrate_handheld")
 	check(fresh.sound_enabled and fresh.vibration_enabled, "a fresh node has both switches on")
 	fresh.free()
 

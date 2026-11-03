@@ -28,7 +28,7 @@ Up to 400 irregular textured pieces on screen, 60fps dragging with overlap, pinc
 
 ## Risks found, and the checks they create
 
-1. **Audio latency.** Godot's Android audio driver is OpenSL ES. Reported fixes are an Oboe-based plugin or a custom engine build. No millisecond figures exist.
+1. **Audio latency.** Godot's Android audio driver is OpenSL ES. Reported fixes are an Oboe-based plugin or a custom engine build. No millisecond figures exist for the fixes. The driver itself adds about 46 ms of fixed buffering; see "Audio driver finding (2026-11-03)" below.
 2. **Rendering 400 pieces.** The only data was a Godot 3 thread that held 60fps below about 25 polygons. It is old and weak.
 3. **Polygon edges.** `Polygon2D` has no antialias setting. Smooth edges need 2D MSAA, which is available in the Mobile and Forward+ renderers but not in Compatibility.
 4. **Pinch gestures.** `InputEventMagnifyGesture` on Android needs a project setting. A fallback is to track raw touch and drag events and compute the pinch.
