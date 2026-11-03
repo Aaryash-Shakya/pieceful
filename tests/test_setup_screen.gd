@@ -3,6 +3,7 @@ extends "res://tests/base_test.gd"
 const LogCapture := preload("res://tests/log_capture.gd")
 const SAVE := "user://test_setup/current.json"
 const FIXTURE := "res://tests/fixtures/collection/manifest.json"
+const Two := preload("res://tests/two_collections.gd")
 
 var _fixture := Collection.load_manifest(FIXTURE)
 var _screen: SetupScreen = null
@@ -18,6 +19,9 @@ func _init() -> void:
 	await _test_changes_coalesce()
 	_test_picture_change_keeps_nearest()
 	_test_preview_uses_the_seed()
+	_test_one_collection_has_no_picker()
+	_test_picker_switches_collections()
+	await _test_picker_layout_and_touch()
 	_test_broken_picture_is_dropped()
 	_test_broken_thumbnail_keeps_the_tile()
 	_test_nearest_count_without_options()
@@ -353,3 +357,74 @@ func _test_empty_collection() -> void:
 	check(s.picture_buttons.is_empty(), "no tiles")
 	await create_timer(0.3).timeout
 	check(s.generations == 0, "nothing is generated")
+
+
+func _test_one_collection_has_no_picker() -> void:
+	var s := _open()
+	check(s.sections.size() == 1 and s.sections[0] == _fixture, "a plain collection is its own section")
+	check(s.collection_buttons.size() == 1 and not s._collection_scroller.visible, "one collection needs no picker")
+	check(s.picture_buttons.size() == 6, "all its pictures show")
+
+
+func _test_picker_switches_collections() -> void:
+	var s := _open(Two.merged())
+	check(s.sections.size() == 2 and s.collection_buttons.size() == 2, "a chip per collection")
+	check(s._collection_scroller.visible, "the picker shows")
+	check(s.collection_buttons[0].text == "Fixture" and s.collection_buttons[1].text == "Second", "chips carry the collection titles")
+	check(s.collection_buttons[0].button_pressed and not s.collection_buttons[1].button_pressed, "the first collection is open")
+	check(s.collection_buttons[0].theme_type_variation == UiTheme.OPTION, "chips are option tiles")
+	check(s.picture.id == "fixture-ember-rings" and s.picture_buttons.size() == 6, "the first collection's first picture")
+	s.select_picture(2)
+	check(s.picture.id == "fixture-tide-stripes", "a later picture is chosen")
+	var stale := s.picture_buttons[0]
+
+	s.collection_buttons[1].pressed.emit()
+	check(s.section_index == 1 and s.collection_buttons[1].button_pressed and not s.collection_buttons[0].button_pressed, "the chip is pressed")
+	check(s.picture.id == "second-ember-rings", "the new collection's first picture is chosen: %s" % s.picture.id)
+	check(s.pictures.size() == 6 and s.picture_buttons.size() == 6, "the strip shows the new pictures")
+	check(s.picture_buttons[0].button_pressed and s.picture_buttons[0] != stale, "the first tile is pressed")
+	check(s._strip.get_child_count() == s.picture_buttons.size(), "no tile is left behind")
+	check(s.count == 54 and s.counts == CutGenerator.valid_counts(240, 160, 12, 400), "the count carries over")
+	check(s.picture_label.text == "Ember Rings", "the label follows")
+	check(not s.preview_timer.is_stopped(), "the cut is previewed again")
+
+	s.slider.value = 0
+	var low := s.count
+	s.collection_buttons[0].pressed.emit()
+	check(s.picture.id == "fixture-ember-rings" and s.count == low, "switching back keeps the count: %d" % s.count)
+	var before := s.picture
+	s.collection_buttons[0].pressed.emit()
+	check(s.picture == before, "pressing the open collection again changes nothing")
+
+	# The square second picture takes the nearest count of its own.
+	s.select_collection(1)
+	s.select_picture(2)
+	s.slider.value = s.counts.size() - 1
+	var high := s.count
+	s.select_collection(0)
+	check(s.counts.has(s.count) and s.count == SetupScreen.nearest_count(s.counts, high), "the nearest valid count is kept: %d" % s.count)
+
+
+func _test_picker_layout_and_touch() -> void:
+	var phone := SubViewport.new()
+	phone.size = Vector2i(540, 1200)
+	root.add_child(phone)
+	var s := _open(Two.merged())
+	s.reparent(phone)
+	await process_frame
+	await process_frame
+	var view := Rect2(Vector2.ZERO, Vector2(phone.size))
+	for chip in s.collection_buttons:
+		var r := chip.get_global_rect()
+		check(view.encloses(r) and r.size.y >= 44.0, "a chip is on screen and a finger target: %s" % r)
+		check(chip.mouse_filter == Control.MOUSE_FILTER_PASS, "a chip passes drags to its scroller")
+	check(s.collection_buttons[0].get_global_rect().end.y <= s.picture_buttons[0].get_global_rect().position.y, "the chips sit above the picture strip")
+	check(s.slider.get_global_rect().end.y <= s.start_button.get_global_rect().position.y, "every row still fits above Start")
+
+	var chip_centre := s.collection_buttons[1].get_global_rect().get_center()
+	_gesture(phone, [chip_centre, chip_centre + Vector2(-20, 0)])
+	check(s.section_index == 0 and s.collection_buttons[0].button_pressed, "a swipe over a chip does not open it")
+	_gesture(phone, [chip_centre, chip_centre + Vector2(2, 2)])
+	check(s.section_index == 1 and s.picture.id == "second-ember-rings", "a tap on a chip opens it")
+	_close()
+	phone.free()

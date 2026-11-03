@@ -13,6 +13,8 @@ const GRAIN_FEATURE_DIVISOR := 170.0
 ## Brightness-independent share of the grain, so dark regions keep texture too.
 const GRAIN_LIFT := 0.5
 const TINT_AMOUNT := 0.06
+## How far the hue of a landscape's sky and hills swings from one side of the picture to the other.
+const SKY_HUE_SWING := 0.07
 
 const SPECS: Array[Dictionary] = [
 	{"slug": "ember-rings", "title": "Ember Rings", "aspect": Vector2i(3, 2), "motif": "rings", "seed": 1597334677},
@@ -23,6 +25,42 @@ const SPECS: Array[Dictionary] = [
 	{"slug": "woven-plaid", "title": "Woven Plaid", "aspect": Vector2i(9, 16), "motif": "plaid", "seed": 1103515245},
 ]
 
+# Seeds stay under 2^31: the noise generators take a signed 32-bit seed.
+const GEOMETRY_SPECS: Array[Dictionary] = [
+	{"slug": "hex-tiles", "title": "Hex Tiles", "aspect": Vector2i(3, 2), "motif": "hexes", "seed": 1654435761},
+	{"slug": "sunburst", "title": "Sunburst", "aspect": Vector2i(2, 3), "motif": "sunburst", "seed": 1779033703},
+	{"slug": "nested-squares", "title": "Nested Squares", "aspect": Vector2i(1, 1), "motif": "squares", "seed": 1144134277},
+	{"slug": "diamond-quilt", "title": "Diamond Quilt", "aspect": Vector2i(4, 3), "motif": "diamonds", "seed": 1013904242},
+	{"slug": "chevron-run", "title": "Chevron Run", "aspect": Vector2i(16, 9), "motif": "chevrons", "seed": 1773480762},
+	{"slug": "overlap", "title": "Overlap", "aspect": Vector2i(9, 16), "motif": "overlap", "seed": 1359893119},
+]
+
+const LANDSCAPE_SPECS: Array[Dictionary] = [
+	{"slug": "amber-dunes", "title": "Amber Dunes", "aspect": Vector2i(3, 2), "motif": "ridges", "look": "dunes", "seed": 1600000011},
+	{"slug": "green-hills", "title": "Green Hills", "aspect": Vector2i(2, 3), "motif": "ridges", "look": "hills", "seed": 1200000007},
+	{"slug": "low-sun", "title": "Low Sun", "aspect": Vector2i(1, 1), "motif": "ridges", "look": "sunset", "seed": 1300000017},
+	{"slug": "blue-range", "title": "Blue Range", "aspect": Vector2i(4, 3), "motif": "ridges", "look": "mountains", "seed": 900000041},
+	{"slug": "night-valley", "title": "Night Valley", "aspect": Vector2i(16, 9), "motif": "ridges", "look": "night", "seed": 1700000063},
+	{"slug": "terraced-fields", "title": "Terraced Fields", "aspect": Vector2i(9, 16), "motif": "terraces", "seed": 2100000101},
+]
+
+const PATTERN_SPECS: Array[Dictionary] = [
+	{"slug": "fish-scales", "title": "Fish Scales", "aspect": Vector2i(3, 2), "motif": "scales", "seed": 777000013},
+	{"slug": "polka-rows", "title": "Polka Rows", "aspect": Vector2i(2, 3), "motif": "polka", "seed": 1888000019},
+	{"slug": "rolling-waves", "title": "Rolling Waves", "aspect": Vector2i(1, 1), "motif": "waves", "seed": 1999000023},
+	{"slug": "arc-tiles", "title": "Arc Tiles", "aspect": Vector2i(4, 3), "motif": "truchet", "seed": 555000029},
+	{"slug": "soap-bubbles", "title": "Soap Bubbles", "aspect": Vector2i(16, 9), "motif": "bubbles", "seed": 1444000031},
+	{"slug": "brick-weave", "title": "Brick Weave", "aspect": Vector2i(9, 16), "motif": "bricks", "seed": 1555000037},
+]
+
+## Each bundled collection's title and pictures, by collection id.
+const SETS := {
+	"abstract": {"title": "Abstract", "specs": SPECS},
+	"geometry": {"title": "Geometry", "specs": GEOMETRY_SPECS},
+	"landscape": {"title": "Landscape", "specs": LANDSCAPE_SPECS},
+	"pattern": {"title": "Pattern", "specs": PATTERN_SPECS},
+}
+
 
 static func size_for(aspect: Vector2i, long_edge: int) -> Vector2i:
 	var long_side := maxi(aspect.x, aspect.y)
@@ -32,9 +70,17 @@ static func size_for(aspect: Vector2i, long_edge: int) -> Vector2i:
 	return Vector2i(short_side, long_edge)
 
 
+## The recipes of a bundled collection; the abstract ones for an id that is not bundled, which is how the test fixture is made.
+static func specs_for(collection_id: String) -> Array[Dictionary]:
+	if SETS.has(collection_id):
+		var specs: Array[Dictionary] = SETS[collection_id].specs
+		return specs
+	return SPECS
+
+
 static func manifest(collection_id: String, title: String, long_edge: int) -> Dictionary:
 	var pictures: Array[Dictionary] = []
-	for spec in SPECS:
+	for spec in specs_for(collection_id):
 		var size := size_for(spec.aspect, long_edge)
 		pictures.append({
 			"id": "%s-%s" % [collection_id, spec.slug],
@@ -84,6 +130,34 @@ static func render(spec: Dictionary, size: Vector2i) -> Image:
 			_mosaic(buf, size, rng, palette)
 		"plaid":
 			_plaid(buf, size, rng, palette)
+		"hexes":
+			_hexes(buf, size, spec.seed, palette)
+		"sunburst":
+			_sunburst(buf, size, rng, palette)
+		"squares":
+			_squares(buf, size, rng, palette)
+		"diamonds":
+			_diamonds(buf, size, spec.seed, palette)
+		"chevrons":
+			_chevrons(buf, size, rng, palette)
+		"overlap":
+			_overlap(buf, size, rng, palette)
+		"ridges":
+			_ridges(buf, size, rng, spec, drift)
+		"terraces":
+			_terraces(buf, size, spec.seed, palette)
+		"scales":
+			_scales(buf, size, palette)
+		"polka":
+			_polka(buf, size, rng, palette)
+		"waves":
+			_waves(buf, size, rng, palette)
+		"truchet":
+			_truchet(buf, size, spec.seed, palette)
+		"bubbles":
+			_bubbles(buf, size, rng, palette)
+		"bricks":
+			_bricks(buf, size, spec.seed, palette)
 
 	var data := PackedByteArray()
 	data.resize(count * 3)
@@ -299,3 +373,431 @@ static func _bands(length: int, long_side: float, rng: SeededRng, palette: Array
 		for k in mini(width, length - result.size()):
 			result.append(c)
 	return result
+
+
+## A palette colour for a cell id, so a cell keeps its colour whatever order it is visited in.
+static func _cell_colour(palette: Array[Color], a: int, b: int, seed_value: int) -> Color:
+	var h := SeededRng.hash2(SeededRng.hash2(a, b), seed_value)
+	return _shade(palette[h % 6], 0.75 + float((h >> 8) % 100) / 100.0 * 0.4)
+
+
+## Pointy hexagons, each with its own colour, a lit centre and a dark seam.
+static func _hexes(buf: PackedFloat32Array, size: Vector2i, seed_value: int, palette: Array[Color]) -> void:
+	var s := maxi(size.x, size.y) / 13.0
+	var root3 := sqrt(3.0)
+	for y in size.y:
+		for x in size.x:
+			var fq := (root3 / 3.0 * x - y / 3.0) / s
+			var fr := (2.0 / 3.0 * y) / s
+			var q := roundf(fq)
+			var r := roundf(fr)
+			var z := roundf(-fq - fr)
+			var dq := absf(q - fq)
+			var dr := absf(r - fr)
+			var dz := absf(z - (-fq - fr))
+			if dq > dr and dq > dz:
+				q = -r - z
+			elif dr > dz:
+				r = -q - z
+			var dx := x - s * root3 * (q + r / 2.0)
+			var dy := y - s * 1.5 * r
+			var n := maxf(absf(dy), (root3 * absf(dx) + absf(dy)) / 2.0) / s
+			var c := _cell_colour(palette, int(q) + 1000, int(r) + 1000, 5)
+			if n > 0.93:
+				c = Color(0.12, 0.1, 0.14)
+			else:
+				c = _shade(c, 1.2 - 0.45 * n)
+			_put(buf, y * size.x + x, c)
+
+
+## Rays from one point in alternating shades, fading to dark with distance, with thin rings.
+static func _sunburst(buf: PackedFloat32Array, size: Vector2i, rng: SeededRng, palette: Array[Color]) -> void:
+	var long_side := float(maxi(size.x, size.y))
+	var cx := size.x * rng.range_float(0.35, 0.65)
+	var cy := size.y * rng.range_float(0.35, 0.6)
+	var rays := 30
+	var shades := PackedFloat32Array()
+	for k in rays:
+		shades.append(rng.range_float(0.8, 1.1))
+	var ring := long_side / 9.0
+	for y in size.y:
+		for x in size.x:
+			var dx := x - cx
+			var dy := y - cy
+			var k := int((atan2(dy, dx) + PI) / TAU * rays) % rays
+			var d := sqrt(dx * dx + dy * dy)
+			var c := _shade(palette[(k * 5 / 2 + k % 2) % 6], shades[k] * (1.25 - d / long_side * 0.9))
+			if k % 2 == 0:
+				c = _shade(c, 0.82)
+			if fmod(d, ring) < long_side * 0.006:
+				c = _shade(c, 0.5)
+			_put(buf, y * size.x + x, c)
+
+
+## Square rings around three centres; each pixel belongs to the centre it is nearest to.
+static func _squares(buf: PackedFloat32Array, size: Vector2i, rng: SeededRng, palette: Array[Color]) -> void:
+	var long_side := float(maxi(size.x, size.y))
+	var centres: Array[Vector2] = []
+	var offsets := PackedInt32Array()
+	for i in 3:
+		centres.append(Vector2(rng.range_float(0.15, 0.85) * size.x, rng.range_float(0.15, 0.85) * size.y))
+		offsets.append(rng.range_int(0, 5))
+	var width := long_side / 28.0
+	for y in size.y:
+		for x in size.x:
+			var best := 0
+			var best_d := INF
+			for i in 3:
+				var d := maxf(absf(x - centres[i].x), absf(y - centres[i].y))
+				if d < best_d:
+					best_d = d
+					best = i
+			var k := int(best_d / width)
+			var inner := fmod(best_d, width) / width
+			var c := _shade(palette[(offsets[best] + k) % 6], 1.15 - 0.3 * inner - 0.12 * (k % 2))
+			if inner > 0.92:
+				c = _shade(c, 0.45)
+			_put(buf, y * size.x + x, c)
+
+
+## Rotated squares whose two halves are lit differently, so each reads as a cut stone.
+static func _diamonds(buf: PackedFloat32Array, size: Vector2i, seed_value: int, palette: Array[Color]) -> void:
+	var pitch := maxi(size.x, size.y) / 16.0
+	for y in size.y:
+		for x in size.x:
+			var u := (x + y) / pitch
+			var v := (x - y) / pitch + 1000.0
+			var iu := int(floorf(u))
+			var iv := int(floorf(v))
+			var fu := u - iu
+			var fv := v - iv
+			var c := _cell_colour(palette, iu, iv, seed_value)
+			c = _shade(c, 1.1 if fu > fv else 0.8)
+			if minf(minf(fu, 1.0 - fu), minf(fv, 1.0 - fv)) < 0.04:
+				c = _shade(c, 0.4)
+			_put(buf, y * size.x + x, c)
+
+
+## Rows of zigzag bands, each row shifted, so the bands do not line up from one row to the next.
+static func _chevrons(buf: PackedFloat32Array, size: Vector2i, rng: SeededRng, palette: Array[Color]) -> void:
+	var long_side := float(maxi(size.x, size.y))
+	var rows := 5
+	var row_height := size.y / float(rows)
+	var pitch := long_side / 18.0
+	var phase := PackedFloat32Array()
+	var shifts := PackedInt32Array()
+	for r in rows:
+		phase.append(rng.range_float(0.0, pitch))
+		shifts.append(rng.range_int(0, 5))
+	for y in size.y:
+		var r := mini(int(y / row_height), rows - 1)
+		var local := absf(fmod(y, row_height) - row_height / 2.0)
+		for x in size.x:
+			var t := (x + local * 1.1 + phase[r]) / pitch
+			var k := int(floorf(t))
+			var c := _shade(palette[(k + shifts[r]) % 6], 1.1 - 0.25 * (t - k) - 0.1 * (k % 2))
+			if t - k < 0.05:
+				c = _shade(c, 0.4)
+			_put(buf, y * size.x + x, c)
+
+
+## Large translucent discs over a dark gradient; where they cross, the colours mix.
+static func _overlap(buf: PackedFloat32Array, size: Vector2i, rng: SeededRng, palette: Array[Color]) -> void:
+	var long_side := float(maxi(size.x, size.y))
+	var from := _shade(palette[2], 0.35)
+	var to := _shade(palette[5], 0.4)
+	for y in size.y:
+		for x in size.x:
+			_put(buf, y * size.x + x, from.lerp(to, float(y) / size.y))
+	for s in 34:
+		var cx := rng.range_float(0.0, 1.0) * size.x
+		var cy := rng.range_float(0.0, 1.0) * size.y
+		var r := rng.range_float(0.1, 0.3) * long_side
+		var c := palette[rng.range_int(0, 5)]
+		for y in range(maxi(int(cy - r), 0), mini(int(cy + r) + 1, size.y)):
+			for x in range(maxi(int(cx - r), 0), mini(int(cx + r) + 1, size.x)):
+				var dx := x - cx
+				var dy := y - cy
+				var d := sqrt(dx * dx + dy * dy)
+				if d < r:
+					var i := y * size.x + x
+					var o := i * 3
+					var under := Color(buf[o], buf[o + 1], buf[o + 2])
+					var over := _shade(c, 0.7 if d > r * 0.96 else 1.0)
+					_put(buf, i, under.lerp(over, 0.55))
+
+
+## Layered ridgelines under a clouded sky, paler with distance. The look picks colours and noise.
+static func _ridges(buf: PackedFloat32Array, size: Vector2i, rng: SeededRng, spec: Dictionary, clouds: PackedByteArray) -> void:
+	var long_side := float(maxi(size.x, size.y))
+	var look := _look(spec.look)
+	var top: Color = look.top
+	var horizon: Color = look.horizon
+	var near: Color = look.near
+	var layers: int = look.layers
+	var noise := FastNoiseLite.new()
+	noise.seed = spec.seed + 3
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.fractal_type = FastNoiseLite.FRACTAL_RIDGED if look.sharp else FastNoiseLite.FRACTAL_FBM
+	noise.fractal_octaves = 4
+	noise.frequency = 1.0
+
+	for y in size.y:
+		var t := clampf(y / (size.y * 0.7), 0.0, 1.0)
+		var sky := top.lerp(horizon, t)
+		var sky_left := _hue_shift(sky, -SKY_HUE_SWING)
+		var sky_right := _hue_shift(sky, SKY_HUE_SWING)
+		for x in size.x:
+			var i := y * size.x + x
+			var cloud := clouds[i] / 255.0
+			var lit := sky_left.lerp(sky_right, float(x) / size.x).lerp(look.cloud, smoothstep(0.45, 0.8, cloud) * 0.6)
+			_put(buf, i, _shade(lit, 0.8 + cloud * 0.4))
+
+	if look.has("sun"):
+		var sun: Vector2 = look.sun
+		var sx := sun.x * size.x
+		var sy := sun.y * size.y
+		var sun_r: float = look.sun_radius * long_side
+		var sun_colour: Color = look.sun_colour
+		for y in size.y:
+			for x in size.x:
+				var d := sqrt((x - sx) * (x - sx) + (y - sy) * (y - sy))
+				var glow := clampf(1.0 - d / (sun_r * 5.0), 0.0, 1.0)
+				var i := y * size.x + x
+				var o := i * 3
+				var under := Color(buf[o], buf[o + 1], buf[o + 2])
+				_put(buf, i, under.lerp(sun_colour, glow * glow * 0.5 + (0.95 if d < sun_r else 0.0)))
+	var stars: int = look.stars
+	for s in stars:
+		var sx := rng.range_float(0.0, 1.0) * size.x
+		var sy := rng.range_float(0.0, 0.55) * size.y
+		var sr := rng.range_float(0.0012, 0.004) * long_side
+		var bright := rng.range_float(0.6, 1.0)
+		for y in range(maxi(int(sy - sr), 0), mini(int(sy + sr) + 1, size.y)):
+			for x in range(maxi(int(sx - sr), 0), mini(int(sx + sr) + 1, size.x)):
+				if (x - sx) * (x - sx) + (y - sy) * (y - sy) <= sr * sr:
+					_put(buf, y * size.x + x, Color(bright, bright, bright * 0.9))
+
+	var amp: float = look.amp * long_side
+	for layer in layers:
+		var depth := float(layer) / maxf(layers - 1, 1)
+		var base := lerpf(0.42, 0.82, depth) * size.y
+		var colour := horizon.lerp(near, 0.25 + 0.75 * depth)
+		var low := _hue_shift(colour, look.drift)
+		low.v *= 0.6
+		var left := _hue_shift(colour, -SKY_HUE_SWING)
+		var right := _hue_shift(colour, SKY_HUE_SWING)
+		var freq: float = look.freq * (1.0 + 0.6 * depth)
+		var heights := PackedFloat32Array()
+		for x in size.x:
+			heights.append(base + noise.get_noise_2d(x / long_side * freq, layer * 17.3) * amp * (0.6 + 0.6 * depth))
+		for x in size.x:
+			var slope := heights[mini(x + 6, size.x - 1)] - heights[maxi(x - 6, 0)]
+			var light := 1.0 + clampf(-slope / (amp * 0.08), -1.0, 1.0) * 0.18
+			var top_y := maxi(int(heights[x]), 0)
+			for y in range(top_y, size.y):
+				var fall := clampf((y - heights[x]) / (size.y * 0.35), 0.0, 1.0)
+				_put(buf, y * size.x + x, _shade(left.lerp(right, float(x) / size.x).lerp(low, fall), light * (1.1 - 0.2 * fall)))
+
+
+static func _hue_shift(c: Color, amount: float) -> Color:
+	return Color.from_hsv(fposmod(c.h + amount, 1.0), minf(c.s * 1.1, 1.0), c.v)
+
+
+static func _look(look_name: String) -> Dictionary:
+	match look_name:
+		"dunes":
+			return {"top": Color.from_hsv(0.56, 0.4, 0.92), "horizon": Color.from_hsv(0.09, 0.3, 1.0), "near": Color.from_hsv(0.06, 0.8, 0.5),
+				"layers": 6, "amp": 0.1, "freq": 1.6, "sharp": false, "stars": 0, "drift": 0.06, "cloud": Color(1.0, 0.85, 0.7),
+				"sun": Vector2(0.78, 0.2), "sun_radius": 0.05, "sun_colour": Color(1.0, 0.95, 0.8)}
+		"hills":
+			return {"top": Color.from_hsv(0.58, 0.6, 0.95), "horizon": Color.from_hsv(0.5, 0.15, 1.0), "near": Color.from_hsv(0.33, 0.8, 0.38),
+				"layers": 5, "amp": 0.1, "freq": 2.2, "sharp": false, "stars": 0, "drift": -0.1, "cloud": Color.WHITE}
+		"sunset":
+			return {"top": Color.from_hsv(0.75, 0.6, 0.45), "horizon": Color.from_hsv(0.05, 0.7, 1.0), "near": Color.from_hsv(0.82, 0.6, 0.18),
+				"layers": 4, "amp": 0.08, "freq": 2.0, "sharp": false, "stars": 0, "drift": 0.08, "cloud": Color(1.0, 0.6, 0.5),
+				"sun": Vector2(0.5, 0.5), "sun_radius": 0.09, "sun_colour": Color(1.0, 0.9, 0.5)}
+		"mountains":
+			return {"top": Color.from_hsv(0.62, 0.7, 0.65), "horizon": Color.from_hsv(0.08, 0.35, 1.0), "near": Color.from_hsv(0.72, 0.6, 0.3),
+				"layers": 5, "amp": 0.22, "freq": 1.8, "sharp": true, "stars": 0, "drift": 0.15, "cloud": Color(1.0, 0.9, 0.95)}
+		_:
+			return {"top": Color.from_hsv(0.68, 0.85, 0.35), "horizon": Color.from_hsv(0.88, 0.5, 0.9), "near": Color.from_hsv(0.5, 0.7, 0.35),
+				"layers": 5, "amp": 0.12, "freq": 2.0, "sharp": false, "stars": 420, "drift": 0.12, "cloud": Color(0.55, 0.9, 0.85),
+				"sun": Vector2(0.72, 0.18), "sun_radius": 0.035, "sun_colour": Color(0.95, 0.95, 0.85)}
+
+
+## Contour bands of a noise height field, coloured from green to ochre, with a line at each contour.
+static func _terraces(buf: PackedFloat32Array, size: Vector2i, seed_value: int, palette: Array[Color]) -> void:
+	var long_side := float(maxi(size.x, size.y))
+	var noise := FastNoiseLite.new()
+	noise.seed = seed_value
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	noise.fractal_octaves = 3
+	noise.frequency = 2.2 / long_side
+	var field := noise.get_image(size.x, size.y, false, false, true).get_data()
+	var levels := 16.0
+	var ramp: Array[Color] = [Color.from_hsv(0.52, 0.65, 0.35), Color.from_hsv(0.3, 0.7, 0.5), Color.from_hsv(0.13, 0.7, 0.8), Color.from_hsv(0.04, 0.4, 0.97)]
+	for y in size.y:
+		for x in size.x:
+			var i := y * size.x + x
+			var v := field[i] / 255.0 * levels
+			var band := floorf(v)
+			var f := v - band
+			var t := band / levels
+			var stop := mini(int(t * 3.0), 2)
+			var c := _hue_shift(ramp[stop].lerp(ramp[stop + 1], t * 3.0 - stop), (float(x) / size.x - 0.5) * 0.2)
+			c = _shade(c, 0.85 + 0.25 * f)
+			if f < 0.07:
+				c = _shade(c, 0.5)
+			_put(buf, i, c)
+
+
+## Overlapping scales, drawn row by row so each row tucks over the one above.
+static func _scales(buf: PackedFloat32Array, size: Vector2i, palette: Array[Color]) -> void:
+	var r := maxi(size.x, size.y) / 28.0
+	_fill(buf, _shade(palette[0], 0.4))
+	var rows := ceili(size.y / (r * 0.5)) + 2
+	for row in rows:
+		var cy := row * r * 0.5
+		var cols := ceili(size.x / (2.0 * r)) + 2
+		for col in cols:
+			var cx := col * 2.0 * r + (r if row % 2 == 1 else 0.0) - r
+			var base := palette[(row + col * 2) % 6]
+			for y in range(maxi(int(cy - r), 0), mini(int(cy + r) + 1, size.y)):
+				for x in range(maxi(int(cx - r), 0), mini(int(cx + r) + 1, size.x)):
+					var dx := x - cx
+					var dy := y - cy
+					var d := sqrt(dx * dx + dy * dy)
+					if d < r:
+						var ring := int(d / r * 4.0)
+						var c := _shade(base, 1.2 - 0.17 * ring)
+						if d > r * 0.94:
+							c = _shade(c, 0.4)
+						_put(buf, y * size.x + x, c)
+
+
+## Staggered rows of two-tone dots on a diagonal gradient.
+static func _polka(buf: PackedFloat32Array, size: Vector2i, rng: SeededRng, palette: Array[Color]) -> void:
+	var long_side := float(maxi(size.x, size.y))
+	for y in size.y:
+		for x in size.x:
+			var p := (x + y) / float(size.x + size.y) * 5.0
+			var lo := mini(int(p), 4)
+			_put(buf, y * size.x + x, _shade(palette[lo].lerp(palette[lo + 1], p - lo), 0.8))
+	var pitch := long_side / 15.0
+	var rows := ceili(size.y / (pitch * 0.9)) + 1
+	for row in rows:
+		var cy := row * pitch * 0.9
+		for col in ceili(size.x / pitch) + 2:
+			var cx := (col - 0.5 * (row % 2)) * pitch
+			var r := pitch * rng.range_float(0.32, 0.44)
+			var outer := _shade(palette[rng.range_int(0, 5)], rng.range_float(0.9, 1.2))
+			var inner := _shade(palette[rng.range_int(0, 5)], 0.6)
+			for y in range(maxi(int(cy - r), 0), mini(int(cy + r) + 1, size.y)):
+				for x in range(maxi(int(cx - r), 0), mini(int(cx + r) + 1, size.x)):
+					var dx := x - cx
+					var dy := y - cy
+					var d := sqrt(dx * dx + dy * dy)
+					if d < r:
+						_put(buf, y * size.x + x, inner if d < r * 0.4 else _shade(outer, 1.15 - 0.3 * d / r))
+
+
+## Stacked bands bent by two sine waves, each band its own shade, with a seam between bands.
+static func _waves(buf: PackedFloat32Array, size: Vector2i, rng: SeededRng, palette: Array[Color]) -> void:
+	var long_side := float(maxi(size.x, size.y))
+	var pitch := long_side / 22.0
+	var phase_a := rng.range_float(0.0, TAU)
+	var phase_b := rng.range_float(0.0, TAU)
+	var shades := PackedFloat32Array()
+	for b in 40:
+		shades.append(rng.range_float(0.8, 1.15))
+	for y in size.y:
+		for x in size.x:
+			var u := x / long_side
+			var t := (y + (sin(u * TAU * 2.0 + phase_a) * 0.8 + sin(u * TAU * 5.0 + y / long_side * 4.0 + phase_b) * 0.35) * pitch) / pitch
+			var k := int(floorf(t)) + 8
+			var f := t - floorf(t)
+			var c := _shade(palette[k % 6], shades[k % 40] * (1.15 - 0.3 * f))
+			if f < 0.06:
+				c = _shade(c, 0.45)
+			_put(buf, y * size.x + x, c)
+
+
+## Square tiles with a quarter-circle arc pair each, turned at random so the arcs join into loops.
+static func _truchet(buf: PackedFloat32Array, size: Vector2i, seed_value: int, palette: Array[Color]) -> void:
+	var tile := maxi(size.x, size.y) / 12.0
+	for y in size.y:
+		var j := int(y / tile)
+		var fy := y - j * tile
+		for x in size.x:
+			var i := int(x / tile)
+			var fx := x - i * tile
+			var flip := SeededRng.hash2(SeededRng.hash2(i, j), seed_value) % 2 == 1
+			var ax := tile if flip else 0.0
+			var bx := 0.0 if flip else tile
+			var d1 := sqrt((fx - ax) * (fx - ax) + fy * fy)
+			var d2 := sqrt((fx - bx) * (fx - bx) + (fy - tile) * (fy - tile))
+			var d := minf(d1, d2)
+			var c: Color
+			if absf(d - tile * 0.5) < tile * 0.12:
+				c = _shade(palette[(i + j + 3) % 6], 1.25)
+			elif d < tile * 0.5:
+				c = _shade(palette[(i + j) % 6], 0.9 - 0.3 * d / tile)
+			else:
+				c = _shade(palette[(i + 2 * j + 2) % 6], 0.55 + 0.2 * d / tile)
+			_put(buf, y * size.x + x, c)
+
+
+## Glossy bubbles from big to small over a dark gradient, each lit from the upper left.
+static func _bubbles(buf: PackedFloat32Array, size: Vector2i, rng: SeededRng, palette: Array[Color]) -> void:
+	var long_side := float(maxi(size.x, size.y))
+	var from := _shade(palette[4], 0.3)
+	var to := _shade(palette[1], 0.45)
+	for y in size.y:
+		for x in size.x:
+			_put(buf, y * size.x + x, from.lerp(to, float(x) / size.x))
+	var tiers := [[40, 0.05, 0.09], [90, 0.025, 0.05], [200, 0.01, 0.025]]
+	for tier in tiers:
+		for s in int(tier[0]):
+			var cx := rng.range_float(0.0, 1.0) * size.x
+			var cy := rng.range_float(0.0, 1.0) * size.y
+			var r := rng.range_float(float(tier[1]), float(tier[2])) * long_side
+			var c := palette[rng.range_int(0, 5)]
+			for y in range(maxi(int(cy - r), 0), mini(int(cy + r) + 1, size.y)):
+				for x in range(maxi(int(cx - r), 0), mini(int(cx + r) + 1, size.x)):
+					var dx := x - cx
+					var dy := y - cy
+					var d := sqrt(dx * dx + dy * dy)
+					if d < r:
+						var hx := dx + r * 0.35
+						var hy := dy + r * 0.35
+						var shine := clampf(1.0 - sqrt(hx * hx + hy * hy) / (r * 0.8), 0.0, 1.0)
+						var lit := _shade(c, 0.75 + 0.3 * d / r).lerp(Color.WHITE, shine * 0.6)
+						if d > r * 0.93:
+							lit = c.lerp(Color.WHITE, 0.55)
+						var i := y * size.x + x
+						var o := i * 3
+						_put(buf, i, Color(buf[o], buf[o + 1], buf[o + 2]).lerp(lit, 0.88))
+
+
+## Offset rows of bricks, each its own colour with a diagonal weave, set in dark mortar.
+static func _bricks(buf: PackedFloat32Array, size: Vector2i, seed_value: int, palette: Array[Color]) -> void:
+	var long_side := float(maxi(size.x, size.y))
+	var h := long_side / 26.0
+	var w := h * 2.4
+	var weave := h * 0.3
+	for y in size.y:
+		var row := int(y / h)
+		var fy := y - row * h
+		for x in size.x:
+			var shifted := x + (w / 2.0 if row % 2 == 1 else 0.0)
+			var col := int(shifted / w)
+			var fx := shifted - col * w
+			var c := _cell_colour(palette, col + 100, row, seed_value)
+			c = _shade(c, 1.15 - 0.3 * fy / h)
+			if fmod(fx + fy, weave * 2.0) < weave:
+				c = _shade(c, 0.9)
+			if fx < h * 0.07 or fy < h * 0.07:
+				c = Color(0.13, 0.1, 0.1)
+			_put(buf, y * size.x + x, c)

@@ -19,6 +19,7 @@ const MARGIN_TOP := 56
 const ROW_GAP := 12
 const TILE_SIZE := Vector2(112, 84)
 const STYLE_TILE_HEIGHT := 56
+const CHIP_HEIGHT := 44
 const START_HEIGHT := 64
 const PREVIEW_MAX_HEIGHT := 420.0
 const RESUME_THUMB_SIZE := Vector2(72, 54)
@@ -31,6 +32,9 @@ var save_path := SaveFile.DEFAULT_PATH
 var collection: Collection = null
 var quit_app: Callable
 
+## What the picker offers: the parts of a merged collection, or the collection itself.
+var sections: Array[Collection] = []
+var section_index := 0
 var pictures: Array[Collection.Picture] = []
 var picture: Collection.Picture
 var chosen_texture: Texture2D
@@ -44,6 +48,7 @@ var generations := 0
 var preview: CutPreview
 var preview_timer: Timer
 var picture_buttons: Array[Button] = []
+var collection_buttons: Array[Button] = []
 var style_buttons: Array[Button] = []
 var slider: HSlider
 var count_label: Label
@@ -65,9 +70,11 @@ var _pointer_down := false
 # Set by the first launch: a double tap or Start then Resume must not open two boards.
 var _launched := false
 var _picture_group := ButtonGroup.new()
+var _collection_group := ButtonGroup.new()
 var _style_group := ButtonGroup.new()
 var _rows: VBoxContainer
 var _strip: HBoxContainer
+var _collection_scroller: ScrollContainer
 # Hidden together when the collection has no usable picture.
 var _choice_rows: Array[Control] = []
 
@@ -125,7 +132,7 @@ func _ready() -> void:
 	RenderingServer.set_default_clear_color(Palette.page_background())
 	theme = UiTheme.build()
 	if collection == null:
-		collection = Collection.load_manifest(Collection.DEFAULT_MANIFEST)
+		collection = CollectionLibrary.load_bundled()
 	if not quit_app.is_valid():
 		quit_app = get_tree().quit
 	cut_seed = fresh_seed(int(Time.get_unix_time_from_system() * 1000.0), Time.get_ticks_usec())
@@ -144,6 +151,10 @@ func _ready() -> void:
 		else:
 			_set_save_aside()
 
+	if collection.parts.is_empty():
+		sections.append(collection)
+	else:
+		sections = collection.parts
 	_build_ui()
 	start_button.pressed.connect(start)
 	resume_button.pressed.connect(_on_resume_pressed)
@@ -153,6 +164,7 @@ func _ready() -> void:
 		style = puzzle.style
 		count = puzzle.piece_count
 		select_style(style)
+		_show_section(_section_of(puzzle.image_id))
 		select_picture(maxi(0, pictures.find(collection.find(puzzle.image_id))))
 		# Selecting loads the picture, the last check: one that cannot load would make Resume start
 		# the board's stand-in puzzle instead.
@@ -168,6 +180,7 @@ func _ready() -> void:
 		style = CutGenerator.STYLE_REGULAR
 		count = DEFAULT_COUNT
 		select_style(style)
+		_show_section(0)
 		select_picture(0)
 
 
@@ -237,6 +250,53 @@ func _launch(puzzle: SaveGame.Puzzle, resume_save: bool) -> Board:
 	board.home_requested.connect(SetupScreen.return_from_board.bind(tree, save_path, collection, quit_app))
 	tree.change_scene_to_node(board)
 	return board
+
+
+## Shows another collection and chooses its first picture. The count stays the nearest valid one.
+func select_collection(index: int) -> void:
+	if index == section_index:
+		return
+	_show_section(index)
+	select_picture(0)
+	if not pictures.is_empty() and not _launched:
+		# The empty state of a collection whose pictures all failed to load ends here.
+		for row in _choice_rows:
+			row.visible = true
+		empty_label.visible = false
+		start_button.disabled = false
+
+
+# Fills the strip with the section's pictures that have a thumbnail. Choosing one is left to the caller.
+func _show_section(index: int) -> void:
+	section_index = index
+	collection_buttons[index].button_pressed = true
+	picture = null
+	pictures.clear()
+	picture_buttons.clear()
+	for child in _strip.get_children():
+		_strip.remove_child(child)
+		child.queue_free()
+	for candidate in sections[index].pictures:
+		var thumbnail := collection.load_thumbnail(candidate)
+		if thumbnail == null:
+			continue
+		pictures.append(candidate)
+		var button := _make_option(_picture_group)
+		button.icon = thumbnail
+		button.expand_icon = true
+		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		button.custom_minimum_size = TILE_SIZE
+		button.tooltip_text = candidate.title
+		button.pressed.connect(_on_picture_pressed.bind(button))
+		_strip.add_child(button)
+		picture_buttons.append(button)
+
+
+func _section_of(image_id: String) -> int:
+	for i in sections.size():
+		if sections[i].find(image_id) != null:
+			return i
+	return 0
 
 
 func select_picture(index: int) -> void:
@@ -336,6 +396,13 @@ func _on_picture_pressed(button: Button) -> void:
 	select_picture(picture_buttons.find(button))
 
 
+func _on_collection_pressed(index: int) -> void:
+	if _take_swipe():
+		collection_buttons[section_index].button_pressed = true
+		return
+	select_collection(index)
+
+
 func _on_style_pressed(value: String) -> void:
 	if _take_swipe():
 		style_buttons[STYLES.find(style)].button_pressed = true
@@ -432,28 +499,26 @@ func _build_ui() -> void:
 	picture_label = Label.new()
 	_rows.add_child(picture_label)
 
-	var strip_scroller := ScrollContainer.new()
-	strip_scroller.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	strip_scroller.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
-	strip_scroller.scroll_deadzone = int(TAP_SLOP)
+	_collection_scroller = _make_scroller()
+	_rows.add_child(_collection_scroller)
+	var chips := HBoxContainer.new()
+	chips.add_theme_constant_override("separation", ROW_GAP)
+	_collection_scroller.add_child(chips)
+	for i in sections.size():
+		var chip := _make_option(_collection_group)
+		chip.text = sections[i].title
+		chip.custom_minimum_size = Vector2(0, CHIP_HEIGHT)
+		chip.pressed.connect(_on_collection_pressed.bind(i))
+		chips.add_child(chip)
+		collection_buttons.append(chip)
+	# One collection needs no choosing.
+	_collection_scroller.visible = sections.size() > 1
+
+	var strip_scroller := _make_scroller()
 	_rows.add_child(strip_scroller)
 	_strip = HBoxContainer.new()
 	_strip.add_theme_constant_override("separation", ROW_GAP)
 	strip_scroller.add_child(_strip)
-	for candidate in collection.pictures:
-		var thumbnail := collection.load_thumbnail(candidate)
-		if thumbnail == null:
-			continue
-		pictures.append(candidate)
-		var button := _make_option(_picture_group)
-		button.icon = thumbnail
-		button.expand_icon = true
-		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		button.custom_minimum_size = TILE_SIZE
-		button.tooltip_text = candidate.title
-		button.pressed.connect(_on_picture_pressed.bind(button))
-		_strip.add_child(button)
-		picture_buttons.append(button)
 
 	var style_row := HBoxContainer.new()
 	style_row.add_theme_constant_override("separation", ROW_GAP)
@@ -520,6 +585,14 @@ func _build_resume_card() -> void:
 	resume_button.size_flags_vertical = SIZE_SHRINK_CENTER
 	_pass_to_scroller(resume_button)
 	row.add_child(resume_button)
+
+
+func _make_scroller() -> ScrollContainer:
+	var scroller := ScrollContainer.new()
+	scroller.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroller.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	scroller.scroll_deadzone = int(TAP_SLOP)
+	return scroller
 
 
 func _make_option(group: ButtonGroup) -> Button:
