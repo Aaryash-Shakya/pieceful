@@ -12,11 +12,13 @@ var bounds: Rect2
 
 # Root only enters the tree once the main loop starts and Board._ready needs it,
 # so the caller awaits process_frame first.
-func make_board() -> void:
+## A fresh board starts with no save; otherwise it resumes whatever is at TEST_SAVE_PATH.
+func make_board(fresh := true) -> void:
 	board = load("res://src/game/board.tscn").instantiate()
-	# Every board test starts with no save and never writes the player's real one.
+	# Board tests never read or write the player's real save.
 	board.save_path = TEST_SAVE_PATH
-	SaveFile.remove(TEST_SAVE_PATH)
+	if fresh:
+		SaveFile.remove(TEST_SAVE_PATH)
 	root.add_child(board)
 	# Real playback would leave the audio server holding streams when a headless test exits.
 	var feedback := board.get_node("Feedback") as Feedback

@@ -51,6 +51,7 @@ Decisions and working defaults that are not covered by `INTENT.md` or `AGENTS.md
 - Haptics: a light pulse on a join and a firm pulse on a lock.
 - **default** Join 12 ms at amplitude 0.5, lock 25 ms at 1.0, completion 60 ms at 1.0, none on pick-up. A drop that joins and locks plays only the lock. The switches are `Feedback.sound_enabled` and `Feedback.vibration_enabled`, set by the version 2 settings.
 - **default** The Godot theme is built by `UiTheme.build()` from `Palette` and the bundled fonts in `assets/fonts/` (SIL Open Font License): Quicksand 600 at 20 for body, Baloo 2 700 at 22 for buttons and 800 at 28 for titles, in viewport units.
+- **default** Saves: one puzzle in `user://save/current.json`, sorted JSON with tabs and full-precision floats, written to a `.tmp` file and renamed over the old one. It holds the image id, size, style, requested count and seed, every cluster's root, members, offset and lock, the loose draw order, elapsed seconds and the tidy counter, never geometry. The board saves after each lock and on pause, focus loss, close and back, deletes the save on completion, and on start regenerates the cut from the save; a bad save logs one warning, is deleted, and a fresh puzzle starts. The camera is not saved. Elapsed time counts while focused and not complete, at most 0.25 s per frame.
 - On completion: the full picture fades in over the board, confetti falls, and the board shakes briefly. All three are controlled by the effect settings.
 
 ## Settings the app should expose

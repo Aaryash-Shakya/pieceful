@@ -46,8 +46,10 @@ var pieces: Node2D
 # True only while the system forces a drop (focus loss, pause, close, back). The signals still fire, but feedback stays silent.
 var releasing_for_system := false
 
-var _base_bounds := Rect2(Vector2.ZERO, Vector2(IMAGE_SIZE)).grow(LOOSE_MARGIN)
-var _bounds := _base_bounds
+# Both are set from the puzzle's image size in _apply_image_size.
+var _base_bounds: Rect2
+var _bounds: Rect2
+var _texture: GradientTexture2D
 # Each tidy deals a new order, so pressing it again reshuffles.
 var _cleanup_count := 0
 var _tidy_tween: Tween
@@ -69,21 +71,13 @@ var _focused := true
 
 
 func _ready() -> void:
-	puzzle = SaveGame.Puzzle.new()
-	puzzle.image_id = IMAGE_ID
-	puzzle.image_size = IMAGE_SIZE
-	puzzle.style = STYLE
-	puzzle.piece_count = PIECE_COUNT
-	puzzle.cut_seed = SEED
-
 	RenderingServer.set_default_clear_color(Palette.felt())
 
-	var texture := _make_test_texture()
-	var size := puzzle.image_size
-	cut = CutGenerator.generate_cut(size.x, size.y, puzzle.piece_count, puzzle.style, puzzle.cut_seed)
-	var offsets := Scatter.scatter(cut, Vector2(size), LOOSE_MARGIN, puzzle.cut_seed)
-	state = PuzzleState.new(cut, offsets, PuzzleState.tolerance_for(size.x, size.y, cut.size()))
+	var loose_order := _restore()
+	if state == null:
+		loose_order = _start_fresh()
 
+	_texture = _make_test_texture()
 	# Added first so locked pieces draw below every loose one.
 	locked_pieces = Node2D.new()
 	locked_pieces.name = "LockedPieces"
@@ -93,18 +87,93 @@ func _ready() -> void:
 	add_child(pieces)
 	for i in cut.size():
 		var node := PieceNode.new()
-		node.setup(cut[i], texture, Palette.outline())
-		node.position = offsets[i]
-		pieces.add_child(node)
+		node.setup(cut[i], _texture, Palette.outline())
+		node.position = state.offset_of(i)
 		_nodes.append(node)
 		_piece_bounds.append(cut[i].bounds())
+		if state.is_locked(i):
+			locked_pieces.add_child(node)
+	for id in loose_order:
+		pieces.add_child(_nodes[id])
 
 	camera = Camera2D.new()
 	camera.name = "Camera"
 	add_child(camera)
-	camera.position = Vector2(IMAGE_SIZE) / 2.0
-	var fit := get_viewport_rect().size.x / (IMAGE_SIZE.x * BORDER)
+	_apply_image_size()
+
+
+# Loads the save into puzzle, cut and state and returns its loose draw order. With no save, or
+# one that fails a check, state stays null and the board starts fresh. Restoring emits no signal.
+func _restore() -> PackedInt32Array:
+	if not FileAccess.file_exists(save_path):
+		return PackedInt32Array()
+	var loaded := SaveGame.from_json(SaveFile.read(save_path))
+	if loaded.snapshot == null:
+		_discard_save(loaded.error)
+		return PackedInt32Array()
+	var saved := loaded.snapshot
+	var p := saved.puzzle
+	# Until real images arrive, the board can draw only its test image at its one size.
+	if p.image_id != IMAGE_ID or p.image_size != IMAGE_SIZE:
+		_discard_save("unknown image %s at %dx%d" % [p.image_id, p.image_size.x, p.image_size.y])
+		return PackedInt32Array()
+	var saved_cut := CutGenerator.generate_cut(p.image_size.x, p.image_size.y, p.piece_count, p.style, p.cut_seed)
+	var tolerance := PuzzleState.tolerance_for(p.image_size.x, p.image_size.y, saved_cut.size())
+	var saved_state := SaveGame.state_from(saved.clusters, saved_cut, tolerance)
+	# A broken partition gives the empty state, which counts as complete; a finished puzzle never has a save.
+	if saved_state.is_complete():
+		_discard_save("the clusters do not fit the cut or the puzzle is complete")
+		return PackedInt32Array()
+	if not SaveGame.loose_order_valid(saved.loose_order, saved_state):
+		_discard_save("the draw order does not list every loose piece once")
+		return PackedInt32Array()
+	puzzle = p
+	cut = saved_cut
+	state = saved_state
+	elapsed = saved.elapsed
+	_cleanup_count = saved.tidy_count
+	return saved.loose_order
+
+
+func _discard_save(reason: String) -> void:
+	push_warning("Board: discarding the save at %s: %s" % [save_path, reason])
+	SaveFile.remove(save_path)
+
+
+# A new puzzle from the constants, scattered around the board. Returns its draw order: by id.
+func _start_fresh() -> PackedInt32Array:
+	puzzle = SaveGame.Puzzle.new()
+	puzzle.image_id = IMAGE_ID
+	puzzle.image_size = IMAGE_SIZE
+	puzzle.style = STYLE
+	puzzle.piece_count = PIECE_COUNT
+	puzzle.cut_seed = SEED
+	var size := puzzle.image_size
+	cut = CutGenerator.generate_cut(size.x, size.y, puzzle.piece_count, puzzle.style, puzzle.cut_seed)
+	var offsets := Scatter.scatter(cut, Vector2(size), LOOSE_MARGIN, puzzle.cut_seed)
+	state = PuzzleState.new(cut, offsets, PuzzleState.tolerance_for(size.x, size.y, cut.size()))
+	var order := PackedInt32Array()
+	for i in cut.size():
+		order.append(i)
+	return order
+
+
+# Everything sized from the image follows the puzzle, not the constants. The camera bounds take in
+# every loose cluster, so a tidied band from a restored save stays reachable.
+func _apply_image_size() -> void:
+	var size := Vector2(puzzle.image_size)
+	_texture.width = puzzle.image_size.x
+	_texture.height = puzzle.image_size.y
+	_base_bounds = Rect2(Vector2.ZERO, size).grow(LOOSE_MARGIN)
+	_bounds = _base_bounds
+	for root in state.roots():
+		if not state.is_locked(root):
+			var rect := cluster_home_rect(root)
+			_bounds = _bounds.merge(Rect2(rect.position + state.offset_of(root), rect.size))
+	camera.position = size / 2.0
+	var fit := get_viewport_rect().size.x / (size.x * BORDER)
 	camera.zoom = Vector2(fit, fit)
+	queue_redraw()
 
 
 func node_for(piece_id: int) -> PieceNode:
@@ -137,8 +206,9 @@ func cleanup() -> void:
 	var rects: Array[Rect2] = []
 	for root in roots:
 		rects.append(cluster_home_rect(root))
-	var cell := sqrt(float(IMAGE_SIZE.x) * IMAGE_SIZE.y / cut.size())
-	var result := CleanupLayout.layout(rects, Vector2(IMAGE_SIZE), cell, puzzle.cut_seed, _cleanup_count, state.tolerance)
+	var size := Vector2(puzzle.image_size)
+	var cell := sqrt(size.x * size.y / cut.size())
+	var result := CleanupLayout.layout(rects, size, cell, puzzle.cut_seed, _cleanup_count, state.tolerance)
 	_cleanup_count += 1
 	for k in roots.size():
 		var move := TidyMove.new()
@@ -472,12 +542,17 @@ func _to_world(screen_position: Vector2) -> Vector2:
 	return camera.position + (screen_position - get_viewport_rect().size / 2.0) / camera.zoom.x
 
 
+func _board_rect() -> Rect2:
+	return Rect2(Vector2.ZERO, Vector2(puzzle.image_size))
+
+
 func _draw() -> void:
-	var rect := Rect2(Vector2.ZERO, Vector2(IMAGE_SIZE))
+	var rect := _board_rect()
 	draw_rect(rect, Palette.board())
 	draw_rect(rect, Palette.accent(), false, BOARD_OUTLINE_WIDTH)
 
 
+# Sized by _apply_image_size, so it always matches the puzzle's image.
 func _make_test_texture() -> GradientTexture2D:
 	var gradient := Gradient.new()
 	gradient.offsets = PackedFloat32Array([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
@@ -486,8 +561,6 @@ func _make_test_texture() -> GradientTexture2D:
 	])
 	var texture := GradientTexture2D.new()
 	texture.gradient = gradient
-	texture.width = IMAGE_SIZE.x
-	texture.height = IMAGE_SIZE.y
 	texture.fill = GradientTexture2D.FILL_LINEAR
 	texture.fill_from = Vector2(0, 0)
 	texture.fill_to = Vector2(1, 1)
