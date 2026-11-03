@@ -115,7 +115,7 @@ func cleanup() -> void:
 			rect = rect.merge(cut[id].bounds())
 		rects.append(rect)
 	var cell := sqrt(float(IMAGE_SIZE.x) * IMAGE_SIZE.y / cut.size())
-	var result := CleanupLayout.layout(rects, Vector2(IMAGE_SIZE), cell, SEED, _cleanup_count)
+	var result := CleanupLayout.layout(rects, Vector2(IMAGE_SIZE), cell, SEED, _cleanup_count, state.tolerance)
 	_cleanup_count += 1
 	for k in roots.size():
 		state.move_cluster(roots[k], result.offsets[k])

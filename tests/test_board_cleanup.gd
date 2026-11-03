@@ -92,6 +92,13 @@ func _test_tween_lands_exactly() -> void:
 				overlap = true
 	check(not overlap, "no two tidied clusters overlap")
 	check(not on_board, "no tidied cluster covers the board")
+	var in_reach := false
+	for i in board.state.piece_count():
+		for q in board.cut[i].neighbours:
+			if board.state.find(i) != board.state.find(q) and not board.state.is_locked(i) and not board.state.is_locked(q) \
+					and board.state.offset_of(i).distance_to(board.state.offset_of(q)) <= board.state.tolerance:
+				in_reach = true
+	check(not in_reach, "no tidied cluster is within join reach of a neighbour")
 
 
 func _test_camera_reaches_every_cluster() -> void:
@@ -129,10 +136,16 @@ func _test_pause_finishes_animation() -> void:
 
 
 func _test_second_press_mid_animation() -> void:
+	# Lets the frame clock catch up first, so the frames below advance the tween only a little.
+	await process_frame
 	board.cleanup()
+	await process_frame
+	await process_frame
+	check(board.is_tidying(), "the first tidy is still animating when the second press comes")
 	var e := _expected(board._cleanup_count)
 	board.cleanup()
 	check(board.is_tidying(), "a second tidy mid-animation starts its own animation")
+	check(board._tidy_nodes.size() == _loose_piece_count(), "the second tidy finishes the first before recording its own nodes")
 	var roots := _loose_roots()
 	var offsets_match := true
 	for k in roots.size():
@@ -185,7 +198,14 @@ func _expected(counter: int) -> CleanupLayout.Result:
 	for root in _loose_roots():
 		rects.append(_home_rect(root))
 	var cell := sqrt(float(Board.IMAGE_SIZE.x) * Board.IMAGE_SIZE.y / board.cut.size())
-	return CleanupLayout.layout(rects, Vector2(Board.IMAGE_SIZE), cell, Board.SEED, counter)
+	return CleanupLayout.layout(rects, Vector2(Board.IMAGE_SIZE), cell, Board.SEED, counter, board.state.tolerance)
+
+
+func _loose_piece_count() -> int:
+	var count := 0
+	for root in _loose_roots():
+		count += board.state.members(root).size()
+	return count
 
 
 func _placed_rects() -> Array[Rect2]:

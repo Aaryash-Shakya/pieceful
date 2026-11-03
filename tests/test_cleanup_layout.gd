@@ -21,6 +21,8 @@ func _init() -> void:
 	_test_extent()
 	_test_deterministic()
 	_test_counter_and_seed_change_order()
+	_test_tidy_leaves_nothing_to_join()
+	_test_tolerance_widens_gap()
 	finish()
 
 
@@ -193,3 +195,55 @@ func _test_counter_and_seed_change_order() -> void:
 	var home := _squares(10)
 	check(_run(home, 1, 0).offsets != _run(home, 1, 1).offsets, "another counter reshuffles")
 	check(_run(home, 1, 0).offsets != _run(home, 2, 0).offsets, "another seed reshuffles")
+
+
+# Must hold without help from tab overlap, so the tab-less grid is the hard case.
+func _test_tidy_leaves_nothing_to_join() -> void:
+	var size := Vector2i(1536, 1024)
+	var hazards := 0
+	for style in CutGenerator.STYLES:
+		for count in [24, 100, 400]:
+			var cut := CutGenerator.generate_cut(size.x, size.y, count, style, 1)
+			var tolerance := PuzzleState.tolerance_for(size.x, size.y, cut.size())
+			var cell := sqrt(float(size.x) * size.y / cut.size())
+			var state := PuzzleState.new(cut, Scatter.scatter(cut, Vector2(size), Board.LOOSE_MARGIN, 1), tolerance)
+			# Some multi-piece clusters, so merged home rects are covered too.
+			for i in range(0, cut.size(), 7):
+				state.move_cluster(i, state.offset_of(cut[i].neighbours[0]))
+				state.drop(i)
+			for counter in 3:
+				var roots := PackedInt32Array()
+				var rects: Array[Rect2] = []
+				for root in state.roots():
+					if state.is_locked(root):
+						continue
+					roots.append(root)
+					var members := state.members(root)
+					var rect := cut[members[0]].bounds()
+					for id in members:
+						rect = rect.merge(cut[id].bounds())
+					rects.append(rect)
+				var r := CleanupLayout.layout(rects, Vector2(size), cell, 1, counter, tolerance)
+				for k in roots.size():
+					state.move_cluster(roots[k], r.offsets[k])
+				for i in cut.size():
+					for q in cut[i].neighbours:
+						if q > i and state.find(i) != state.find(q) and not state.is_locked(i) and not state.is_locked(q) \
+								and state.offset_of(i).distance_to(state.offset_of(q)) <= tolerance:
+							hazards += 1
+	check(hazards == 0, "no two neighbours in different tidied clusters are within join reach (%d found)" % hazards)
+
+
+func _test_tolerance_widens_gap() -> void:
+	var home := _squares(10)
+	var tolerance := CELL
+	var placed := _placed(home, CleanupLayout.layout(home, BOARD, CELL, 1, 0, tolerance))
+	var narrowest := INF
+	for i in placed.size():
+		for j in range(i + 1, placed.size()):
+			var a := placed[i]
+			var b := placed[j]
+			var dx := maxf(b.position.x - a.end.x, a.position.x - b.end.x)
+			var dy := maxf(b.position.y - a.end.y, a.position.y - b.end.y)
+			narrowest = minf(narrowest, maxf(dx, dy))
+	check(narrowest >= CleanupLayout.JOIN_CLEARANCE * tolerance - 1e-3, "the gap grows past the join tolerance")

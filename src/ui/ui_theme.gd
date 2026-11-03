@@ -55,7 +55,9 @@ static func build(dark := Palette.is_dark()) -> Theme:
 	var raised := _button_box(dark, BUTTON_DEPTH)
 	theme.set_stylebox("normal", "Button", raised)
 	theme.set_stylebox("hover", "Button", raised)
-	theme.set_stylebox("pressed", "Button", _button_box(dark, PRESSED_DEPTH))
+	var sunk := _button_box(dark, PRESSED_DEPTH)
+	theme.set_stylebox("pressed", "Button", sunk)
+	theme.set_stylebox("hover_pressed", "Button", sunk)
 	theme.set_stylebox("focus", "Button", StyleBoxEmpty.new())
 
 	theme.set_stylebox("panel", "PanelContainer", _panel_box(dark, PANEL_RADIUS, PANEL_PADDING))

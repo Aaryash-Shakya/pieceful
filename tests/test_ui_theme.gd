@@ -90,6 +90,9 @@ func _test_theme(dark: bool) -> void:
 
 	var h := t.get_stylebox("hover", "Button") as StyleBoxFlat
 	check(h != null and h.bg_color == n.bg_color, tag + "hover matches normal")
+	var hp := t.get_stylebox("hover_pressed", "Button") as StyleBoxFlat
+	check(hp != null and hp.border_width_bottom == p.border_width_bottom and hp.expand_margin_top == p.expand_margin_top \
+			and hp.content_margin_top == p.content_margin_top, tag + "hover pressed matches pressed")
 	check(t.get_stylebox("focus", "Button") is StyleBoxEmpty, tag + "focus is empty")
 
 	var panel := t.get_stylebox("panel", "PanelContainer") as StyleBoxFlat

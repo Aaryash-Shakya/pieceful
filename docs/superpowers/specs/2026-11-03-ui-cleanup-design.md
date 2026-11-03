@@ -26,16 +26,16 @@ All lengths are image pixels. `cell` is the average cell size, `sqrt(width * hei
 - **Two bands:** each item's area is `(w + gap) * (h + gap)`. The top band takes the shortest prefix of the shuffled order whose area reaches half the total; the bottom band takes the rest.
 - **Rows:** each band is filled row by row, left to right, in shuffled order. An item starts a new row when the current row is not empty and adding a gap and the item would make it wider than the band width. Each row is centred on the board's centre line, and each item is centred vertically in its row.
 - **Growing outward:** in both bands row 0 is the one nearest the board, and each later row sits one gap further out. A band that runs out of room simply grows away from the board.
-- **Spacing:** `gap = 0.14 * cell` between items and between rows; `board_gap = 0.7 * cell` between the board edge and row 0; band width `1.45 * board width`. These are the prototype's values. An item wider than the band sits alone in its row and overhangs both sides equally.
+- **Spacing:** `gap = max(0.14 * cell, 1.25 * tolerance)` between items and between rows, where `tolerance` is the join tolerance the board passes in; `board_gap = 0.7 * cell` between the board edge and row 0; band width `1.45 * board width`. The fractions are the prototype's values. Since the join tolerance is 0.22 cell, the tolerance term wins at every piece count, so the gap is about 0.28 cell. An item wider than the band sits alone in its row and overhangs both sides equally.
 - **Output:** one offset per input, `placed.position - home.position`, and the extent, the union of every placed rectangle (`Rect2()` when there is no input).
 
-Since items never share space and a gap separates every pair, no two clusters touch or overlap, and every cluster ends fully outside the board by at least `board_gap`. Because `board_gap` (0.7 cell) is larger than the lock tolerance (0.22 cell), a tidied cluster is never within reach of a lock.
+Since items never share space and a gap separates every pair, no two clusters touch or overlap, and every cluster ends fully outside the board by at least `board_gap`. Because `board_gap` (0.7 cell) is larger than the lock tolerance (0.22 cell), a tidied cluster is never within reach of a lock. It is never within reach of a join either. Two neighbouring pieces have home rectangles that touch, so if their clusters' placed rectangles are at least `gap` apart along one axis, their offsets differ by at least `gap` along that axis. That is 1.25 times the join tolerance, so lifting and dropping any tidied cluster where it lies joins nothing. This holds for every style, including the tab-less grid, and does not rely on tabs making the rectangles overlap.
 
 ## The board
 
 - **What moves:** every root in `state.roots()` that is not locked. Locked pieces and their layer are never touched. A cluster keeps its shape because its members share one offset.
 - **Zero loose clusters:** `cleanup()` does nothing, not even counting the press.
-- **While a cluster is held:** `cleanup()` does nothing. On a phone this cannot happen, since the second finger would have to press the button, but desktop testing can reach it.
+- **While a cluster is held:** `cleanup()` does nothing. A phone can reach this: hold Tidy down, grab a piece with a second finger, then release Tidy. Its `pressed` fires on release while the piece is held, and the guard ignores it.
 - **State first, then nodes:** the new offsets go into `PuzzleState` with `move_cluster` when the press happens. The nodes then animate from where they were to the offsets in the state with one `tween_method` over 0.4 s (`CLEANUP_DURATION`, ease-out cubic). When the tween ends, every member node is set to exactly `state.offset_of(root)`, so state and nodes agree to the bit.
 - **Touch during the animation:** the animation completes instantly on the next finger press, before the press is handled, so the press acts on the pieces at their final places. Dragging never waits.
 - **Pause during the animation:** focus loss and app pause also complete it instantly, so a later save on pause reads a board whose nodes match the state.
@@ -55,7 +55,7 @@ Units are viewport units. The viewport is 540 wide and `canvas_items` stretch ma
 | Button font | Baloo 2 at 700, size 22, colour `text_on_accent` in every state |
 | Button normal | face `accent`, a solid 5 px bottom band in `accent_shadow`, radius 8, content margins 20 left and right, 8 top, 13 bottom |
 | Button pressed | the face moves down 4 px and the band shrinks to 1 px; content margins 12 top, 9 bottom, so the text moves with the face and the button's size does not change |
-| Button hover | same as normal (touch has no hover) |
+| Button hover | same as normal (touch has no hover); hover pressed is the same as pressed |
 | Button focus | empty (no focus ring on touch) |
 | `PanelContainer` | `surface`, 1 px `lines` border, radius 10, content margin 12 |
 | `Sheet` (PanelContainer variation) | `surface`, 1 px `lines` border, radius 14, content margin 20 |
