@@ -6,7 +6,8 @@ extends RefCounted
 
 # 2 added puzzle.cut_checksum. The board sets aside a save whose cut no longer matches it, so a
 # deliberate change to a golden cut checksum (tests/test_cut_generator.gd) loses no data, only that game.
-const VERSION := 2
+# 3 added slots: four stacks of cluster roots, left out of loose_order.
+const VERSION := 3
 const MAX_PIECE_COUNT := 400
 ## About 31 years of play, far beyond any real game. A file claiming more is rejected rather than
 ## loaded, so the clock stays well inside the range the millisecond rounding keeps exact.
@@ -46,6 +47,8 @@ class Snapshot:
 	var puzzle := Puzzle.new()
 	var clusters: Array[Cluster] = []
 	var loose_order := PackedInt32Array()
+	## Four stacks of cluster roots, bottom first.
+	var slots: Array[PackedInt32Array] = []
 	var elapsed := 0.0
 	var tidy_count := 0
 
@@ -65,6 +68,9 @@ static func to_dict(snapshot: Snapshot) -> Dictionary:
 			"offset": [c.offset.x, c.offset.y],
 			"locked": c.locked,
 		})
+	var slot_lists := []
+	for s in PuzzleState.SLOT_COUNT:
+		slot_lists.append(Array(snapshot.slots[s]) if s < snapshot.slots.size() else [])
 	return {
 		"version": VERSION,
 		"puzzle": {
@@ -78,6 +84,7 @@ static func to_dict(snapshot: Snapshot) -> Dictionary:
 		},
 		"clusters": clusters,
 		"loose_order": Array(snapshot.loose_order),
+		"slots": slot_lists,
 		"elapsed": roundf(snapshot.elapsed * 1000.0) / 1000.0,
 		"tidy_count": snapshot.tidy_count,
 	}
@@ -101,7 +108,7 @@ static func from_dict(data: Variant) -> Loaded:
 	if not data is Dictionary:
 		return _fail("save is not an object")
 	var root: Dictionary = data
-	if not _has_exactly(root, ["version", "puzzle", "clusters", "loose_order", "elapsed", "tidy_count"]):
+	if not _has_exactly(root, ["version", "puzzle", "clusters", "loose_order", "slots", "elapsed", "tidy_count"]):
 		return _fail("save has missing or unknown keys")
 	if not is_int(root.version) or int(root.version) != VERSION:
 		return _fail("version")
@@ -177,6 +184,14 @@ static func from_dict(data: Variant) -> Loaded:
 		return _fail("loose_order")
 	snapshot.loose_order = order
 
+	if not root.slots is Array or (root.slots as Array).size() != PuzzleState.SLOT_COUNT:
+		return _fail("slots")
+	for i in PuzzleState.SLOT_COUNT:
+		var stack: Variant = _int_array(root.slots[i])
+		if stack == null:
+			return _fail("slots[%d]" % i)
+		snapshot.slots.append(stack)
+
 	var loaded := Loaded.new()
 	loaded.snapshot = snapshot
 	return loaded
@@ -194,7 +209,8 @@ static func clusters_of(state: PuzzleState) -> Array[Cluster]:
 	return result
 
 
-static func state_from(clusters: Array[Cluster], pieces: Array[CutPiece], tolerance: float) -> PuzzleState:
+static func state_from(clusters: Array[Cluster], pieces: Array[CutPiece], tolerance: float,
+		slots: Array[PackedInt32Array] = []) -> PuzzleState:
 	var roots := PackedInt32Array()
 	var groups: Array[PackedInt32Array] = []
 	var offsets := PackedVector2Array()
@@ -204,21 +220,29 @@ static func state_from(clusters: Array[Cluster], pieces: Array[CutPiece], tolera
 		groups.append(c.pieces)
 		offsets.append(c.offset)
 		locked.append(1 if c.locked else 0)
-	return PuzzleState.restored(pieces, tolerance, roots, groups, offsets, locked)
+	return PuzzleState.restored(pieces, tolerance, roots, groups, offsets, locked, slots)
 
 
-## True when the order lists every loose piece of the state exactly once and nothing else.
+static func slots_of(state: PuzzleState) -> Array[PackedInt32Array]:
+	var result: Array[PackedInt32Array] = []
+	for s in PuzzleState.SLOT_COUNT:
+		result.append(state.slot_roots(s))
+	return result
+
+
+## True when the order lists every table piece of the state exactly once and nothing else.
+## Locked pieces and pieces in a slot are not on the table.
 static func loose_order_valid(order: PackedInt32Array, state: PuzzleState) -> bool:
 	var count := state.piece_count()
 	var seen := PackedByteArray()
 	seen.resize(count)
 	seen.fill(0)
 	for id in order:
-		if id < 0 or id >= count or seen[id] == 1 or state.is_locked(id):
+		if id < 0 or id >= count or seen[id] == 1 or state.is_locked(id) or state.slot_of(id) != -1:
 			return false
 		seen[id] = 1
 	for id in count:
-		if seen[id] == 0 and not state.is_locked(id):
+		if seen[id] == 0 and not state.is_locked(id) and state.slot_of(id) == -1:
 			return false
 	return true
 

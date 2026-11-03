@@ -17,6 +17,7 @@ const MARGIN_TOP := 56.0
 var root_control: Control
 var cleanup_button: Button
 var home_button: Button
+var slot_tray: SlotTray
 
 
 func _ready() -> void:
@@ -27,6 +28,9 @@ func _ready() -> void:
 	root_control.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_control.theme = UiTheme.build()
 	add_child(root_control)
+
+	slot_tray = SlotTray.new()
+	root_control.add_child(slot_tray)
 
 	cleanup_button = _make_button(CLEANUP_TEXT)
 	cleanup_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
@@ -52,6 +56,7 @@ func attach(target: Board) -> void:
 		_disconnect(cleanup_button.pressed, board.cleanup)
 		_disconnect(home_button.pressed, board.go_home)
 	board = target
+	slot_tray.attach(board)
 	if not cleanup_button.pressed.is_connected(board.cleanup):
 		cleanup_button.pressed.connect(board.cleanup)
 	if not home_button.pressed.is_connected(board.go_home):

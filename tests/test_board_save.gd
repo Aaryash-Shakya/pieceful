@@ -157,7 +157,7 @@ func _test_no_geometry_keys() -> void:
 	var found: Array = keys.keys()
 	found.sort()
 	check(found == ["clusters", "cut_checksum", "elapsed", "height", "image_id", "locked", "loose_order", "offset", "piece_count",
-			"pieces", "puzzle", "root", "seed", "style", "tidy_count", "version", "width"],
+			"pieces", "puzzle", "root", "seed", "slots", "style", "tidy_count", "version", "width"],
 			"the save holds no geometry: %s" % [found])
 	check(FileAccess.get_file_as_bytes(TEST_SAVE_PATH).size() < 131072, "the save stays small")
 
