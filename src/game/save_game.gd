@@ -7,7 +7,8 @@ extends RefCounted
 # 2 added puzzle.cut_checksum. The board sets aside a save whose cut no longer matches it, so a
 # deliberate change to a golden cut checksum (tests/test_cut_generator.gd) loses no data, only that game.
 # 3 added slots: four stacks of cluster roots, left out of loose_order.
-const VERSION := 3
+# 4 added puzzle.ghost, the ghost-image overlay setting the result card reports.
+const VERSION := 4
 const MAX_PIECE_COUNT := 400
 ## About 31 years of play, far beyond any real game. A file claiming more is rejected rather than
 ## loaded, so the clock stays well inside the range the millisecond rounding keeps exact.
@@ -24,6 +25,8 @@ class Puzzle:
 	var cut_seed := 0
 	## CutGenerator.checksum of the cut these fields make, taken when the cut was generated.
 	var cut_checksum := 0
+	## The faint picture over the board. On by default, as the owner specified.
+	var ghost := true
 
 	func copy() -> Puzzle:
 		var p := Puzzle.new()
@@ -33,6 +36,7 @@ class Puzzle:
 		p.piece_count = piece_count
 		p.cut_seed = cut_seed
 		p.cut_checksum = cut_checksum
+		p.ghost = ghost
 		return p
 
 
@@ -81,6 +85,7 @@ static func to_dict(snapshot: Snapshot) -> Dictionary:
 			"piece_count": snapshot.puzzle.piece_count,
 			"seed": snapshot.puzzle.cut_seed,
 			"cut_checksum": snapshot.puzzle.cut_checksum,
+			"ghost": snapshot.puzzle.ghost,
 		},
 		"clusters": clusters,
 		"loose_order": Array(snapshot.loose_order),
@@ -115,8 +120,10 @@ static func from_dict(data: Variant) -> Loaded:
 	if not root.puzzle is Dictionary:
 		return _fail("puzzle")
 	var puzzle_data: Dictionary = root.puzzle
-	if not _has_exactly(puzzle_data, ["image_id", "width", "height", "style", "piece_count", "seed", "cut_checksum"]):
+	if not _has_exactly(puzzle_data, ["image_id", "width", "height", "style", "piece_count", "seed", "cut_checksum", "ghost"]):
 		return _fail("puzzle has missing or unknown keys")
+	if not puzzle_data.ghost is bool:
+		return _fail("puzzle.ghost")
 	if not puzzle_data.image_id is String or (puzzle_data.image_id as String).is_empty():
 		return _fail("puzzle.image_id")
 	if not puzzle_data.style is String or not CutGenerator.STYLES.has(puzzle_data.style):
@@ -149,6 +156,7 @@ static func from_dict(data: Variant) -> Loaded:
 	snapshot.puzzle.piece_count = int(puzzle_data.piece_count)
 	snapshot.puzzle.cut_seed = int(puzzle_data.seed)
 	snapshot.puzzle.cut_checksum = int(puzzle_data.cut_checksum)
+	snapshot.puzzle.ghost = puzzle_data.ghost
 	snapshot.elapsed = float(root.elapsed)
 	snapshot.tidy_count = int(root.tidy_count)
 

@@ -91,7 +91,7 @@ func _test_clusters_of() -> void:
 func _test_dict_shape() -> void:
 	var d := SaveGame.to_dict(_sample())
 	check(_sorted_keys(d) == ["clusters", "elapsed", "loose_order", "puzzle", "slots", "tidy_count", "version"], "top-level keys")
-	check(_sorted_keys(d.puzzle) == ["cut_checksum", "height", "image_id", "piece_count", "seed", "style", "width"], "puzzle keys")
+	check(_sorted_keys(d.puzzle) == ["cut_checksum", "ghost", "height", "image_id", "piece_count", "seed", "style", "width"], "puzzle keys")
 	var found_locked := false
 	for c in d.clusters:
 		check(_sorted_keys(c) == ["locked", "offset", "pieces", "root"], "cluster keys")
@@ -99,7 +99,7 @@ func _test_dict_shape() -> void:
 			found_locked = true
 			check(c.locked == true and Vector2(c.offset[0], c.offset[1]) == Vector2.ZERO, "locked cluster sits at zero")
 	check(found_locked, "the locked cluster is saved")
-	check(d.version == 3, "version is 3")
+	check(d.version == 4, "version is 4")
 	check(d.puzzle.cut_checksum == CutGenerator.checksum(cut), "cut checksum saved")
 	check(d.puzzle.seed == 1, "seed saved")
 	check(d.puzzle.width == 300, "width saved")
@@ -164,8 +164,8 @@ func _test_rejects_bad_data() -> void:
 	c.version = 1
 	cases["version 1 (no cut checksum)"] = c
 	c = base.duplicate(true)
-	c.version = 4
-	cases["version 4"] = c
+	c.version = 5
+	cases["version 5"] = c
 	c = base.duplicate(true)
 	c.version = "2"
 	cases["version string"] = c

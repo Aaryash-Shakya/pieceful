@@ -20,6 +20,7 @@ const ELAPSED_STEP_LIMIT := 0.25
 const FAR_OFFSET_FACTOR := 8
 # A stack released this close to its own slot, in screen units, goes back into it.
 const NEAR_SLOT_MARGIN := 48.0
+const GHOST_OPACITY := 0.2
 
 # HOLD_PINCHING: the dragging finger keeps its piece while it and one other finger move the camera.
 # SLOT_DRAGGING: a whole slot's stack is fanned out under one finger; other fingers are ignored.
@@ -32,6 +33,7 @@ signal cluster_locked(cluster_root: int, piece_count: int)
 signal puzzle_completed
 ## What a slot holds changed (a stack went in or out, or the board just started).
 signal slots_changed
+signal ghost_changed(on: bool)
 ## The player asked to leave the board, by Home or back. The game is already saved.
 signal home_requested
 
@@ -58,6 +60,8 @@ var cut: Array[CutPiece]
 var state: PuzzleState
 var locked_pieces: Node2D
 var pieces: Node2D
+## The whole picture at low opacity over the board, under the pieces.
+var ghost_sprite: Sprite2D
 ## Holds the nodes of pieces that sit in a slot. Hidden, and never searched by piece_at.
 var stash: Node2D
 ## The four slots' screen rectangles, set by the HUD's tray. The board hit-tests them from raw touches.
@@ -127,6 +131,14 @@ func _ready() -> void:
 			loose_order = _start_fresh(null)
 			_texture = _make_test_texture()
 
+	# The faint picture goes in first, so it draws under every piece, locked or loose.
+	ghost_sprite = Sprite2D.new()
+	ghost_sprite.name = "Ghost"
+	ghost_sprite.texture = _texture
+	ghost_sprite.centered = false
+	ghost_sprite.modulate.a = GHOST_OPACITY
+	ghost_sprite.visible = puzzle.ghost and not state.is_complete()
+	add_child(ghost_sprite)
 	# Added first so locked pieces draw below every loose one.
 	locked_pieces = Node2D.new()
 	locked_pieces.name = "LockedPieces"
@@ -267,6 +279,24 @@ func _apply_image_size() -> void:
 	var fit := get_viewport_rect().size.x / (size.x * BORDER)
 	camera.zoom = Vector2(fit, fit)
 	queue_redraw()
+
+
+## Shows or hides the ghost picture. The choice is part of the puzzle, so it is saved and goes on the result card.
+func set_ghost(on: bool) -> void:
+	if puzzle.ghost == on:
+		return
+	puzzle.ghost = on
+	ghost_sprite.visible = on and not state.is_complete()
+	ghost_changed.emit(on)
+	save_game()
+
+
+## The picture's name for the completion screen.
+func picture_title() -> String:
+	if puzzle.image_id == IMAGE_ID:
+		return "Test picture"
+	var picture := collection.find(puzzle.image_id) if collection != null else null
+	return picture.title if picture != null else puzzle.image_id
 
 
 func node_for(piece_id: int) -> PieceNode:
@@ -735,6 +765,7 @@ func _settle(result: PuzzleState.DropResult) -> void:
 	if result.locked:
 		cluster_locked.emit(result.root, nodes.size())
 	if result.locked and state.is_complete():
+		ghost_sprite.visible = false
 		puzzle_completed.emit()
 	if result.locked:
 		save_game()

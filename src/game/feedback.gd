@@ -25,6 +25,8 @@ const COMPLETE_VIBRATION_AMPLITUDE := 1.0
 
 @export var board: Board
 
+## Where the sound and vibration switches are read from when the node enters the tree.
+var settings_path := Settings.DEFAULT_PATH
 var sound_enabled := true
 var vibration_enabled := true
 # Seams for tests: called as play_sound.call(sound) and vibrate.call(duration_ms, amplitude).
@@ -40,6 +42,9 @@ func _init() -> void:
 
 
 func _ready() -> void:
+	var settings := Settings.load_from(settings_path)
+	sound_enabled = settings.sound
+	vibration_enabled = settings.vibration
 	for key: StringName in STREAMS:
 		var player := AudioStreamPlayer.new()
 		player.name = String(key).capitalize()
