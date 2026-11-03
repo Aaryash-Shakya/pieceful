@@ -9,6 +9,7 @@ func _init() -> void:
 	_test_theme(false)
 	_test_theme(true)
 	_test_modes_differ()
+	_test_option_and_slider()
 	finish()
 
 
@@ -117,3 +118,34 @@ func _test_modes_differ() -> void:
 	var a := UiTheme.build(false).get_stylebox("normal", "Button") as StyleBoxFlat
 	var b := UiTheme.build(true).get_stylebox("normal", "Button") as StyleBoxFlat
 	check(a.bg_color != b.bg_color, "light and dark buttons differ")
+
+
+func _test_option_and_slider() -> void:
+	for dark in [false, true]:
+		var tag := "(dark=%s) " % dark
+		var t := UiTheme.build(dark)
+		check(t.get_type_variation_base(UiTheme.OPTION) == &"Button", tag + "Option variation base")
+		var n := t.get_stylebox("normal", UiTheme.OPTION) as StyleBoxFlat
+		check(n != null, tag + "option normal is flat")
+		if n != null:
+			check(n.bg_color == Palette.raised_surface(dark), tag + "option fill")
+			check(n.border_color == Palette.lines(dark), tag + "option line")
+			check(n.corner_radius_top_left == 9, tag + "option radius")
+		var p := t.get_stylebox("pressed", UiTheme.OPTION) as StyleBoxFlat
+		check(p != null, tag + "option pressed is flat")
+		if p != null:
+			check(p.bg_color == Palette.accent(dark), tag + "option pressed fill")
+			check(p.border_color == Palette.accent_shadow(dark), tag + "option pressed edge")
+		check(t.get_color("font_color", UiTheme.OPTION) == Palette.text(dark), tag + "option text")
+		check(t.get_color("font_pressed_color", UiTheme.OPTION) == Palette.text_on_accent(dark), tag + "option pressed text")
+
+		var grabber := t.get_icon("grabber", "HSlider")
+		check(grabber != null and grabber.get_size() == Vector2(44, 30), tag + "grabber size")
+		if grabber != null:
+			var image := grabber.get_image()
+			check(image.get_pixel(22, 15).is_equal_approx(Palette.accent(dark)), tag + "grabber centre is the accent")
+			check(image.get_pixel(0, 0).a == 0.0, tag + "grabber corner is clear")
+		var area := t.get_stylebox("grabber_area", "HSlider") as StyleBoxFlat
+		check(area != null and area.bg_color == Palette.accent(dark), tag + "slider fill is the accent")
+		var track := t.get_stylebox("slider", "HSlider") as StyleBoxFlat
+		check(track != null and track.bg_color == Palette.raised_surface(dark), tag + "slider track")
