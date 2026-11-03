@@ -272,12 +272,13 @@ func _settle(result: PuzzleState.DropResult) -> void:
 		pieces_joined.emit(result.root, nodes.size())
 	if result.locked:
 		cluster_locked.emit(result.root, nodes.size())
-	if state.is_complete():
+	if result.locked and state.is_complete():
 		puzzle_completed.emit()
 
 
 # Moves the nodes to the top of the loose layer, keeping their order among themselves.
 func _raise(nodes: Array[PieceNode]) -> void:
+	# Held shadows draw over other loose pieces only because the held nodes end up last in tree order before set_held raises their z_index.
 	nodes.sort_custom(func(a: PieceNode, b: PieceNode) -> bool: return a.get_index() < b.get_index())
 	for node in nodes:
 		pieces.move_child(node, -1)

@@ -21,6 +21,9 @@ func _init() -> void:
 	_test_largest_cluster_keeps_its_place()
 	_test_join_then_lock()
 	_test_drop_is_deterministic()
+	_test_merge_keeps_joining_near_fits()
+	_test_larger_dropped_cluster_moves_onto_absorbed()
+	_test_neighbour_order_does_not_matter()
 	finish()
 
 
@@ -259,3 +262,78 @@ func _test_drop_is_deterministic() -> void:
 		check(first.members(root) == second.members(root), "same members for root %d" % root)
 		check(first.offset_of(root) == second.offset_of(root), "same offset for root %d" % root)
 		check(first.is_locked(root) == second.is_locked(root), "same lock for root %d" % root)
+
+
+# A neighbour out of reach of the drop point but within reach of the merged cluster's new
+# offset must still join, or a near fit would be left apart.
+func _test_merge_keeps_joining_near_fits() -> void:
+	var row := CutGenerator.generate_cut(300, 100, 3, CutGenerator.STYLE_GRID, 1)
+	check(row.size() == 3 and _sorted(row[1].neighbours) == PackedInt32Array([0, 2]), "1x3 fixture: piece 1 sits between 0 and 2")
+	var offsets := PackedVector2Array([Vector2(500, 0), Vector2(4000, 0), Vector2(509, 0)])
+	var state := PuzzleState.new(row, offsets, 10.0)
+	state.move_cluster(1, Vector2(498, 0))
+	var result := state.drop(1)
+	check(result.joined and not result.locked, "the drop joins without locking")
+	check(result.root == 0, "root comes from the largest cluster")
+	check(state.members(1) == PackedInt32Array([0, 1, 2]), "piece 2 joins at the merged cluster's new offset")
+	check(state.offset_of(0) == Vector2(509, 0), "the second pass moves the cluster onto piece 2")
+	check(state.offset_of(2) == Vector2(509, 0), "piece 2 stays put")
+	check(state.roots() == PackedInt32Array([0]), "one cluster remains")
+
+
+func _test_larger_dropped_cluster_moves_onto_absorbed() -> void:
+	var b := Vector2(900, 0)
+	var state := _fresh({0: Vector2(500, 0), 2: b})
+	state.move_cluster(1, Vector2(501, 0))
+	check(state.drop(1).joined, "pieces 0 and 1 join")
+	state.move_cluster(1, b + Vector2(5, 0))
+	var result := state.drop(1)
+	check(result.joined and not result.locked, "the pair joins piece 2")
+	check(result.root == 0, "root comes from the larger dropped cluster")
+	check(state.members(2) == PackedInt32Array([0, 1, 2]), "all three are one cluster")
+	for i in 3:
+		check(state.offset_of(i) == b, "piece %d takes the absorbed cluster's offset" % i)
+
+
+# Pieces with their neighbour lists reversed or rotated must end in the same state.
+func _test_neighbour_order_does_not_matter() -> void:
+	var expected := _run_sequences(cut)
+	for variant in 2:
+		var reordered := CutGenerator.generate_cut(300, 200, 6, CutGenerator.STYLE_GRID, 1)
+		for piece in reordered:
+			var list := Array(piece.neighbours)
+			if variant == 0:
+				list.reverse()
+			else:
+				list.push_back(list.pop_front())
+			piece.neighbours = PackedInt32Array(list)
+		check(_run_sequences(reordered) == expected, "neighbour order variant %d gives the same state" % variant)
+
+
+func _run_sequences(pieces: Array[CutPiece]) -> Array:
+	var a := Vector2(500, 0)
+	var snapshot: Array = []
+	var multi := _state_for(pieces, {0: a, 2: a + Vector2(5, 0), 5: a + Vector2(3, 4), 4: Vector2(900, 0)})
+	multi.move_cluster(1, a + Vector2(2, 2))
+	multi.drop(1)
+	multi.move_cluster(0, Vector2(1, 1))
+	multi.drop(0)
+	snapshot.append(_snapshot(multi))
+	var chain := _state_for(pieces, {3: Vector2(700, 0)})
+	_play(chain)
+	snapshot.append(_snapshot(chain))
+	return snapshot
+
+
+func _state_for(pieces: Array[CutPiece], overrides: Dictionary) -> PuzzleState:
+	var offsets := PackedVector2Array()
+	for i in pieces.size():
+		offsets.append(overrides.get(i, Vector2(1000 * (i + 1), 0)))
+	return PuzzleState.new(pieces, offsets, _fixture_tolerance())
+
+
+func _snapshot(state: PuzzleState) -> Array:
+	var rows: Array = []
+	for root in state.roots():
+		rows.append([root, state.members(root), state.offset_of(root), state.is_locked(root)])
+	return rows

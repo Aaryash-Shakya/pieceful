@@ -96,16 +96,29 @@ func drop(piece: int) -> DropResult:
 		_lock(root)
 		result.locked = true
 		return result
-	var absorbed := _absorbable_roots(root)
-	if absorbed.is_empty():
-		return result
+	# The merged cluster moves, so a neighbour out of reach of the drop point can be in reach
+	# of the new offset. Each pass starts from the merged cluster, so the result stays
+	# deterministic; the loop ends because every pass removes at least one cluster.
+	while true:
+		var absorbed := _absorbable_roots(root)
+		if absorbed.is_empty():
+			break
+		root = _merge(root, absorbed)
+		result.joined = true
+	result.root = root
+	if result.joined and _offsets[root].length() <= tolerance:
+		_lock(root)
+		result.locked = true
+	return result
+
+
+# Joins the absorbed clusters into root's and returns the new root. Both picks scan every
+# candidate and break ties by id, so neither depends on the order neighbours were visited in.
+func _merge(root: int, absorbed: Array[int]) -> int:
 	var joining := absorbed.duplicate()
 	joining.append(root)
-	# Both picks scan every candidate and break ties by id, so neither depends on
-	# the order neighbours were visited in.
-	var target_root := _largest(absorbed)
 	var new_root := _largest(joining)
-	var target := _offsets[target_root]
+	var target := _offsets[_largest(absorbed)]
 	var merged := PackedInt32Array()
 	for r in joining:
 		merged.append_array(_members[r])
@@ -115,12 +128,7 @@ func drop(piece: int) -> DropResult:
 	merged.sort()
 	_members[new_root] = merged
 	_offsets[new_root] = target
-	result.root = new_root
-	result.joined = true
-	if target.length() <= tolerance:
-		_lock(new_root)
-		result.locked = true
-	return result
+	return new_root
 
 
 func _lock(root: int) -> void:
@@ -130,7 +138,7 @@ func _lock(root: int) -> void:
 
 
 # Loose clusters reachable from the dropped cluster through neighbouring pieces whose
-# offset is within tolerance of the dropped offset. Measuring against the dropped
+# offset is within tolerance of the starting cluster's offset. Measuring against that
 # offset, not the neighbour's, makes the result a fixed point independent of visit order.
 func _absorbable_roots(root: int) -> Array[int]:
 	var dropped := _offsets[root]
