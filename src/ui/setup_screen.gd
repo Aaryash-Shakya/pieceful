@@ -24,6 +24,10 @@ const STYLE_TILE_HEIGHT := 56
 const START_HEIGHT := 64
 const PREVIEW_MAX_HEIGHT := 420.0
 const RESUME_THUMB_SIZE := Vector2(72, 54)
+# A finger target: the slider takes a press anywhere in its rect, and the theme keeps the track 10 px.
+const SLIDER_HEIGHT := 44
+# How far a finger may travel and still tap. Further, it is a scroll, and the tile under it is not chosen.
+const TAP_SLOP := 8.0
 
 var save_path := SaveFile.DEFAULT_PATH
 var collection: Collection = null
@@ -55,6 +59,9 @@ var resume_label: Label
 var resume_thumb: TextureRect
 
 var _dragging := false
+var _press_at := Vector2.ZERO
+# Set on a release that travelled past TAP_SLOP, read by the pressed handler that follows it.
+var _swiped := false
 # Set by the first launch: a double tap or Start then Resume must not open two boards.
 var _launched := false
 var _picture_group := ButtonGroup.new()
@@ -125,7 +132,7 @@ func _ready() -> void:
 
 	_build_ui()
 	start_button.pressed.connect(start)
-	resume_button.pressed.connect(resume)
+	resume_button.pressed.connect(_on_resume_pressed)
 
 	if saved != null:
 		var puzzle := saved.puzzle
@@ -145,8 +152,18 @@ func _ready() -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_GO_BACK_REQUEST and quit_app.is_valid():
-		quit_app.call()
+	match what:
+		NOTIFICATION_WM_GO_BACK_REQUEST:
+			if quit_app.is_valid():
+				quit_app.call()
+		# A slider that is hidden or leaves the tree can lose its grab without drag_ended, which
+		# would leave later track taps never scheduling a preview.
+		NOTIFICATION_VISIBILITY_CHANGED:
+			if _dragging and not is_visible_in_tree():
+				_dragging = false
+				_schedule_preview()
+		NOTIFICATION_EXIT_TREE:
+			_dragging = false
 
 
 ## A new game from the current choices and the previewed seed. It replaces any save.
@@ -210,6 +227,9 @@ func select_picture(index: int) -> void:
 		button.queue_free()
 		if pictures.is_empty():
 			_show_empty()
+		elif picture != null:
+			# A tapped tile that fails leaves the player where they were.
+			picture_buttons[pictures.find(picture)].button_pressed = true
 		else:
 			select_picture(mini(index, pictures.size() - 1))
 		return
@@ -284,7 +304,52 @@ func _on_slider_drag_ended(_value_changed: bool) -> void:
 
 
 func _on_picture_pressed(button: Button) -> void:
+	if _take_swipe():
+		if picture != null:
+			picture_buttons[pictures.find(picture)].button_pressed = true
+		return
 	select_picture(picture_buttons.find(button))
+
+
+func _on_style_pressed(value: String) -> void:
+	if _take_swipe():
+		style_buttons[STYLES.find(style)].button_pressed = true
+		return
+	select_style(value)
+
+
+func _on_resume_pressed() -> void:
+	if not _take_swipe():
+		resume()
+
+
+# Read once, so a press that arrives without pointer input (a test, accessibility) is never
+# mistaken for the last swipe.
+func _take_swipe() -> bool:
+	var swiped := _swiped
+	_swiped = false
+	return swiped
+
+
+# A button in a scroller still fires when the finger lifts over it after scrolling. The gui_input
+# signal runs before the button's own handling, so the release is judged here and the pressed
+# handler that follows undoes the toggle. The furthest point counts, so a swipe that comes back is
+# still a swipe.
+func _on_scrolled_button_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		var button_event := event as InputEventMouseButton
+		if button_event.pressed:
+			_press_at = button_event.global_position
+			_swiped = false
+		else:
+			_note_travel(button_event.global_position)
+	elif event is InputEventMouseMotion:
+		_note_travel((event as InputEventMouseMotion).global_position)
+
+
+func _note_travel(at: Vector2) -> void:
+	if at.distance_to(_press_at) > TAP_SLOP:
+		_swiped = true
 
 
 # Fitted to the width and capped in height, so a tall picture does not push the choices away.
@@ -315,6 +380,7 @@ func _build_ui() -> void:
 	scroller.size_flags_vertical = SIZE_EXPAND_FILL
 	scroller.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroller.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	scroller.scroll_deadzone = int(TAP_SLOP)
 	page.add_child(scroller)
 	_rows = VBoxContainer.new()
 	_rows.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -325,6 +391,8 @@ func _build_ui() -> void:
 
 	preview = CutPreview.new()
 	preview.size_flags_horizontal = SIZE_EXPAND_FILL
+	# It fills most of the scroller, so drags on it must reach the scroller.
+	preview.mouse_filter = MOUSE_FILTER_PASS
 	preview.resized.connect(_size_preview)
 	_rows.add_child(preview)
 
@@ -340,6 +408,7 @@ func _build_ui() -> void:
 	var strip_scroller := ScrollContainer.new()
 	strip_scroller.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	strip_scroller.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	strip_scroller.scroll_deadzone = int(TAP_SLOP)
 	_rows.add_child(strip_scroller)
 	_strip = HBoxContainer.new()
 	_strip.add_theme_constant_override("separation", ROW_GAP)
@@ -367,7 +436,7 @@ func _build_ui() -> void:
 		button.text = STYLE_NAMES[value]
 		button.size_flags_horizontal = SIZE_EXPAND_FILL
 		button.custom_minimum_size = Vector2(0, STYLE_TILE_HEIGHT)
-		button.pressed.connect(select_style.bind(value))
+		button.pressed.connect(_on_style_pressed.bind(value))
 		style_row.add_child(button)
 		style_buttons.append(button)
 
@@ -383,6 +452,7 @@ func _build_ui() -> void:
 	slider.step = 1
 	slider.focus_mode = FOCUS_NONE
 	slider.size_flags_horizontal = SIZE_EXPAND_FILL
+	slider.custom_minimum_size = Vector2(0, SLIDER_HEIGHT)
 	slider.value_changed.connect(_on_slider_value_changed)
 	slider.drag_started.connect(_on_slider_drag_started)
 	slider.drag_ended.connect(_on_slider_drag_ended)
@@ -401,6 +471,7 @@ func _build_ui() -> void:
 func _build_resume_card() -> void:
 	resume_card = PanelContainer.new()
 	resume_card.visible = false
+	resume_card.mouse_filter = MOUSE_FILTER_PASS
 	_rows.add_child(resume_card)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", ROW_GAP)
@@ -420,6 +491,7 @@ func _build_resume_card() -> void:
 	resume_button.text = RESUME_TEXT
 	resume_button.focus_mode = FOCUS_NONE
 	resume_button.size_flags_vertical = SIZE_SHRINK_CENTER
+	_pass_to_scroller(resume_button)
 	row.add_child(resume_button)
 
 
@@ -429,4 +501,11 @@ func _make_option(group: ButtonGroup) -> Button:
 	button.button_group = group
 	button.theme_type_variation = UiTheme.OPTION
 	button.focus_mode = FOCUS_NONE
+	_pass_to_scroller(button)
 	return button
+
+
+# Every option tile sits in a scroller, which drag-scrolls only from events its children pass on.
+func _pass_to_scroller(button: Button) -> void:
+	button.mouse_filter = MOUSE_FILTER_PASS
+	button.gui_input.connect(_on_scrolled_button_input)

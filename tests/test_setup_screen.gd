@@ -19,6 +19,8 @@ func _init() -> void:
 	_test_picture_change_keeps_nearest()
 	_test_preview_uses_the_seed()
 	_test_broken_picture_is_dropped()
+	_test_drag_resets()
+	await _test_touch()
 	await _test_empty_collection()
 	_close()
 	DirAccess.remove_absolute(SAVE.get_base_dir())
@@ -97,6 +99,78 @@ func _test_layout() -> void:
 	var slider_rect := s.slider.get_global_rect()
 	check(slider_rect.size.y >= UiTheme.GRABBER_SIZE.y, "the slider fits its grabber")
 	check(slider_rect.end.y <= s.start_button.get_global_rect().position.y, "every row fits above Start without scrolling")
+	check(slider_rect.size.y >= 44.0, "the slider is a 44 px touch target: %s" % slider_rect.size)
+	var scrolled: Array[Control] = [s.preview, s.resume_card, s.resume_button]
+	scrolled.append_array(s.picture_buttons)
+	scrolled.append_array(s.style_buttons)
+	for c in scrolled:
+		check(c.mouse_filter == Control.MOUSE_FILTER_PASS, "%s passes drags to its scroller" % c.get_class())
+	_close()
+	phone.free()
+
+
+func _press(phone: SubViewport, at: Vector2, pressed: bool) -> void:
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = pressed
+	e.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+	e.position = at
+	e.global_position = at
+	phone.push_input(e, true)
+
+
+func _move(phone: SubViewport, from: Vector2, to: Vector2) -> void:
+	var e := InputEventMouseMotion.new()
+	e.button_mask = MOUSE_BUTTON_MASK_LEFT
+	e.position = to
+	e.global_position = to
+	e.relative = to - from
+	phone.push_input(e, true)
+
+
+# Press, move through each point in turn, release at the last one.
+func _gesture(phone: SubViewport, points: Array[Vector2]) -> void:
+	_press(phone, points[0], true)
+	for i in range(1, points.size()):
+		_move(phone, points[i - 1], points[i])
+	_press(phone, points[-1], false)
+
+
+func _test_touch() -> void:
+	var phone := SubViewport.new()
+	phone.size = Vector2i(540, 1200)
+	root.add_child(phone)
+	var s := _open()
+	s.reparent(phone)
+	await process_frame
+	await process_frame
+
+	var c1 := s.picture_buttons[1].get_global_rect().get_center()
+	_gesture(phone, [c1, c1 + Vector2(20, 0)])
+	check(s.picture.id == "fixture-ember-rings", "a swipe over a tile does not choose it")
+	check(s.picture_buttons[0].button_pressed and not s.picture_buttons[1].button_pressed, "the chosen tile stays pressed after a swipe")
+	_gesture(phone, [c1, c1 + Vector2(-20, 0), c1])
+	check(s.picture.id == "fixture-ember-rings", "a swipe that comes back is still a swipe")
+	check(s.picture_buttons[0].button_pressed and not s.picture_buttons[1].button_pressed, "still one tile pressed")
+	_gesture(phone, [c1, c1 + Vector2(3, 2)])
+	check(s.picture.id == "fixture-stained-glass", "a tap with a little jitter chooses the tile")
+	check(s.picture_buttons[1].button_pressed and not s.picture_buttons[0].button_pressed, "the tapped tile is pressed")
+	var c2 := s.picture_buttons[2].get_global_rect().get_center()
+	_gesture(phone, [c2])
+	check(s.picture.id == "fixture-tide-stripes", "a plain tap chooses the tile")
+
+	var irregular := s.style_buttons[1].get_global_rect().get_center()
+	_gesture(phone, [irregular, irregular + Vector2(0, -20)])
+	check(s.style == "regular" and s.style_buttons[0].button_pressed, "a vertical swipe over a style tile does not choose it")
+	_gesture(phone, [irregular])
+	check(s.style == "irregular" and s.style_buttons[1].button_pressed, "a tap chooses the style")
+
+	s.preview_timer.stop()
+	var r := s.slider.get_global_rect()
+	var before := s.slider.value
+	_gesture(phone, [Vector2(r.end.x - 4, r.position.y + 3)])
+	check(s.slider.value != before and s.slider.value == s.slider.max_value, "a tap near the slider's top edge moves it: %s" % s.slider.value)
+	check(not s.preview_timer.is_stopped(), "the tap schedules the cut")
 	_close()
 	phone.free()
 
@@ -193,6 +267,41 @@ func _test_broken_picture_is_dropped() -> void:
 	check(s.picture_buttons.size() == 5 and s.pictures.size() == 5, "the broken picture is dropped")
 	check(s.picture != null and s.picture.id == "fixture-stained-glass", "the next picture is chosen")
 	check(s.picture_buttons[0].button_pressed, "its tile is pressed")
+
+	data = JSON.parse_string(FileAccess.get_file_as_string(FIXTURE))
+	data.pictures[3].width = 200
+	broken = Collection.parse(data, FIXTURE)
+	check(broken.pictures.size() == 6, "precondition: a later broken picture passes validation")
+	s = _open(broken)
+	s.select_picture(2)
+	var count := s.count
+	capture = LogCapture.new()
+	OS.add_logger(capture)
+	# As a tap would leave it: the broken tile toggled on before its picture fails.
+	s.picture_buttons[3].button_pressed = true
+	s.select_picture(3)
+	OS.remove_logger(capture)
+	check(capture.warnings.size() == 1, "one load warning for the tapped picture: %s" % capture.warnings)
+	check(s.picture_buttons.size() == 5 and s.pictures.size() == 5, "the broken tile is removed")
+	check(s.picture.id == "fixture-tide-stripes", "a broken tap goes back to the previous picture")
+	check(s.picture_buttons[2].button_pressed, "the previous tile is pressed again")
+	check(s.count == count and s.preview.image_size == Vector2i(240, 240), "the previous choice is untouched")
+
+
+func _test_drag_resets() -> void:
+	var s := _open()
+	s.slider.drag_started.emit()
+	s.hide()
+	s.show()
+	s.preview_timer.stop()
+	s.slider.value = 2
+	check(not s.preview_timer.is_stopped(), "hiding the screen ends a drag the slider lost")
+	s.slider.drag_started.emit()
+	root.remove_child(s)
+	root.add_child(s)
+	s.preview_timer.stop()
+	s.slider.value = 4
+	check(not s.preview_timer.is_stopped(), "leaving the tree ends a drag the slider lost")
 
 
 func _test_empty_collection() -> void:

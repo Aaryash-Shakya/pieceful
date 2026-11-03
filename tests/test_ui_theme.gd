@@ -10,6 +10,7 @@ func _init() -> void:
 	_test_theme(true)
 	_test_modes_differ()
 	_test_option_and_slider()
+	_test_setup_styles()
 	finish()
 
 
@@ -149,3 +150,47 @@ func _test_option_and_slider() -> void:
 		check(area != null and area.bg_color == Palette.accent(dark), tag + "slider fill is the accent")
 		var track := t.get_stylebox("slider", "HSlider") as StyleBoxFlat
 		check(track != null and track.bg_color == Palette.raised_surface(dark), tag + "slider track")
+
+
+func _test_setup_styles() -> void:
+	for dark in [false, true]:
+		var tag := "(dark=%s) " % dark
+		var t := UiTheme.build(dark)
+		var n := t.get_stylebox("normal", UiTheme.OPTION) as StyleBoxFlat
+		var h := t.get_stylebox("hover", UiTheme.OPTION) as StyleBoxFlat
+		var p := t.get_stylebox("pressed", UiTheme.OPTION) as StyleBoxFlat
+		var hp := t.get_stylebox("hover_pressed", UiTheme.OPTION) as StyleBoxFlat
+		check(n != null and h != null and p != null and hp != null, tag + "option styleboxes are flat")
+		if n == null or h == null or p == null or hp == null:
+			continue
+		check(h.bg_color == n.bg_color and h.border_color == n.border_color and h.border_width_left == 1, tag + "option hover matches normal")
+		check(n.border_width_left == UiTheme.LINE_WIDTH and n.border_width_bottom == UiTheme.LINE_WIDTH, tag + "option line width")
+		check(p.corner_radius_top_left == 9 and p.corner_radius_bottom_right == 9, tag + "option pressed radius")
+		check(p.border_width_bottom == UiTheme.BUTTON_DEPTH, tag + "option pressed shadow edge")
+		check(hp.bg_color == p.bg_color and hp.border_color == p.border_color and hp.corner_radius_top_left == 9 \
+				and hp.border_width_bottom == p.border_width_bottom, tag + "option hover pressed matches pressed")
+		check(p.content_margin_top == n.content_margin_top and p.content_margin_bottom == n.content_margin_bottom \
+				and p.content_margin_left == n.content_margin_left, tag + "option keeps its footprint when pressed")
+		check(t.get_color("font_hover_color", UiTheme.OPTION) == Palette.text(dark), tag + "option hover text")
+		check(t.get_color("font_hover_pressed_color", UiTheme.OPTION) == Palette.text_on_accent(dark), tag + "option hover pressed text")
+
+		var track := t.get_stylebox("slider", "HSlider") as StyleBoxFlat
+		check(track != null and track.content_margin_top == 5 and track.content_margin_bottom == 5, tag + "slider track is 10 px")
+		check(track != null and track.corner_radius_top_left == 6, tag + "slider track radius")
+		var highlight_area := t.get_stylebox("grabber_area_highlight", "HSlider") as StyleBoxFlat
+		check(highlight_area != null and highlight_area.bg_color == Palette.accent(dark), tag + "slider highlight fill")
+		var highlight := t.get_icon("grabber_highlight", "HSlider")
+		check(highlight != null and highlight.get_size() == Vector2(UiTheme.GRABBER_SIZE), tag + "grabber highlight size")
+		if highlight != null:
+			var image := highlight.get_image()
+			check(image.get_pixel(22, 15).is_equal_approx(Palette.accent(dark)), tag + "grabber highlight is the accent")
+			check(image.get_pixel(43, 29).a == 0.0, tag + "grabber highlight corner is clear")
+
+		var disabled := t.get_stylebox("disabled", "Button") as StyleBoxFlat
+		check(disabled != null, tag + "disabled button is flat")
+		if disabled != null:
+			check(is_equal_approx(disabled.bg_color.a, UiTheme.DISABLED_ALPHA), tag + "disabled button fades")
+			check(Color(disabled.bg_color, 1.0) == Palette.accent(dark), tag + "disabled button keeps the accent")
+			check(disabled.corner_radius_top_left == UiTheme.BUTTON_RADIUS, tag + "disabled button radius")
+		var faded := t.get_color("font_disabled_color", "Button")
+		check(is_equal_approx(faded.a, UiTheme.DISABLED_ALPHA) and Color(faded, 1.0) == Palette.text_on_accent(dark), tag + "disabled button text")
