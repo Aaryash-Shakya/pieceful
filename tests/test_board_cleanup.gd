@@ -19,6 +19,8 @@ func _init() -> void:
 	var pair := _loose_pair(PackedInt32Array())
 	_move_by_touch(board.node_for(pair.x), board.node_for(pair.y).position)
 	check(board.state.find(pair.x) == board.state.find(pair.y), "the setup joins one loose pair")
+	check(board.cluster_home_rect(board.state.find(pair.x)) == board.cut[pair.x].bounds().merge(board.cut[pair.y].bounds()),
+			"a cluster's home rect is the union of its pieces' outline bounds")
 	for i in board.state.piece_count():
 		if i != pair.x and i != pair.y and _is_loose_singleton(i) and _grab_point(board.node_for(i)) != Vector2.INF:
 			_r = board.node_for(i)
@@ -34,6 +36,7 @@ func _init() -> void:
 	_test_camera_reaches_every_cluster()
 	_test_touch_finishes_animation()
 	_test_pause_finishes_animation()
+	_test_piece_at_lands_tidy()
 	await _test_second_press_mid_animation()
 	_test_nothing_loose_does_nothing()
 
@@ -135,6 +138,20 @@ func _test_pause_finishes_animation() -> void:
 	check(_nodes_match_state(), "a pause lands every node on its state offset")
 
 
+# Picking reads node positions, so it must not see them mid-tween, whoever asks.
+func _test_piece_at_lands_tidy() -> void:
+	board.cleanup()
+	var n: PieceNode = null
+	for i in board.state.piece_count():
+		if _is_loose_singleton(i):
+			n = board.node_for(i)
+			break
+	var world := _inside_points(n)[0] + board.state.offset_of(n.piece_id)
+	check(board.piece_at(world) == n, "picking during a tidy finds the piece at its final place")
+	check(not board.is_tidying(), "picking during a tidy lands it")
+	check(_nodes_match_state(), "picking during a tidy lands every node on its state offset")
+
+
 func _test_second_press_mid_animation() -> void:
 	# Lets the frame clock catch up first, so the frames below advance the tween only a little.
 	await process_frame
@@ -145,7 +162,7 @@ func _test_second_press_mid_animation() -> void:
 	var e := _expected(board._cleanup_count)
 	board.cleanup()
 	check(board.is_tidying(), "a second tidy mid-animation starts its own animation")
-	check(board._tidy_nodes.size() == _loose_piece_count(), "the second tidy finishes the first before recording its own nodes")
+	check(board._tidy_moves.size() == _loose_roots().size(), "the second tidy finishes the first before recording its own moves")
 	var roots := _loose_roots()
 	var offsets_match := true
 	for k in roots.size():
@@ -186,11 +203,7 @@ func _snapshot() -> Dictionary:
 
 
 func _home_rect(root: int) -> Rect2:
-	var members := board.state.members(root)
-	var rect := board.cut[members[0]].bounds()
-	for id in members:
-		rect = rect.merge(board.cut[id].bounds())
-	return rect
+	return board.cluster_home_rect(root)
 
 
 func _expected(counter: int) -> CleanupLayout.Result:
@@ -199,13 +212,6 @@ func _expected(counter: int) -> CleanupLayout.Result:
 		rects.append(_home_rect(root))
 	var cell := sqrt(float(Board.IMAGE_SIZE.x) * Board.IMAGE_SIZE.y / board.cut.size())
 	return CleanupLayout.layout(rects, Vector2(Board.IMAGE_SIZE), cell, Board.SEED, counter, board.state.tolerance)
-
-
-func _loose_piece_count() -> int:
-	var count := 0
-	for root in _loose_roots():
-		count += board.state.members(root).size()
-	return count
 
 
 func _placed_rects() -> Array[Rect2]:

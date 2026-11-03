@@ -23,6 +23,13 @@ signal pieces_joined(cluster_root: int, piece_count: int, locked: bool)
 signal cluster_locked(cluster_root: int, piece_count: int)
 signal puzzle_completed
 
+
+# One cluster's glide during a tidy. Its members share one offset, so they share one path.
+class TidyMove:
+	var nodes: Array[PieceNode] = []
+	var from: Vector2
+	var to: Vector2
+
 var camera: Camera2D
 var cut: Array[CutPiece]
 var state: PuzzleState
@@ -36,12 +43,12 @@ var _bounds := _base_bounds
 # Each tidy deals a new order, so pressing it again reshuffles.
 var _cleanup_count := 0
 var _tidy_tween: Tween
-var _tidy_nodes: Array[PieceNode] = []
-var _tidy_from := PackedVector2Array()
-var _tidy_to := PackedVector2Array()
+var _tidy_moves: Array[TidyMove] = []
 var _mode := Mode.IDLE
 var _touches: Dictionary[int, Vector2] = {}
 var _nodes: Array[PieceNode] = []
+# Outline bounds at home, by piece id, so a tidy never walks the outlines.
+var _piece_bounds: Array[Rect2] = []
 var _held_root := -1
 var _held_nodes: Array[PieceNode] = []
 var _drag_index := -1
@@ -73,6 +80,7 @@ func _ready() -> void:
 		node.position = offsets[i]
 		pieces.add_child(node)
 		_nodes.append(node)
+		_piece_bounds.append(cut[i].bounds())
 
 	camera = Camera2D.new()
 	camera.name = "Camera"
@@ -87,7 +95,9 @@ func node_for(piece_id: int) -> PieceNode:
 
 
 ## The topmost loose piece containing the world point, or null. Locked pieces are never picked.
+## A running tidy lands first, so the pick sees each piece where the state says it is.
 func piece_at(world: Vector2) -> PieceNode:
+	_finish_cleanup()
 	for i in range(pieces.get_child_count() - 1, -1, -1):
 		var piece := pieces.get_child(i) as PieceNode
 		if piece.contains_point(world):
@@ -109,20 +119,18 @@ func cleanup() -> void:
 		return
 	var rects: Array[Rect2] = []
 	for root in roots:
-		var members := state.members(root)
-		var rect := cut[members[0]].bounds()
-		for id in members:
-			rect = rect.merge(cut[id].bounds())
-		rects.append(rect)
+		rects.append(cluster_home_rect(root))
 	var cell := sqrt(float(IMAGE_SIZE.x) * IMAGE_SIZE.y / cut.size())
 	var result := CleanupLayout.layout(rects, Vector2(IMAGE_SIZE), cell, SEED, _cleanup_count, state.tolerance)
 	_cleanup_count += 1
 	for k in roots.size():
-		state.move_cluster(roots[k], result.offsets[k])
+		var move := TidyMove.new()
 		for id in state.members(roots[k]):
-			_tidy_nodes.append(_nodes[id])
-			_tidy_from.append(_nodes[id].position)
-			_tidy_to.append(result.offsets[k])
+			move.nodes.append(_nodes[id])
+		move.from = move.nodes[0].position
+		move.to = result.offsets[k]
+		_tidy_moves.append(move)
+		state.move_cluster(roots[k], move.to)
 	_bounds = _base_bounds.merge(result.extent)
 	_set_camera_position(camera.position)
 
@@ -135,9 +143,20 @@ func is_tidying() -> bool:
 	return _tidy_tween != null and _tidy_tween.is_running()
 
 
+## The union of the cluster's pieces' outline bounds at home (offset zero).
+func cluster_home_rect(root: int) -> Rect2:
+	var members := state.members(root)
+	var rect := _piece_bounds[members[0]]
+	for id in members:
+		rect = rect.merge(_piece_bounds[id])
+	return rect
+
+
 func _step_cleanup(t: float) -> void:
-	for i in _tidy_nodes.size():
-		_tidy_nodes[i].position = _tidy_from[i].lerp(_tidy_to[i], t)
+	for move in _tidy_moves:
+		var at := move.from.lerp(move.to, t)
+		for node in move.nodes:
+			node.position = at
 
 
 # The last eased step need not land exactly on the target, so every node is set from the state.
@@ -146,11 +165,10 @@ func _finish_cleanup() -> void:
 		return
 	_tidy_tween.kill()
 	_tidy_tween = null
-	for node in _tidy_nodes:
-		node.position = state.offset_of(node.piece_id)
-	_tidy_nodes.clear()
-	_tidy_from.clear()
-	_tidy_to.clear()
+	for move in _tidy_moves:
+		for node in move.nodes:
+			node.position = state.offset_of(node.piece_id)
+	_tidy_moves.clear()
 
 
 func _process(delta: float) -> void:
@@ -181,9 +199,6 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _on_touch(event: InputEventScreenTouch) -> void:
-	# A finger must find each piece where the state says it is.
-	if event.pressed:
-		_finish_cleanup()
 	if event.canceled:
 		# The system took the gesture (a notification pulled down, say), so every finger is gone.
 		_cancel_gesture()

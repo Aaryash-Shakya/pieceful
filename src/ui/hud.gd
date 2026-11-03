@@ -39,6 +39,11 @@ func _ready() -> void:
 		attach(board)
 
 
+# Safe to repeat and to re-point, as Feedback.attach is.
 func attach(target: Board) -> void:
+	var pressed := cleanup_button.pressed
+	if board != null and board != target and pressed.is_connected(board.cleanup):
+		pressed.disconnect(board.cleanup)
 	board = target
-	cleanup_button.pressed.connect(target.cleanup)
+	if not pressed.is_connected(board.cleanup):
+		pressed.connect(board.cleanup)

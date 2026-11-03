@@ -5,7 +5,6 @@ extends RefCounted
 
 # Distinct from the cut's lattice (-1) and scatter (-2) streams.
 const CLEANUP_STREAM := -3
-const GAP_FRACTION := 0.14
 const BOARD_GAP_FRACTION := 0.7
 const BAND_WIDTH_FRACTION := 1.45
 # Gap as a multiple of the join tolerance. Neighbours' home rects touch, so a gap wider than the
@@ -20,13 +19,13 @@ class Result:
 
 ## offsets[i] moves home_bounds[i] to its tidy spot. cell is the average piece side;
 ## counter makes each press of the button deal a new order. tolerance is the join tolerance,
-## which the gap between clusters always exceeds.
-static func layout(home_bounds: Array[Rect2], board_size: Vector2, cell: float, seed_value: int, counter: int, tolerance := 0.0) -> Result:
+## which sets the gap between clusters.
+static func layout(home_bounds: Array[Rect2], board_size: Vector2, cell: float, seed_value: int, counter: int, tolerance: float) -> Result:
 	var result := Result.new()
 	var count := home_bounds.size()
 	if count == 0:
 		return result
-	var gap := maxf(GAP_FRACTION * cell, JOIN_CLEARANCE * tolerance)
+	var gap := JOIN_CLEARANCE * tolerance
 	var board_gap := BOARD_GAP_FRACTION * cell
 	var band := BAND_WIDTH_FRACTION * board_size.x
 

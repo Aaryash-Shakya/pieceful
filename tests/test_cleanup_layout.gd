@@ -4,6 +4,7 @@ const BOARD := Vector2(1536, 1024)
 const CELL := sqrt(1536.0 * 1024.0 / 400.0)
 
 var _cut_rects: Array[Rect2] = []
+var _tolerance := PuzzleState.tolerance_for(1536, 1024, 400)
 
 
 func _init() -> void:
@@ -22,7 +23,7 @@ func _init() -> void:
 	_test_deterministic()
 	_test_counter_and_seed_change_order()
 	_test_tidy_leaves_nothing_to_join()
-	_test_tolerance_widens_gap()
+	_test_gap_follows_tolerance()
 	finish()
 
 
@@ -41,11 +42,11 @@ func _squares(count: int) -> Array[Rect2]:
 
 
 func _run(home: Array[Rect2], seed_value := 1, counter := 0) -> CleanupLayout.Result:
-	return CleanupLayout.layout(home, BOARD, CELL, seed_value, counter)
+	return CleanupLayout.layout(home, BOARD, CELL, seed_value, counter, _tolerance)
 
 
 func _gap() -> float:
-	return CleanupLayout.GAP_FRACTION * CELL
+	return CleanupLayout.JOIN_CLEARANCE * _tolerance
 
 
 func _board_gap() -> float:
@@ -234,16 +235,17 @@ func _test_tidy_leaves_nothing_to_join() -> void:
 	check(hazards == 0, "no two neighbours in different tidied clusters are within join reach (%d found)" % hazards)
 
 
-func _test_tolerance_widens_gap() -> void:
+# The gap is set by the join tolerance alone, small or large, never by the cell.
+func _test_gap_follows_tolerance() -> void:
 	var home := _squares(10)
-	var tolerance := CELL
-	var placed := _placed(home, CleanupLayout.layout(home, BOARD, CELL, 1, 0, tolerance))
-	var narrowest := INF
-	for i in placed.size():
-		for j in range(i + 1, placed.size()):
-			var a := placed[i]
-			var b := placed[j]
-			var dx := maxf(b.position.x - a.end.x, a.position.x - b.end.x)
-			var dy := maxf(b.position.y - a.end.y, a.position.y - b.end.y)
-			narrowest = minf(narrowest, maxf(dx, dy))
-	check(narrowest >= CleanupLayout.JOIN_CLEARANCE * tolerance - 1e-3, "the gap grows past the join tolerance")
+	for tolerance in [1.0, CELL]:
+		var placed := _placed(home, CleanupLayout.layout(home, BOARD, CELL, 1, 0, tolerance))
+		var narrowest := INF
+		for i in placed.size():
+			for j in range(i + 1, placed.size()):
+				var a := placed[i]
+				var b := placed[j]
+				var dx := maxf(b.position.x - a.end.x, a.position.x - b.end.x)
+				var dy := maxf(b.position.y - a.end.y, a.position.y - b.end.y)
+				narrowest = minf(narrowest, maxf(dx, dy))
+		check(is_equal_approx(narrowest, CleanupLayout.JOIN_CLEARANCE * tolerance), "the gap is %s times a join tolerance of %s" % [CleanupLayout.JOIN_CLEARANCE, tolerance])
