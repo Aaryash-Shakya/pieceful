@@ -65,6 +65,9 @@ static func restored(pieces: Array[CutPiece], tolerance_value: float, roots: Pac
 		var group := groups[k]
 		if group.is_empty() or not group.has(roots[k]) or locked[k] > 1:
 			return empty
+		# A non-finite offset can never join or lock, so the puzzle could not be finished.
+		if not offsets[k].is_finite():
+			return empty
 		if locked[k] == 1 and offsets[k] != Vector2.ZERO:
 			return empty
 		for id in group:
@@ -87,7 +90,8 @@ static func restored(pieces: Array[CutPiece], tolerance_value: float, roots: Pac
 			state._parents[id] = root
 			state._members[id] = PackedInt32Array()
 		state._members[root] = sorted_group
-		state._offsets[root] = offsets[k]
+		# A locked offset is exactly zero, so a -0.0 from the file is not kept.
+		state._offsets[root] = Vector2.ZERO if locked[k] == 1 else offsets[k]
 		state._locked[root] = locked[k]
 		if locked[k] == 1:
 			state._locked_pieces += sorted_group.size()
