@@ -203,17 +203,25 @@ func _test_drag_does_not_generate() -> void:
 	var g := s.generations
 	check(g == 1, "a timeout generates once")
 	s.slider.drag_started.emit()
-	for i in [1, 4, 7, 2, 5]:
-		s.slider.value = i
-	check(s.preview_timer.is_stopped(), "a drag stops the timer")
-	check(s.generations == g, "a drag never generates")
-	check(s.count_label.text == "%d pieces" % s.counts[5], "the label follows the drag")
-	s.slider.drag_ended.emit(true)
-	check(not s.preview_timer.is_stopped() and s.generations == g, "a release schedules the cut")
+	s.slider.value = 1
+	check(s.generations == g and not s.preview_timer.is_stopped(), "a step right after a draw waits for the trailing timer")
+	# Pretend the interval has passed, so the next step draws at once.
+	s._last_preview_ms -= 1000
+	s.slider.value = 4
+	check(s.generations == g + 1 and s.preview_timer.is_stopped(), "a step after the interval draws at once")
+	var expected := CutPreview.outline_segments(CutGenerator.generate_cut(240, 160, s.counts[4], "regular", s.cut_seed))
+	check(s.preview.segments == expected, "the preview follows the slider during the drag")
+	s.slider.value = 7
+	check(s.generations == g + 1 and not s.preview_timer.is_stopped(), "a quick second step is held back")
 	s.preview_timer.timeout.emit()
-	check(s.generations == g + 1, "the release generates once")
-	var expected := CutPreview.outline_segments(CutGenerator.generate_cut(240, 160, s.count, "regular", s.cut_seed))
-	check(s.preview.segments == expected, "the preview is the cut for the screen's seed")
+	check(s.generations == g + 2, "the trailing timer draws the last step")
+	expected = CutPreview.outline_segments(CutGenerator.generate_cut(240, 160, s.counts[7], "regular", s.cut_seed))
+	check(s.preview.segments == expected, "the held-back step is the one drawn")
+	check(s.count_label.text == "%d pieces" % s.counts[7], "the label follows the drag")
+	s.slider.drag_ended.emit(true)
+	check(not s.preview_timer.is_stopped() and s.generations == g + 2, "a release schedules the cut")
+	s.preview_timer.timeout.emit()
+	check(s.generations == g + 3, "the release generates once")
 
 
 func _test_changes_coalesce() -> void:
