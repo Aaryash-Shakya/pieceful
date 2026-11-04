@@ -9,6 +9,8 @@ const DEFAULT_COUNT := 54
 # The slider offers about this many counts, not every valid split.
 const SLIDER_STEPS := 20
 const PREVIEW_DELAY := 0.15
+# The least time between preview redraws while the slider is being dragged.
+const DRAG_PREVIEW_INTERVAL := 0.12
 const STYLES: Array[String] = [CutGenerator.STYLE_REGULAR, CutGenerator.STYLE_IRREGULAR]
 const STYLE_NAMES := {"regular": "Regular", "irregular": "Irregular"}
 const TITLE_TEXT := "Pieceful"
@@ -68,6 +70,7 @@ var resume_label: Label
 var resume_thumb: TextureRect
 
 var _dragging := false
+var _last_preview_ms := -1000000
 var _press_at := Vector2.ZERO
 # Set on a release that travelled past TAP_SLOP, read by the pressed handler that follows it.
 var _swiped := false
@@ -368,11 +371,26 @@ func regenerate_preview() -> void:
 		return
 	preview.show_cut(CutGenerator.generate_cut(picture.width, picture.height, count, style, cut_seed))
 	generations += 1
+	_last_preview_ms = Time.get_ticks_msec()
 
 
 func _schedule_preview() -> void:
 	if picture != null:
-		preview_timer.start()
+		preview_timer.start(PREVIEW_DELAY)
+
+
+# While the slider moves the preview follows each step, but never faster than DRAG_PREVIEW_INTERVAL,
+# since a big cut costs real time on a phone. A step skipped by the limit is drawn by the trailing
+# timer, so the last step of a drag always shows.
+func _preview_while_dragging() -> void:
+	if picture == null:
+		return
+	var wait := DRAG_PREVIEW_INTERVAL - (Time.get_ticks_msec() - _last_preview_ms) / 1000.0
+	if wait <= 0.0:
+		preview_timer.stop()
+		regenerate_preview()
+	else:
+		preview_timer.start(wait)
 
 
 func _show_empty() -> void:
@@ -396,13 +414,14 @@ func _on_slider_value_changed(value: float) -> void:
 		return
 	count = counts[int(value)]
 	_update_count_labels()
-	if not _dragging:
+	if _dragging:
+		_preview_while_dragging()
+	else:
 		_schedule_preview()
 
 
 func _on_slider_drag_started() -> void:
 	_dragging = true
-	preview_timer.stop()
 
 
 func _on_slider_drag_ended(_value_changed: bool) -> void:

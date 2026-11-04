@@ -51,7 +51,7 @@ func _test_piece_drag() -> void:
 
 	_touch(0, hit[0], true)
 	check(_is_held(piece), "pressed piece is held")
-	check(pieces.get_child(pieces.get_child_count() - 1) == piece, "pressed piece moves to the top")
+	check(board.held_layer.get_child(board.held_layer.get_child_count() - 1) == piece, "pressed piece moves to the top")
 	_drag(0, hit[0] + relative, relative)
 	check(piece.position.is_equal_approx(start + relative / camera.zoom.x), "piece moves by relative over zoom")
 	_touch(0, hit[0] + relative, false)
@@ -87,7 +87,7 @@ func _test_second_finger_during_drag() -> void:
 	var dragged := piece.position
 	_touch(1, b, true)
 	check(_is_held(piece), "second finger keeps the piece held")
-	check(pieces.get_child(pieces.get_child_count() - 1) == piece, "held piece stays on top when a second finger lands")
+	check(board.held_layer.get_child(board.held_layer.get_child_count() - 1) == piece, "held piece stays on top when a second finger lands")
 	check(piece.position == dragged, "second finger landing does not move the held piece")
 	_touch(0, a, false)
 	_touch(1, b, false)
@@ -383,7 +383,7 @@ func _test_cancel_releases_piece() -> void:
 	_touch(0, hit[0], false, true)
 	_touch(1, hit[0] + Vector2(100, 0), false, true)
 	_touch(0, hit[0], true)
-	check(_is_held(pieces.get_child(pieces.get_child_count() - 1)), "first touch after a cancelled pinch picks a piece")
+	check(_is_held(board.held_layer.get_child(board.held_layer.get_child_count() - 1)), "first touch after a cancelled pinch picks a piece")
 	_touch(0, hit[0], false)
 
 

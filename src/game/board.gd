@@ -21,6 +21,8 @@ const FAR_OFFSET_FACTOR := 8
 # A stack released this close to its own slot, in screen units, goes back into it.
 const NEAR_SLOT_MARGIN := 48.0
 const GHOST_OPACITY := 0.2
+# Above the HUD (10) and below the frame counter (100).
+const HELD_LAYER := 11
 
 # HOLD_PINCHING: the dragging finger keeps its piece while it and one other finger move the camera.
 # SLOT_DRAGGING: a whole slot's stack is fanned out under one finger; other fingers are ignored.
@@ -35,6 +37,8 @@ signal puzzle_completed
 signal slots_changed
 ## A cluster or a whole stack went into a slot, with this many pieces. Not emitted for a system release.
 signal stashed(piece_count: int)
+## The slot that releasing the held pieces now would put them in, or -1 for none.
+signal slot_hover_changed(slot: int)
 signal ghost_changed(on: bool)
 ## The player asked to leave the board, by Home or back. The game is already saved.
 signal home_requested
@@ -64,6 +68,8 @@ var locked_pieces: Node2D
 var pieces: Node2D
 ## The whole picture at low opacity over the board, under the pieces.
 var ghost_sprite: Sprite2D
+## Where the pieces under a finger live while held, above the HUD.
+var held_layer: CanvasLayer
 ## Holds the nodes of pieces that sit in a slot. Hidden, and never searched by piece_at.
 var stash: Node2D
 ## The four slots' screen rectangles, set by the HUD's tray. The board hit-tests them from raw touches.
@@ -93,6 +99,7 @@ var _held_screen := Vector2.ZERO
 # The stack taken out of a slot: cluster roots, the slot it came from, and their home rectangles.
 var _slot_held := PackedInt32Array()
 var _slot_held_from := -1
+var _hover_slot := -1
 var _slot_held_rects: Array[Rect2] = []
 var _pinch_a := -1
 var _pinch_b := -1
@@ -148,6 +155,13 @@ func _ready() -> void:
 	pieces = Node2D.new()
 	pieces.name = "Pieces"
 	add_child(pieces)
+	# Held pieces ride a layer above the HUD, so a lifted piece is drawn over the slot tray. Following the
+	# viewport keeps that layer in world space, under the camera.
+	held_layer = CanvasLayer.new()
+	held_layer.name = "HeldLayer"
+	held_layer.layer = HELD_LAYER
+	held_layer.follow_viewport_enabled = true
+	add_child(held_layer)
 	stash = Node2D.new()
 	stash.name = "Stash"
 	stash.visible = false
@@ -388,7 +402,8 @@ func snapshot() -> SaveGame.Snapshot:
 	var s := SaveGame.Snapshot.new()
 	s.puzzle = puzzle
 	s.clusters = SaveGame.clusters_of(state)
-	for child in pieces.get_children():
+	# A piece held right now is still a loose piece, drawn last.
+	for child in pieces.get_children() + held_layer.get_children():
 		s.loose_order.append((child as PieceNode).piece_id)
 	s.slots = SaveGame.slots_of(state)
 	s.elapsed = elapsed
@@ -590,6 +605,7 @@ func _begin_single(index: int, screen_position: Vector2) -> void:
 	_raise(_held_nodes)
 	for node in _held_nodes:
 		node.set_held(true)
+		node.reparent(held_layer, false)
 	_drag_index = index
 	_held_screen = screen_position
 	_held_offset = state.offset_of(_held_root) - world
@@ -617,7 +633,7 @@ func _begin_slot_drag(index: int, slot: int, screen_position: Vector2) -> void:
 		piece_total += state.members(root).size()
 		for id in state.members(root):
 			var node := _nodes[id]
-			node.reparent(pieces, false)
+			node.reparent(held_layer, false)
 			node.set_held(true)
 	_drag_index = index
 	_held_screen = screen_position
@@ -655,6 +671,10 @@ func _follow_held() -> void:
 	if not _slot_held.is_empty():
 		_held_screen = _touches[_drag_index]
 		_place_stack(SlotSpread.fan(_slot_held_rects, _to_world(_held_screen)))
+		var over := slot_at(_held_screen)
+		var near_home := _slot_held_from >= 0 and _slot_held_from < slot_rects.size() \
+				and slot_rects[_slot_held_from].grow(NEAR_SLOT_MARGIN).has_point(_held_screen)
+		_set_hover(over if over != -1 else (_slot_held_from if near_home else -1))
 		return
 	if _held_root == -1:
 		return
@@ -663,6 +683,15 @@ func _follow_held() -> void:
 	state.move_cluster(_held_root, offset)
 	for node in _held_nodes:
 		node.position = offset
+	_set_hover(slot_at(_held_screen))
+
+
+# The slot that letting go now would put the held pieces into, or -1. The tray lights it up.
+func _set_hover(slot: int) -> void:
+	if slot == _hover_slot:
+		return
+	_hover_slot = slot
+	slot_hover_changed.emit(slot)
 
 
 func _cancel_gesture() -> void:
@@ -678,6 +707,7 @@ func _end_gesture() -> void:
 # Every release is a drop, however the finger went away, so the cluster always settles.
 func _release_held() -> void:
 	_drag_index = -1
+	_set_hover(-1)
 	if not _slot_held.is_empty():
 		_release_stack()
 		return
@@ -695,6 +725,9 @@ func _release_held() -> void:
 		slots_changed.emit()
 		save_game()
 		return
+	# Back on the table, last in draw order, where the lift left them.
+	for node in _held_nodes:
+		node.reparent(pieces, false)
 	var result := state.drop(_held_root)
 	_held_root = -1
 	_held_nodes.clear()
@@ -744,6 +777,7 @@ func _release_stack() -> void:
 			for id in state.members(roots[k]):
 				_nodes[id].position = offsets[k]
 				_nodes[id].set_held(false)
+				_nodes[id].reparent(pieces, false)
 		# Each cluster settles as a normal drop, so one that lands on its place locks.
 		for root in roots:
 			_settle(state.drop(root))
