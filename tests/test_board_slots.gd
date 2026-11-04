@@ -15,6 +15,7 @@ func _init() -> void:
 	_test_release_away_spreads()
 	_test_system_release_returns_the_stack()
 	_test_tidy_skips_slotted()
+	_test_held_pieces_ride_above_the_tray_and_light_the_slot()
 	await _test_save_and_resume()
 	finish()
 
@@ -63,7 +64,7 @@ func _test_stack_comes_out_whole_and_returns() -> void:
 	var home := _slot_center(1)
 	_touch(0, home, true)
 	check(board.state.slot_piece_count(1) == 0, "touching the slot takes the whole stack out")
-	check(board.node_for(0).get_parent() == board.pieces and board.node_for(1).get_parent() == board.pieces, "both pieces are on the table")
+	check(board.node_for(0).get_parent() == board.held_layer and board.node_for(1).get_parent() == board.held_layer, "both pieces are lifted above the tray")
 	check(_is_held(board.node_for(0)) and _is_held(board.node_for(1)), "the stack is lifted")
 	var finger := home + Vector2(0, -200)
 	_drag(0, finger, Vector2(0, -200))
@@ -126,3 +127,25 @@ func _test_save_and_resume() -> void:
 	check(board.state.slot_of(2) == 3 and board.state.slot_piece_count(3) == 1, "resume restores the slot")
 	check(board.node_for(2).get_parent() == board.stash, "resume hides the slotted piece")
 	check(board.pieces.get_child_count() + board.locked_pieces.get_child_count() + board.stash.get_child_count() == board.cut.size(), "every piece is in exactly one layer")
+
+
+func _test_held_pieces_ride_above_the_tray_and_light_the_slot() -> void:
+	var hovers: Array[int] = []
+	board.slot_hover_changed.connect(func(s: int) -> void: hovers.append(s))
+	var tray := (board.get_node("Hud") as Hud).slot_tray
+	var node := board.node_for(5)
+	var s := _grab_point(node)
+	_touch(0, s, true)
+	check(node.get_parent() == board.held_layer, "a lifted piece is on the layer above the HUD")
+	check(board.held_layer.layer > (board.get_node("Hud") as CanvasLayer).layer, "that layer is above the HUD")
+	check(board.held_layer.follow_viewport_enabled, "and it follows the camera")
+	var target := board.slot_rects[2].get_center()
+	_drag(0, target, target - s)
+	check(hovers == [2] and tray.hover == 2, "dragging over slot 2 lights it: %s" % [hovers])
+	_drag(0, _table_spot(), Vector2.ZERO)
+	check(hovers == [2, -1] and tray.hover == -1, "leaving the slot turns the glow off")
+	# A save while a piece is held still lists it as loose.
+	check(SaveGame.loose_order_valid(board.snapshot().loose_order, board.state), "a save mid-hold is valid")
+	_touch(0, _table_spot(), false)
+	check(node.get_parent() == board.pieces and board.pieces.get_child(board.pieces.get_child_count() - 1) == node, "a dropped piece goes back on the table, on top")
+	check(hovers == [2, -1], "letting go off the slots adds no hover change")

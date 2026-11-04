@@ -9,6 +9,8 @@ const GAP := 12.0
 const MARGIN_SIDE := 16.0
 const MARGIN_BOTTOM := 24.0
 const BORDER_WIDTH := 2.0
+const HOVER_BORDER_WIDTH := 4.0
+const HOVER_TINT := 0.28
 const INNER_PADDING := 6.0
 # Fraction of its grid cell a shrunk cluster fills, so neighbours do not touch.
 const CELL_FILL := 0.92
@@ -23,6 +25,8 @@ const BADGE_INSET := 4.0
 var board: Board
 var rects: Array[Rect2] = []
 var counts := PackedInt32Array([0, 0, 0, 0])
+## The slot a release would put the held pieces in, or -1.
+var hover := -1
 var _badges: Array[Label] = []
 var _minis: Array[Node2D] = []
 
@@ -84,11 +88,16 @@ func _ready() -> void:
 
 # Safe to repeat and to re-point, as Hud.attach is.
 func attach(target: Board) -> void:
-	if board != null and board != target and board.slots_changed.is_connected(refresh):
-		board.slots_changed.disconnect(refresh)
+	if board != null and board != target:
+		if board.slots_changed.is_connected(refresh):
+			board.slots_changed.disconnect(refresh)
+		if board.slot_hover_changed.is_connected(_on_hover):
+			board.slot_hover_changed.disconnect(_on_hover)
 	board = target
 	if not board.slots_changed.is_connected(refresh):
 		board.slots_changed.connect(refresh)
+	if not board.slot_hover_changed.is_connected(_on_hover):
+		board.slot_hover_changed.connect(_on_hover)
 	board.slot_rects = rects
 	refresh()
 
@@ -167,12 +176,19 @@ func _layout() -> void:
 	queue_redraw()
 
 
+func _on_hover(slot: int) -> void:
+	hover = slot
+	queue_redraw()
+
+
 func _draw() -> void:
 	for s in rects.size():
 		var filled := counts[s] > 0
+		var target := s == hover
 		var box := StyleBoxFlat.new()
-		box.bg_color = Palette.surface(true)
-		box.border_color = Palette.accent() if filled else Palette.lines(true)
-		box.set_border_width_all(int(BORDER_WIDTH))
+		# The slot a release would fill glows in the accent colour with a thick border.
+		box.bg_color = Palette.surface(true).lerp(Palette.accent(), HOVER_TINT) if target else Palette.surface(true)
+		box.border_color = Palette.accent() if filled or target else Palette.lines(true)
+		box.set_border_width_all(int(HOVER_BORDER_WIDTH if target else BORDER_WIDTH))
 		box.set_corner_radius_all(UiTheme.OPTION_RADIUS)
 		draw_style_box(box, rects[s])

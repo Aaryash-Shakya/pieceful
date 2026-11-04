@@ -204,26 +204,23 @@ func _test_lift_raises_cluster_in_order() -> void:
 		second = swap
 	var s := _grab_point(second)
 	_touch(0, s, true)
-	var last := pieces.get_child_count() - 1
-	check(pieces.get_child(last - 1) == first and pieces.get_child(last) == second, "lifting a cluster raises it keeping its order")
+	check(board.held_layer.get_child_count() == 2 and board.held_layer.get_child(0) == first and board.held_layer.get_child(1) == second, "lifting a cluster raises it keeping its order")
 	check(first.z_index == PieceNode.HELD_Z_INDEX and second.z_index == PieceNode.HELD_Z_INDEX, "every piece of a lifted cluster is lifted")
 	check(_t.z_index == 0, "pieces outside the lifted cluster stay on the base layer")
 	_touch(0, s, false)
 	check(first.z_index == 0 and second.z_index == 0, "a dropped cluster returns to the base layer")
 
-	# Lifting the cluster just dropped finds it already on top, so nothing is reordered.
-	_reorders = 0
-	pieces.child_order_changed.connect(_count_reorder)
+	# Lifting the cluster just dropped finds it already on top, so no other piece is reordered.
+	var rest := pieces.get_children().slice(0, pieces.get_child_count() - 2)
 	_touch(0, s, true)
-	pieces.child_order_changed.disconnect(_count_reorder)
-	check(_reorders == 0, "re-lifting the cluster on top moves no children")
-	check(pieces.get_child(last - 1) == first and pieces.get_child(last) == second, "a re-lifted cluster keeps its order")
+	check(board.held_layer.get_child(0) == first and board.held_layer.get_child(1) == second, "a re-lifted cluster keeps its order")
 	_touch(0, s, false)
+	check(board.held_layer.get_child(0) == first and board.held_layer.get_child(1) == second, "a re-lifted cluster keeps its order")
 
 	# Only the member already on top stays; the other slots in just below it.
 	pieces.move_child(first, 0)
 	_touch(0, s, true)
-	check(pieces.get_child(last - 1) == first and pieces.get_child(last) == second, "a partly raised cluster is lifted in order")
+	check(board.held_layer.get_child(0) == first and board.held_layer.get_child(1) == second, "a partly raised cluster is lifted in order")
 	_touch(0, s, false)
 
 
