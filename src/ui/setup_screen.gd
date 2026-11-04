@@ -6,6 +6,8 @@ extends Control
 const SCENE := "res://src/ui/setup_screen.tscn"
 const BOARD_SCENE := "res://src/game/board.tscn"
 const DEFAULT_COUNT := 54
+# The slider offers about this many counts, not every valid split.
+const SLIDER_STEPS := 20
 const PREVIEW_DELAY := 0.15
 const STYLES: Array[String] = [CutGenerator.STYLE_REGULAR, CutGenerator.STYLE_IRREGULAR]
 const STYLE_NAMES := {"regular": "Regular", "irregular": "Irregular"}
@@ -85,6 +87,22 @@ var _choice_rows: Array[Control] = []
 
 static func fresh_seed(unix_ms: int, ticks_usec: int) -> int:
 	return SeededRng.hash2(unix_ms, ticks_usec)
+
+
+## About `steps` of the valid counts, evenly spaced on a log scale from the smallest to the largest,
+## so each slider step is a similar jump in difficulty. Every returned count is a valid split.
+static func step_counts(options: PackedInt32Array, steps: int) -> PackedInt32Array:
+	if options.size() <= steps or steps < 2:
+		return options
+	var first := float(options[0])
+	var last := float(options[options.size() - 1])
+	var result := PackedInt32Array()
+	for k in steps:
+		var target := roundi(first * pow(last / first, float(k) / (steps - 1)))
+		var pick := nearest_count(options, target)
+		if result.is_empty() or result[result.size() - 1] != pick:
+			result.append(pick)
+	return result
 
 
 static func nearest_count(options: PackedInt32Array, target: int) -> int:
@@ -325,7 +343,7 @@ func select_picture(index: int) -> void:
 
 	picture = candidate
 	chosen_texture = texture
-	counts = CutGenerator.valid_counts(picture.width, picture.height, Collection.MIN_COUNT, Collection.MAX_COUNT)
+	counts = step_counts(CutGenerator.valid_counts(picture.width, picture.height, Collection.MIN_COUNT, Collection.MAX_COUNT), SLIDER_STEPS)
 	var target := nearest_count(counts, count)
 	slider.min_value = 0
 	slider.max_value = counts.size() - 1
