@@ -16,6 +16,7 @@ func _init() -> void:
 	_test_settings_button()
 	await _test_layout()
 	_test_slider_offers_valid_counts()
+	_test_step_counts()
 	_test_drag_does_not_generate()
 	await _test_changes_coalesce()
 	_test_picture_change_keeps_nearest()
@@ -185,7 +186,7 @@ func _test_touch() -> void:
 
 func _test_slider_offers_valid_counts() -> void:
 	var s := _open()
-	check(s.counts == CutGenerator.valid_counts(240, 160, 12, 400), "the slider offers the valid counts")
+	check(s.counts == SetupScreen.step_counts(CutGenerator.valid_counts(240, 160, 12, 400), SetupScreen.SLIDER_STEPS), "the slider offers the stepped counts")
 	check(s.slider.min_value == 0 and s.slider.max_value == s.counts.size() - 1 and s.slider.step == 1, "the slider is an index")
 	var all_match := true
 	for i in s.counts.size():
@@ -239,8 +240,8 @@ func _test_picture_change_keeps_nearest() -> void:
 	check(SetupScreen.nearest_count(PackedInt32Array([16, 25]), 400) == 25, "beyond the range gives the largest")
 	var s := _open()
 	check(s.count == 54, "precondition: 54")
-	var square := CutGenerator.valid_counts(240, 240, 12, 400)
-	check(not square.has(54), "precondition: 54 is not a square count")
+	var square := SetupScreen.step_counts(CutGenerator.valid_counts(240, 240, 12, 400), SetupScreen.SLIDER_STEPS)
+	check(not CutGenerator.valid_counts(240, 240, 12, 400).has(54), "precondition: 54 is not a square count")
 	s.preview_timer.timeout.emit()
 	s.select_picture(2)
 	check(s.picture.id == "fixture-tide-stripes" and s.picture_buttons[2].button_pressed, "the square picture is chosen")
@@ -249,7 +250,7 @@ func _test_picture_change_keeps_nearest() -> void:
 	check(s.counts[int(s.slider.value)] == s.count, "the slider points at the count")
 	check(s.preview.segments.is_empty() and s.preview.image_size == Vector2i(240, 240), "the new picture shows without lines")
 	s.select_picture(0)
-	var wide := CutGenerator.valid_counts(240, 160, 12, 400)
+	var wide := SetupScreen.step_counts(CutGenerator.valid_counts(240, 160, 12, 400), SetupScreen.SLIDER_STEPS)
 	check(s.count == SetupScreen.nearest_count(wide, kept), "going back keeps the nearest count")
 	check(s.picture_buttons[0].button_pressed and not s.picture_buttons[2].button_pressed, "one tile pressed at a time")
 
@@ -385,7 +386,7 @@ func _test_picker_switches_collections() -> void:
 	check(s.pictures.size() == 6 and s.picture_buttons.size() == 6, "the strip shows the new pictures")
 	check(s.picture_buttons[0].button_pressed and s.picture_buttons[0] != stale, "the first tile is pressed")
 	check(s._strip.get_child_count() == s.picture_buttons.size(), "no tile is left behind")
-	check(s.count == 54 and s.counts == CutGenerator.valid_counts(240, 160, 12, 400), "the count carries over")
+	check(s.count == 54 and s.counts == SetupScreen.step_counts(CutGenerator.valid_counts(240, 160, 12, 400), SetupScreen.SLIDER_STEPS), "the count carries over")
 	check(s.picture_label.text == "Ember Rings", "the label follows")
 	check(not s.preview_timer.is_stopped(), "the cut is previewed again")
 
@@ -438,3 +439,18 @@ func _test_settings_button() -> void:
 	check(s.settings_sheet.visible, "the Settings button shows the sheet")
 	s.settings_button.pressed.emit()
 	check(not s.settings_sheet.visible, "pressing it again hides the sheet")
+
+
+func _test_step_counts() -> void:
+	for size in [Vector2i(240, 160), Vector2i(240, 240), Vector2i(160, 240), Vector2i(320, 180)]:
+		var valid := CutGenerator.valid_counts(size.x, size.y, 12, 400)
+		var steps := SetupScreen.step_counts(valid, 20)
+		check(steps.size() >= 12 and steps.size() <= 20, "%s: about 20 steps, got %d" % [size, steps.size()])
+		check(steps[0] == valid[0] and steps[steps.size() - 1] == valid[valid.size() - 1], "%s: the ends are kept" % [size])
+		var ok := true
+		for i in steps.size():
+			ok = ok and valid.has(steps[i]) and (i == 0 or steps[i] > steps[i - 1])
+		check(ok, "%s: every step is a valid count, ascending, no repeats" % [size])
+		check(SetupScreen.step_counts(steps, 20) == steps, "%s: thinning twice changes nothing" % [size])
+	var few := PackedInt32Array([12, 16, 25])
+	check(SetupScreen.step_counts(few, 20) == few, "a short list is kept whole")
