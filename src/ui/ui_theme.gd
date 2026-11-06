@@ -164,10 +164,11 @@ static func _flat(color: Color, radius: int) -> StyleBoxFlat:
 static func _rounded_tile(tile_size: Vector2i, radius: int, color: Color) -> ImageTexture:
 	var image := Image.create(tile_size.x, tile_size.y, false, Image.FORMAT_RGBA8)
 	image.fill(color)
+	# The radius is capped at half the short side so a high roundness gives a pill, not a lopsided blob.
 	# At radius 0 the coverage maths below would leave the corner pixels half clear.
 	if radius <= 0:
 		return ImageTexture.create_from_image(image)
-	var r := float(radius)
+	var r := float(mini(radius, mini(tile_size.x, tile_size.y) / 2))
 	for y in tile_size.y:
 		for x in tile_size.x:
 			var p := Vector2(x + 0.5, y + 0.5)

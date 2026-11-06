@@ -15,6 +15,7 @@ func _init() -> void:
 	_test_roundness_zero()
 	_test_roundness_max()
 	_test_roundness_max_keeps_footprint()
+	_test_grabber_pill_at_high_roundness()
 	_test_roundness_default()
 	finish()
 
@@ -192,6 +193,17 @@ func _test_roundness_max_keeps_footprint() -> void:
 	var n := t.get_stylebox("normal", "Button") as StyleBoxFlat
 	var p := t.get_stylebox("pressed", "Button") as StyleBoxFlat
 	check(p.content_margin_top + p.content_margin_bottom == n.content_margin_top + n.content_margin_bottom, "max roundness pressed keeps height")
+
+
+func _test_grabber_pill_at_high_roundness() -> void:
+	var image := UiTheme.build(false, 250).get_icon("grabber", "HSlider").get_image()
+	var symmetric := true
+	for y in 15:
+		for x in 44:
+			symmetric = symmetric and is_equal_approx(image.get_pixel(x, y).a, image.get_pixel(x, 29 - y).a)
+	check(symmetric, "high roundness grabber is symmetric top to bottom")
+	check(image.get_pixel(22, 15).is_equal_approx(Palette.accent(false)), "high roundness grabber centre is the accent")
+	check(image.get_pixel(0, 0).a == 0.0 and image.get_pixel(43, 29).a == 0.0, "high roundness grabber corners are clear")
 
 
 func _test_roundness_default() -> void:
