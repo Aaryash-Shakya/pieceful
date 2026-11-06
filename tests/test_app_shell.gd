@@ -63,6 +63,8 @@ func _test_push_pop() -> void:
 	check(shell.depth() == 2 and shell.top() == second, "push adds a screen")
 	check(not home.is_inside_tree() and is_instance_valid(home), "the pushed-over screen is out of the tree but kept")
 	check(shell.pop(), "pop returns true above the root")
+	check(second.get_parent() == null, "the popped screen leaves the shell at once")
+	check(shell.get_child_count() == 1, "only the restored screen is a child right after pop")
 	check(not is_instance_valid(second) or second.is_queued_for_deletion(), "the popped screen is freed")
 	check(home.is_inside_tree() and shell.top() == home, "home is back")
 	await process_frame
@@ -91,6 +93,7 @@ func _test_replace_frees_old() -> void:
 	var next := Control.new()
 	shell.replace(next)
 	check(shell.depth() == 1 and shell.top() == next, "replace keeps the depth")
+	check(not home.is_inside_tree() and shell.get_child_count() == 1, "only the new screen is a child before the frame ends")
 	await process_frame
 	check(not is_instance_valid(home), "the replaced screen is freed")
 	check(shell.get_child_count() == 1, "one screen child remains")

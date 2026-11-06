@@ -34,7 +34,10 @@ func push(screen: Node) -> void:
 func pop() -> bool:
 	if _stack.size() < 2:
 		return false
-	_stack.pop_back().queue_free()
+	# Out of the tree first, like replace(), so only the top screen is ever a child.
+	var old: Node = _stack.pop_back()
+	remove_child(old)
+	old.queue_free()
 	add_child(_stack.back())
 	return true
 
