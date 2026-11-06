@@ -21,6 +21,8 @@ const FAR_OFFSET_FACTOR := 8
 # A stack released this close to its own slot, in screen units, goes back into it.
 const NEAR_SLOT_MARGIN := 48.0
 const GHOST_OPACITY := 0.2
+# Drags are noted at most this often, so the trace keeps the presses and releases around them.
+const DRAG_TRACE_INTERVAL := 0.3
 # Above the HUD (10) and below the frame counter (100).
 const HELD_LAYER := 11
 
@@ -113,6 +115,14 @@ var _save_writes := 0
 # Set when the caller's puzzle could not start and the test puzzle stands in for it.
 var _saving_disabled := false
 var _going_home := false
+## The last touch events with the board's mode beside each, so a stuck gesture can be read back
+## from a phone. Saved to trace_path when a finger goes silent while another one is moving.
+var trace := GestureTrace.new()
+var trace_path := "user://gesture_trace.txt"
+# When each finger that is down last sent anything, in seconds, by finger index.
+var _last_seen := {}
+var _stale_noted := PackedInt32Array()
+var _last_drag_note := -1.0
 
 
 func _ready() -> void:
@@ -183,6 +193,11 @@ func _ready() -> void:
 	camera.name = "Camera"
 	add_child(camera)
 	_apply_image_size()
+	if OS.is_debug_build():
+		var overlay := GestureOverlay.new()
+		overlay.name = "GestureOverlay"
+		overlay.board = self
+		add_child(overlay)
 	# A chosen puzzle is the player's game from its first frame, so it replaces any older save now.
 	if from_caller:
 		save_game()
@@ -435,6 +450,7 @@ func save_game() -> bool:
 func _process(delta: float) -> void:
 	if _focused and not state.is_complete():
 		elapsed += minf(delta, ELAPSED_STEP_LIMIT)
+	_check_stale_fingers()
 	if _mode != Mode.DRAGGING:
 		return
 	var velocity := CameraRig.edge_pan_velocity(_touches[_drag_index], get_viewport_rect().size, EDGE_PAN_MARGIN, EDGE_PAN_SPEED)
@@ -494,7 +510,52 @@ func _unhandled_input(event: InputEvent) -> void:
 		_on_wheel(event)
 
 
+## The overlay text: the mode, how long each finger has been silent, and the held and locked counts.
+func gesture_report() -> String:
+	return GestureTrace.report(Mode.keys()[_mode], _last_seen, _now(), _held_nodes.size(), state.locked_piece_count())
+
+
+## True while a finger has been noted as silent beside a moving one.
+func has_stale_finger() -> bool:
+	return not _stale_noted.is_empty()
+
+
+func _now() -> float:
+	return Time.get_ticks_msec() / 1000.0
+
+
+# A finger silent for seconds beside a moving one may have lost its release, and the board would then
+# read every new touch as a second finger. Noted once, and the trace is saved while it is fresh.
+func _check_stale_fingers() -> void:
+	if _last_seen.size() < 2:
+		_stale_noted.clear()
+		return
+	var stale := GestureTrace.stale_fingers(_last_seen, _now())
+	if stale == _stale_noted:
+		return
+	_stale_noted = stale
+	if stale.is_empty():
+		return
+	var names: PackedStringArray = []
+	for index in stale:
+		names.append("#%d" % index)
+	trace.record(_now(), "STALE %s silent while another finger moves, mode %s" % [" ".join(names), Mode.keys()[_mode]])
+	trace.save_to(trace_path)
+
+
 func _on_touch(event: InputEventScreenTouch) -> void:
+	if event.canceled:
+		_last_seen.clear()
+	elif event.pressed:
+		_last_seen[event.index] = _now()
+	else:
+		_last_seen.erase(event.index)
+	_handle_touch(event)
+	var kind := "cancel" if event.canceled else ("press" if event.pressed else "release")
+	trace.record(_now(), GestureTrace.describe(kind, event.index, event.position, Mode.keys()[_mode], _touches.size()))
+
+
+func _handle_touch(event: InputEventScreenTouch) -> void:
 	if event.canceled:
 		# The system took the gesture (a notification pulled down, say), so every finger is gone.
 		_cancel_gesture()
@@ -544,6 +605,11 @@ func _on_drag(event: InputEventScreenDrag) -> void:
 	if not _touches.has(event.index):
 		return
 	_touches[event.index] = event.position
+	var now := _now()
+	_last_seen[event.index] = now
+	if now - _last_drag_note >= DRAG_TRACE_INTERVAL:
+		_last_drag_note = now
+		trace.record(now, GestureTrace.describe("drag", event.index, event.position, Mode.keys()[_mode], _touches.size()))
 	match _mode:
 		Mode.DRAGGING, Mode.SLOT_DRAGGING:
 			if event.index == _drag_index:
