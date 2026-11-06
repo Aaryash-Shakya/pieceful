@@ -21,6 +21,10 @@ const FAR_OFFSET_FACTOR := 8
 # A stack released this close to its own slot, in screen units, goes back into it.
 const NEAR_SLOT_MARGIN := 48.0
 const GHOST_OPACITY := 0.2
+# Outlines are never thinner than this on screen, so zoomed out they stay a clear line, not a sub-pixel one.
+const MIN_LINE_PIXELS := 1.5
+# A zoom step has to change the wanted width by this fraction before the outlines are rebuilt.
+const LINE_WIDTH_STEP := 0.15
 # Drags are noted at most this often, so the trace keeps the presses and releases around them.
 const DRAG_TRACE_INTERVAL := 0.3
 # Above the HUD (10) and below the frame counter (100).
@@ -123,6 +127,7 @@ var trace_path := "user://gesture_trace.txt"
 var _last_seen := {}
 var _stale_noted := PackedInt32Array()
 var _last_drag_note := -1.0
+var _line_width := PieceNode.OUTLINE_WIDTH
 
 
 func _ready() -> void:
@@ -309,6 +314,7 @@ func _apply_image_size() -> void:
 	camera.position = size / 2.0
 	var fit := get_viewport_rect().size.x / (size.x * BORDER)
 	camera.zoom = Vector2(fit, fit)
+	_refresh_line_width()
 	queue_redraw()
 
 
@@ -894,12 +900,25 @@ func _raise(nodes: Array[PieceNode]) -> void:
 		pieces.move_child(nodes[k], slot)
 
 
+# Rebuilding 400 outlines costs, so only a real change in the wanted width does it.
+func _refresh_line_width() -> void:
+	var wanted := maxf(PieceNode.OUTLINE_WIDTH, MIN_LINE_PIXELS / camera.zoom.x)
+	# Back at the normal width always lands exactly on it, whatever the last step was.
+	var back_to_normal := wanted == PieceNode.OUTLINE_WIDTH and _line_width != wanted
+	if absf(wanted - _line_width) < _line_width * LINE_WIDTH_STEP and not back_to_normal:
+		return
+	_line_width = wanted
+	for node in _nodes:
+		node.set_outline_width(wanted)
+
+
 func _zoom_about(zoom: float, screen_anchor: Vector2) -> void:
 	var new_zoom := CameraRig.clamp_zoom(zoom)
 	var anchor_offset := screen_anchor - get_viewport_rect().size / 2.0
 	camera.position = CameraRig.zoom_about(camera.position, camera.zoom.x, new_zoom, anchor_offset)
 	camera.zoom = Vector2(new_zoom, new_zoom)
 	_set_camera_position(camera.position)
+	_refresh_line_width()
 
 
 func _set_camera_position(target: Vector2) -> void:

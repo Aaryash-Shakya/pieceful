@@ -14,6 +14,7 @@ var piece_id: int
 
 var _outline: PackedVector2Array
 var _shadow: Polygon2D
+var _line: Line2D
 
 
 func setup(piece: CutPiece, texture: Texture2D, outline_color: Color) -> void:
@@ -35,13 +36,22 @@ func setup(piece: CutPiece, texture: Texture2D, outline_color: Color) -> void:
 	body.texture = texture
 	add_child(body)
 
-	var line := Line2D.new()
-	line.points = _outline
-	line.closed = true
-	line.width = OUTLINE_WIDTH
-	line.default_color = Color(outline_color, 0.8)
-	line.antialiased = true
-	add_child(line)
+	_line = Line2D.new()
+	_line.points = _outline
+	_line.closed = true
+	_line.width = OUTLINE_WIDTH
+	_line.default_color = Color(outline_color, 0.8)
+	_line.antialiased = true
+	add_child(_line)
+
+
+## The board widens outlines when zoomed far out, so a cut stays a visible line on screen.
+func set_outline_width(width: float) -> void:
+	_line.width = width
+
+
+func outline_width() -> float:
+	return _line.width
 
 
 func contains_point(world_point: Vector2) -> bool:
