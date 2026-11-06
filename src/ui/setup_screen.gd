@@ -141,7 +141,7 @@ static func open(tree: SceneTree, path: String, source: Collection) -> SetupScre
 	var screen := (load(SCENE) as PackedScene).instantiate() as SetupScreen
 	screen.save_path = path
 	screen.collection = source
-	tree.change_scene_to_node(screen)
+	AppShell.present(tree, screen)
 	return screen
 
 
@@ -273,7 +273,7 @@ func _launch(puzzle: SaveGame.Puzzle, resume_save: bool) -> Board:
 	var tree := get_tree()
 	# Static and bound to values, so it never reaches this screen, which is freed by then.
 	board.home_requested.connect(SetupScreen.return_from_board.bind(tree, save_path, collection, quit_app))
-	tree.change_scene_to_node(board)
+	AppShell.present(tree, board)
 	return board
 
 

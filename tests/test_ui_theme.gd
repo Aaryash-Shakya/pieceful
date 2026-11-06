@@ -2,6 +2,7 @@ extends "res://tests/base_test.gd"
 
 
 func _init() -> void:
+	await process_frame
 	_test_font_files()
 	_test_font_licence()
 	_test_fonts_ship()
@@ -10,7 +11,14 @@ func _init() -> void:
 	_test_theme(true)
 	_test_modes_differ()
 	_test_option_and_slider()
+	await _test_nav_button_inherits_option()
 	_test_setup_styles()
+	_test_scaled()
+	_test_roundness_zero()
+	_test_roundness_max()
+	_test_roundness_max_keeps_footprint()
+	_test_grabber_pill_at_high_roundness()
+	_test_roundness_default()
 	finish()
 
 
@@ -140,6 +148,16 @@ func _test_option_and_slider() -> void:
 		check(t.get_color("font_color", UiTheme.OPTION) == Palette.text(dark), tag + "option text")
 		check(t.get_color("font_pressed_color", UiTheme.OPTION) == Palette.text_on_accent(dark), tag + "option pressed text")
 
+		var nav := t.get_stylebox("panel", UiTheme.NAV) as StyleBoxFlat
+		check(nav != null and nav.bg_color == Palette.surface(dark) and nav.border_color == Palette.lines(dark), tag + "nav panel fill and line")
+		check(nav != null and nav.get_content_margin(SIDE_LEFT) == 5 and nav.corner_radius_top_left == 28, tag + "nav margin and radius")
+		# Picture thumbnails use plain Option, so it must not tint their icons.
+		check(not t.has_color("icon_normal_color", UiTheme.OPTION), tag + "option icon is untinted")
+		check(not t.has_color("icon_pressed_color", UiTheme.OPTION), tag + "option pressed icon is untinted")
+		check(t.get_type_variation_base(UiTheme.NAV_BUTTON) == UiTheme.OPTION, tag + "nav button base is Option")
+		check(t.get_color("icon_normal_color", UiTheme.NAV_BUTTON) == Palette.text(dark), tag + "nav button icon tint")
+		check(t.get_color("icon_pressed_color", UiTheme.NAV_BUTTON) == Palette.text_on_accent(dark), tag + "nav button pressed icon tint")
+
 		var grabber := t.get_icon("grabber", "HSlider")
 		check(grabber != null and grabber.get_size() == Vector2(44, 30), tag + "grabber size")
 		if grabber != null:
@@ -150,6 +168,59 @@ func _test_option_and_slider() -> void:
 		check(area != null and area.bg_color == Palette.accent(dark), tag + "slider fill is the accent")
 		var track := t.get_stylebox("slider", "HSlider") as StyleBoxFlat
 		check(track != null and track.bg_color == Palette.raised_surface(dark), tag + "slider track")
+
+
+func _radius(t: Theme, name: String, type: StringName) -> int:
+	return (t.get_stylebox(name, type) as StyleBoxFlat).corner_radius_top_left
+
+
+func _test_scaled() -> void:
+	check(UiTheme.scaled(8, 100) == 8, "scaled keeps the base at 100")
+	check(UiTheme.scaled(8, 0) == 0, "scaled reaches 0")
+	check(UiTheme.scaled(10, 250) == 25, "scaled at 250")
+	check(UiTheme.scaled(9, 150) == 14, "scaled rounds")
+
+
+func _test_roundness_zero() -> void:
+	var t := UiTheme.build(false, 0)
+	check(_radius(t, "normal", "Button") == 0, "zero button radius")
+	check(_radius(t, "panel", "PanelContainer") == 0, "zero panel radius")
+	check(_radius(t, "panel", UiTheme.SHEET) == 0, "zero sheet radius")
+	check(_radius(t, "normal", UiTheme.OPTION) == 0, "zero option radius")
+	check(_radius(t, "pressed", UiTheme.OPTION) == 0, "zero option pressed radius")
+	check(_radius(t, "slider", "HSlider") == 0, "zero slider track radius")
+	check(t.get_icon("grabber", "HSlider").get_image().get_pixel(0, 0).a == 1.0, "zero grabber is a solid tile")
+
+
+func _test_roundness_max() -> void:
+	var t := UiTheme.build(false, 250)
+	check(_radius(t, "normal", "Button") == 20, "max button radius")
+	check(_radius(t, "panel", "PanelContainer") == 25, "max panel radius")
+	check(_radius(t, "panel", UiTheme.SHEET) == 35, "max sheet radius")
+	check(_radius(t, "normal", UiTheme.OPTION) == 23, "max option radius")
+
+
+func _test_roundness_max_keeps_footprint() -> void:
+	var t := UiTheme.build(false, 250)
+	var n := t.get_stylebox("normal", "Button") as StyleBoxFlat
+	var p := t.get_stylebox("pressed", "Button") as StyleBoxFlat
+	check(p.content_margin_top + p.content_margin_bottom == n.content_margin_top + n.content_margin_bottom, "max roundness pressed keeps height")
+
+
+func _test_grabber_pill_at_high_roundness() -> void:
+	var image := UiTheme.build(false, 250).get_icon("grabber", "HSlider").get_image()
+	var symmetric := true
+	for y in 15:
+		for x in 44:
+			symmetric = symmetric and is_equal_approx(image.get_pixel(x, y).a, image.get_pixel(x, 29 - y).a)
+	check(symmetric, "high roundness grabber is symmetric top to bottom")
+	check(image.get_pixel(22, 15).is_equal_approx(Palette.accent(false)), "high roundness grabber centre is the accent")
+	check(image.get_pixel(0, 0).a == 0.0 and image.get_pixel(43, 29).a == 0.0, "high roundness grabber corners are clear")
+
+
+func _test_roundness_default() -> void:
+	Settings.use(Settings.new())
+	check(_radius(UiTheme.build(false), "normal", "Button") == _radius(UiTheme.build(false, 100), "normal", "Button"), "default roundness is 100")
 
 
 func _test_setup_styles() -> void:
@@ -194,3 +265,16 @@ func _test_setup_styles() -> void:
 			check(disabled.corner_radius_top_left == UiTheme.BUTTON_RADIUS, tag + "disabled button radius")
 		var faded := t.get_color("font_disabled_color", "Button")
 		check(is_equal_approx(faded.a, UiTheme.DISABLED_ALPHA) and Color(faded, 1.0) == Palette.text_on_accent(dark), tag + "disabled button text")
+
+
+func _test_nav_button_inherits_option() -> void:
+	var b := Button.new()
+	b.theme_type_variation = UiTheme.NAV_BUTTON
+	b.theme = UiTheme.build(true)
+	root.add_child(b)
+	await process_frame
+	var fill := b.get_theme_stylebox("normal") as StyleBoxFlat
+	check(fill != null and fill.bg_color == Palette.raised_surface(true), "a nav button resolves the Option fill")
+	check(b.get_theme_color("font_color") == Palette.text(true), "a nav button resolves the Option text colour")
+	check(b.get_theme_color("icon_normal_color") == Palette.text(true), "a nav button gets its own icon tint")
+	b.free()

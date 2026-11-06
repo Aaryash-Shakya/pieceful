@@ -442,7 +442,7 @@ func _test_resume_in_another_collection() -> void:
 
 
 func _test_main_scene() -> void:
-	check(ProjectSettings.get_setting("application/run/main_scene") == "res://src/ui/setup_screen.tscn", "the app opens on the setup screen")
+	check(ProjectSettings.get_setting("application/run/main_scene") == "res://src/ui/app_shell.tscn", "the app opens in the shell")
 	# No collection handed in: the screen loads the bundled library.
 	_clear()
 	if is_instance_valid(current_scene):
