@@ -60,6 +60,10 @@ func depth() -> int:
 	return _stack.size()
 
 
+func safe_insets() -> Vector4:
+	return SafeArea.current(get_tree())
+
+
 func apply_look() -> void:
 	RenderingServer.set_default_clear_color(Palette.page_background())
 	theme = UiTheme.build()
