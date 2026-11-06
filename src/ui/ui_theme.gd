@@ -43,7 +43,11 @@ static func weighted(path: String, weight: int) -> FontVariation:
 	return font
 
 
-static func build(dark := Palette.is_dark()) -> Theme:
+static func scaled(base: int, roundness: int) -> int:
+	return roundi(base * roundness / 100.0)
+
+
+static func build(dark := Palette.is_dark(), roundness := Settings.current().roundness) -> Theme:
 	var theme := Theme.new()
 	theme.default_font = weighted(QUICKSAND_PATH, BODY_WEIGHT)
 	theme.default_font_size = BODY_FONT_SIZE
@@ -59,14 +63,14 @@ static func build(dark := Palette.is_dark()) -> Theme:
 	theme.set_font_size("font_size", "Button", BUTTON_FONT_SIZE)
 	for color_name in ["font_color", "font_pressed_color", "font_hover_color", "font_hover_pressed_color", "font_focus_color"]:
 		theme.set_color(color_name, "Button", Palette.text_on_accent(dark))
-	var raised := _button_box(dark, BUTTON_DEPTH)
+	var raised := _button_box(dark, BUTTON_DEPTH, scaled(BUTTON_RADIUS, roundness))
 	theme.set_stylebox("normal", "Button", raised)
 	theme.set_stylebox("hover", "Button", raised)
-	var sunk := _button_box(dark, PRESSED_DEPTH)
+	var sunk := _button_box(dark, PRESSED_DEPTH, scaled(BUTTON_RADIUS, roundness))
 	theme.set_stylebox("pressed", "Button", sunk)
 	theme.set_stylebox("hover_pressed", "Button", sunk)
 	theme.set_stylebox("focus", "Button", StyleBoxEmpty.new())
-	var faded := _button_box(dark, BUTTON_DEPTH)
+	var faded := _button_box(dark, BUTTON_DEPTH, scaled(BUTTON_RADIUS, roundness))
 	faded.bg_color.a = DISABLED_ALPHA
 	faded.border_color.a = DISABLED_ALPHA
 	theme.set_stylebox("disabled", "Button", faded)
@@ -74,19 +78,19 @@ static func build(dark := Palette.is_dark()) -> Theme:
 	faded_text.a = DISABLED_ALPHA
 	theme.set_color("font_disabled_color", "Button", faded_text)
 
-	_add_option(theme, dark)
-	_add_slider(theme, dark)
+	_add_option(theme, dark, roundness)
+	_add_slider(theme, dark, roundness)
 
-	theme.set_stylebox("panel", "PanelContainer", _panel_box(dark, PANEL_RADIUS, PANEL_PADDING))
+	theme.set_stylebox("panel", "PanelContainer", _panel_box(dark, scaled(PANEL_RADIUS, roundness), PANEL_PADDING))
 	theme.add_type(SHEET)
 	theme.set_type_variation(SHEET, &"PanelContainer")
-	theme.set_stylebox("panel", SHEET, _panel_box(dark, SHEET_RADIUS, SHEET_PADDING))
+	theme.set_stylebox("panel", SHEET, _panel_box(dark, scaled(SHEET_RADIUS, roundness), SHEET_PADDING))
 	return theme
 
 
 # A pressed button keeps its footprint: the top edge drops by the depth that was
 # lost, so the label sinks while the bottom stays put.
-static func _button_box(dark: bool, depth: int, radius := BUTTON_RADIUS) -> StyleBoxFlat:
+static func _button_box(dark: bool, depth: int, radius: int) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
 	box.bg_color = Palette.accent(dark)
 	box.border_color = Palette.accent_shadow(dark)
@@ -113,18 +117,18 @@ static func _panel_box(dark: bool, radius: int, padding: int) -> StyleBoxFlat:
 
 # Option tiles (pictures, styles) keep one footprint on and off: equal content margins, and the
 # accent's shadow edge is drawn inside the box where the off tile has its line.
-static func _add_option(theme: Theme, dark: bool) -> void:
+static func _add_option(theme: Theme, dark: bool, roundness: int) -> void:
 	theme.add_type(OPTION)
 	theme.set_type_variation(OPTION, &"Button")
 	var off := StyleBoxFlat.new()
 	off.bg_color = Palette.raised_surface(dark)
 	off.border_color = Palette.lines(dark)
 	off.set_border_width_all(LINE_WIDTH)
-	off.set_corner_radius_all(OPTION_RADIUS)
+	off.set_corner_radius_all(scaled(OPTION_RADIUS, roundness))
 	off.set_content_margin_all(OPTION_PADDING)
 	theme.set_stylebox("normal", OPTION, off)
 	theme.set_stylebox("hover", OPTION, off)
-	var on := _button_box(dark, BUTTON_DEPTH, OPTION_RADIUS)
+	var on := _button_box(dark, BUTTON_DEPTH, scaled(OPTION_RADIUS, roundness))
 	on.set_content_margin_all(OPTION_PADDING)
 	theme.set_stylebox("pressed", OPTION, on)
 	theme.set_stylebox("hover_pressed", OPTION, on)
@@ -134,13 +138,13 @@ static func _add_option(theme: Theme, dark: bool) -> void:
 		theme.set_color(color_name, OPTION, Palette.text_on_accent(dark))
 
 
-static func _add_slider(theme: Theme, dark: bool) -> void:
-	var track := _flat(Palette.raised_surface(dark), SLIDER_RADIUS)
+static func _add_slider(theme: Theme, dark: bool, roundness: int) -> void:
+	var track := _flat(Palette.raised_surface(dark), scaled(SLIDER_RADIUS, roundness))
 	theme.set_stylebox("slider", "HSlider", track)
-	var fill := _flat(Palette.accent(dark), SLIDER_RADIUS)
+	var fill := _flat(Palette.accent(dark), scaled(SLIDER_RADIUS, roundness))
 	theme.set_stylebox("grabber_area", "HSlider", fill)
 	theme.set_stylebox("grabber_area_highlight", "HSlider", fill)
-	var grabber := _rounded_tile(GRABBER_SIZE, OPTION_RADIUS, Palette.accent(dark))
+	var grabber := _rounded_tile(GRABBER_SIZE, scaled(OPTION_RADIUS, roundness), Palette.accent(dark))
 	theme.set_icon("grabber", "HSlider", grabber)
 	theme.set_icon("grabber_highlight", "HSlider", grabber)
 
@@ -160,6 +164,9 @@ static func _flat(color: Color, radius: int) -> StyleBoxFlat:
 static func _rounded_tile(tile_size: Vector2i, radius: int, color: Color) -> ImageTexture:
 	var image := Image.create(tile_size.x, tile_size.y, false, Image.FORMAT_RGBA8)
 	image.fill(color)
+	# At radius 0 the coverage maths below would leave the corner pixels half clear.
+	if radius <= 0:
+		return ImageTexture.create_from_image(image)
 	var r := float(radius)
 	for y in tile_size.y:
 		for x in tile_size.x:

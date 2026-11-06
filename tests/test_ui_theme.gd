@@ -11,6 +11,11 @@ func _init() -> void:
 	_test_modes_differ()
 	_test_option_and_slider()
 	_test_setup_styles()
+	_test_scaled()
+	_test_roundness_zero()
+	_test_roundness_max()
+	_test_roundness_max_keeps_footprint()
+	_test_roundness_default()
 	finish()
 
 
@@ -150,6 +155,48 @@ func _test_option_and_slider() -> void:
 		check(area != null and area.bg_color == Palette.accent(dark), tag + "slider fill is the accent")
 		var track := t.get_stylebox("slider", "HSlider") as StyleBoxFlat
 		check(track != null and track.bg_color == Palette.raised_surface(dark), tag + "slider track")
+
+
+func _radius(t: Theme, name: String, type: StringName) -> int:
+	return (t.get_stylebox(name, type) as StyleBoxFlat).corner_radius_top_left
+
+
+func _test_scaled() -> void:
+	check(UiTheme.scaled(8, 100) == 8, "scaled keeps the base at 100")
+	check(UiTheme.scaled(8, 0) == 0, "scaled reaches 0")
+	check(UiTheme.scaled(10, 250) == 25, "scaled at 250")
+	check(UiTheme.scaled(9, 150) == 14, "scaled rounds")
+
+
+func _test_roundness_zero() -> void:
+	var t := UiTheme.build(false, 0)
+	check(_radius(t, "normal", "Button") == 0, "zero button radius")
+	check(_radius(t, "panel", "PanelContainer") == 0, "zero panel radius")
+	check(_radius(t, "panel", UiTheme.SHEET) == 0, "zero sheet radius")
+	check(_radius(t, "normal", UiTheme.OPTION) == 0, "zero option radius")
+	check(_radius(t, "pressed", UiTheme.OPTION) == 0, "zero option pressed radius")
+	check(_radius(t, "slider", "HSlider") == 0, "zero slider track radius")
+	check(t.get_icon("grabber", "HSlider").get_image().get_pixel(0, 0).a == 1.0, "zero grabber is a solid tile")
+
+
+func _test_roundness_max() -> void:
+	var t := UiTheme.build(false, 250)
+	check(_radius(t, "normal", "Button") == 20, "max button radius")
+	check(_radius(t, "panel", "PanelContainer") == 25, "max panel radius")
+	check(_radius(t, "panel", UiTheme.SHEET) == 35, "max sheet radius")
+	check(_radius(t, "normal", UiTheme.OPTION) == 23, "max option radius")
+
+
+func _test_roundness_max_keeps_footprint() -> void:
+	var t := UiTheme.build(false, 250)
+	var n := t.get_stylebox("normal", "Button") as StyleBoxFlat
+	var p := t.get_stylebox("pressed", "Button") as StyleBoxFlat
+	check(p.content_margin_top + p.content_margin_bottom == n.content_margin_top + n.content_margin_bottom, "max roundness pressed keeps height")
+
+
+func _test_roundness_default() -> void:
+	Settings.use(Settings.new())
+	check(_radius(UiTheme.build(false), "normal", "Button") == _radius(UiTheme.build(false, 100), "normal", "Button"), "default roundness is 100")
 
 
 func _test_setup_styles() -> void:
