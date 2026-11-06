@@ -146,6 +146,11 @@ func _test_option_and_slider() -> void:
 		check(t.get_color("font_color", UiTheme.OPTION) == Palette.text(dark), tag + "option text")
 		check(t.get_color("font_pressed_color", UiTheme.OPTION) == Palette.text_on_accent(dark), tag + "option pressed text")
 
+		var nav := t.get_stylebox("panel", UiTheme.NAV) as StyleBoxFlat
+		check(nav != null and nav.bg_color == Palette.surface(dark) and nav.border_color == Palette.lines(dark), tag + "nav panel fill and line")
+		check(nav != null and nav.get_content_margin(SIDE_LEFT) == 5 and nav.corner_radius_top_left == 28, tag + "nav margin and radius")
+		check(t.get_color("icon_pressed_color", UiTheme.OPTION) == Palette.text_on_accent(dark), tag + "option pressed icon tint")
+
 		var grabber := t.get_icon("grabber", "HSlider")
 		check(grabber != null and grabber.get_size() == Vector2(44, 30), tag + "grabber size")
 		if grabber != null:
