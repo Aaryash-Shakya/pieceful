@@ -2,6 +2,7 @@ extends "res://tests/base_test.gd"
 
 
 func _init() -> void:
+	await process_frame
 	_test_font_files()
 	_test_font_licence()
 	_test_fonts_ship()
@@ -10,6 +11,7 @@ func _init() -> void:
 	_test_theme(true)
 	_test_modes_differ()
 	_test_option_and_slider()
+	await _test_nav_button_inherits_option()
 	_test_setup_styles()
 	_test_scaled()
 	_test_roundness_zero()
@@ -149,7 +151,12 @@ func _test_option_and_slider() -> void:
 		var nav := t.get_stylebox("panel", UiTheme.NAV) as StyleBoxFlat
 		check(nav != null and nav.bg_color == Palette.surface(dark) and nav.border_color == Palette.lines(dark), tag + "nav panel fill and line")
 		check(nav != null and nav.get_content_margin(SIDE_LEFT) == 5 and nav.corner_radius_top_left == 28, tag + "nav margin and radius")
-		check(t.get_color("icon_pressed_color", UiTheme.OPTION) == Palette.text_on_accent(dark), tag + "option pressed icon tint")
+		# Picture thumbnails use plain Option, so it must not tint their icons.
+		check(not t.has_color("icon_normal_color", UiTheme.OPTION), tag + "option icon is untinted")
+		check(not t.has_color("icon_pressed_color", UiTheme.OPTION), tag + "option pressed icon is untinted")
+		check(t.get_type_variation_base(UiTheme.NAV_BUTTON) == UiTheme.OPTION, tag + "nav button base is Option")
+		check(t.get_color("icon_normal_color", UiTheme.NAV_BUTTON) == Palette.text(dark), tag + "nav button icon tint")
+		check(t.get_color("icon_pressed_color", UiTheme.NAV_BUTTON) == Palette.text_on_accent(dark), tag + "nav button pressed icon tint")
 
 		var grabber := t.get_icon("grabber", "HSlider")
 		check(grabber != null and grabber.get_size() == Vector2(44, 30), tag + "grabber size")
@@ -258,3 +265,16 @@ func _test_setup_styles() -> void:
 			check(disabled.corner_radius_top_left == UiTheme.BUTTON_RADIUS, tag + "disabled button radius")
 		var faded := t.get_color("font_disabled_color", "Button")
 		check(is_equal_approx(faded.a, UiTheme.DISABLED_ALPHA) and Color(faded, 1.0) == Palette.text_on_accent(dark), tag + "disabled button text")
+
+
+func _test_nav_button_inherits_option() -> void:
+	var b := Button.new()
+	b.theme_type_variation = UiTheme.NAV_BUTTON
+	b.theme = UiTheme.build(true)
+	root.add_child(b)
+	await process_frame
+	var fill := b.get_theme_stylebox("normal") as StyleBoxFlat
+	check(fill != null and fill.bg_color == Palette.raised_surface(true), "a nav button resolves the Option fill")
+	check(b.get_theme_color("font_color") == Palette.text(true), "a nav button resolves the Option text colour")
+	check(b.get_theme_color("icon_normal_color") == Palette.text(true), "a nav button gets its own icon tint")
+	b.free()

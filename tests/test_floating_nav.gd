@@ -8,6 +8,7 @@ func _init() -> void:
 	_test_tabs()
 	_test_set_active()
 	_test_press_emits_once()
+	_test_press_switches_tab()
 	await _test_theme()
 	finish()
 
@@ -57,6 +58,19 @@ func _test_press_emits_once() -> void:
 	nav.free()
 
 
+func _test_press_switches_tab() -> void:
+	var nav := _make()
+	nav.set_active(&"home")
+	_fired.clear()
+	var b := nav.buttons[&"settings"] as Button
+	b.button_pressed = true
+	b.pressed.emit()
+	check(nav.active == &"settings", "active moves to the pressed tab")
+	check(b.button_pressed and not (nav.buttons[&"home"] as Button).button_pressed, "the old tab is released")
+	check(_fired == [&"settings"], "one signal with the new id")
+	nav.free()
+
+
 func _test_theme() -> void:
 	var nav := _make()
 	nav.theme = UiTheme.build(true)
@@ -65,5 +79,5 @@ func _test_theme() -> void:
 	var box := nav.get_theme_stylebox("panel") as StyleBoxFlat
 	check(box != null and box.bg_color == Palette.surface(true), "panel has the surface fill")
 	var b := nav.buttons[&"home"] as Button
-	check(b.theme_type_variation == UiTheme.OPTION, "buttons use the Option variation")
+	check(b.theme_type_variation == UiTheme.NAV_BUTTON, "buttons use the NavButton variation")
 	nav.free()

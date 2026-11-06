@@ -6,10 +6,10 @@ signal tab_pressed(id: StringName)
 
 const TABS := [[&"home", "Home"], [&"pictures", "Pictures"], [&"daily", "Daily"], [&"settings", "Settings"]]
 const ICONS := {
-	&"home": "res://assets/icons/home.svg",
-	&"pictures": "res://assets/icons/image.svg",
-	&"daily": "res://assets/icons/cal.svg",
-	&"settings": "res://assets/icons/set.svg",
+	&"home": preload("res://assets/icons/home.svg"),
+	&"pictures": preload("res://assets/icons/image.svg"),
+	&"daily": preload("res://assets/icons/cal.svg"),
+	&"settings": preload("res://assets/icons/set.svg"),
 }
 
 var buttons := {}
@@ -24,11 +24,11 @@ func _init() -> void:
 	for tab in TABS:
 		var id: StringName = tab[0]
 		var button := Button.new()
-		button.theme_type_variation = UiTheme.OPTION
+		button.theme_type_variation = UiTheme.NAV_BUTTON
 		button.toggle_mode = true
 		button.button_group = group
 		button.text = tab[1]
-		button.icon = load(ICONS[id])
+		button.icon = ICONS[id]
 		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		button.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL

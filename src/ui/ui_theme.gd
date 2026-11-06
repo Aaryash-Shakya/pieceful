@@ -36,6 +36,7 @@ const SHEET := &"Sheet"
 const OPTION := &"Option"
 const NAV := &"Nav"
 const NAV_PADDING := 5
+const NAV_BUTTON := &"NavButton"
 
 
 static func weighted(path: String, weight: int) -> FontVariation:
@@ -87,6 +88,7 @@ static func build(dark := Palette.is_dark(), roundness := Settings.current().rou
 	theme.add_type(SHEET)
 	theme.set_type_variation(SHEET, &"PanelContainer")
 	theme.set_stylebox("panel", SHEET, _panel_box(dark, scaled(SHEET_RADIUS, roundness), SHEET_PADDING))
+	_add_nav_button(theme, dark)
 	theme.add_type(NAV)
 	theme.set_type_variation(NAV, &"PanelContainer")
 	theme.set_stylebox("panel", NAV, _panel_box(dark, scaled(SHEET_RADIUS * 2, roundness), NAV_PADDING))
@@ -137,9 +139,9 @@ static func _add_option(theme: Theme, dark: bool, roundness: int) -> void:
 	on.set_content_margin_all(OPTION_PADDING)
 	theme.set_stylebox("pressed", OPTION, on)
 	theme.set_stylebox("hover_pressed", OPTION, on)
-	for color_name in ["font_color", "font_hover_color", "font_focus_color", "icon_normal_color", "icon_hover_color", "icon_focus_color"]:
+	for color_name in ["font_color", "font_hover_color", "font_focus_color"]:
 		theme.set_color(color_name, OPTION, Palette.text(dark))
-	for color_name in ["font_pressed_color", "font_hover_pressed_color", "icon_pressed_color", "icon_hover_pressed_color"]:
+	for color_name in ["font_pressed_color", "font_hover_pressed_color"]:
 		theme.set_color(color_name, OPTION, Palette.text_on_accent(dark))
 
 
@@ -182,3 +184,14 @@ static func _rounded_tile(tile_size: Vector2i, radius: int, color: Color) -> Ima
 			if coverage < 1.0:
 				image.set_pixel(x, y, Color(color, color.a * coverage))
 	return ImageTexture.create_from_image(image)
+
+
+# Tab icons are white SVGs tinted by these colours. Kept off Option, whose icons are
+# full-colour thumbnails that must not be multiplied.
+static func _add_nav_button(theme: Theme, dark: bool) -> void:
+	theme.add_type(NAV_BUTTON)
+	theme.set_type_variation(NAV_BUTTON, OPTION)
+	for color_name in ["icon_normal_color", "icon_hover_color", "icon_focus_color"]:
+		theme.set_color(color_name, NAV_BUTTON, Palette.text(dark))
+	for color_name in ["icon_pressed_color", "icon_hover_pressed_color"]:
+		theme.set_color(color_name, NAV_BUTTON, Palette.text_on_accent(dark))
