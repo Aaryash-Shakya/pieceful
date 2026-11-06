@@ -157,6 +157,10 @@ func is_locked(piece: int) -> bool:
 	return _locked[find(piece)] == 1
 
 
+func locked_piece_count() -> int:
+	return _locked_pieces
+
+
 func is_complete() -> bool:
 	return _locked_pieces == _parents.size()
 
