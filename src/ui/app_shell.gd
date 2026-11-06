@@ -23,7 +23,7 @@ func _ready() -> void:
 
 
 func push(screen: Node) -> void:
-	if screen == top():
+	if _stack.has(screen):
 		return
 	if top() != null:
 		remove_child(top())
@@ -78,7 +78,8 @@ static func find(tree: SceneTree) -> AppShell:
 static func present(tree: SceneTree, screen: Node) -> void:
 	var shell := find(tree)
 	if shell != null:
-		shell.replace(screen)
+		# Deferred like change_scene_to_node: a back notification arrives while the tree is busy.
+		shell.replace.call_deferred(screen)
 	else:
 		tree.change_scene_to_node(screen)
 
@@ -87,3 +88,11 @@ func _show(screen: Node) -> void:
 	add_child(screen)
 	if screen is Control:
 		(screen as Control).set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		# Screens pushed over are out of the tree, so freeing the shell would not reach them.
+		for screen in _stack:
+			if is_instance_valid(screen) and screen.get_parent() != self:
+				screen.free()

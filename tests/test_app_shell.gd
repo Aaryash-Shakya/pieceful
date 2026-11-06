@@ -17,6 +17,9 @@ func _init() -> void:
 	await _test_node2d_screen()
 	await _test_apply_look()
 	await _test_present()
+	await _test_present_during_back()
+	await _test_push_lower_screen()
+	await _test_free_releases_hidden()
 	_remove()
 	Settings.use(Settings.new())
 	finish()
@@ -124,6 +127,7 @@ func _test_present() -> void:
 	var shell := _shell(Control.new())
 	var a := Control.new()
 	AppShell.present(self, a)
+	await process_frame
 	check(shell.top() == a, "present replaces the shell's top")
 	_finish_shell(shell)
 	var b := Control.new()
@@ -133,3 +137,44 @@ func _test_present() -> void:
 	b.free()
 	current_scene = null
 	await process_frame
+
+
+class BackScreen extends Node2D:
+	var next: Node
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+			AppShell.present(get_tree(), next)
+
+
+# The board swaps screens from inside the back notification, where the tree refuses child changes.
+func _test_present_during_back() -> void:
+	var shell := _shell(Control.new())
+	var board := BackScreen.new()
+	var next := Control.new()
+	board.next = next
+	shell.replace(board)
+	root.propagate_notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	await process_frame
+	check(shell.get_child_count() == 1 and shell.get_child(0) == next, "the new screen is the shell's only child")
+	check(shell.top() == next and shell.depth() == 1, "the stack names the new screen")
+	_finish_shell(shell)
+
+
+func _test_push_lower_screen() -> void:
+	var home := Control.new()
+	var shell := _shell(home)
+	var second := Control.new()
+	shell.push(second)
+	shell.push(home)
+	check(shell.depth() == 2 and shell.top() == second, "pushing a screen already in the stack does nothing")
+	_finish_shell(shell)
+
+
+func _test_free_releases_hidden() -> void:
+	var home := Control.new()
+	var shell := _shell(home)
+	shell.push(Control.new())
+	shell.push(Control.new())
+	_finish_shell(shell)
+	check(not is_instance_valid(home), "freeing the shell frees screens that were pushed over")

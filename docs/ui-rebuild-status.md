@@ -36,3 +36,11 @@ Extra font pairs from the reference are not planned. The owner skipped them.
 ## What only a phone can settle
 
 The nav bar and the safe-area insets have not been seen on a device. The first screens that mount them (slices 2 to 4) should be checked on the phone for the status bar and gesture bar clearance, the nav bar's thumb reach, and the icon tint in light and dark mode.
+
+- Android back on the board returns to setup, and the screen is never blank.
+
+## Carry-over for later slices
+
+- Slice 2 must set the nav icons' import scale to about 1.4 (`svg/scale` in `assets/icons/*.svg.import`, currently 1.0). The reference's icon at 1.5 scale is about 33 px.
+- Slices 3 and 4 must stop setting their own `theme = UiTheme.build()` in `setup_screen.gd:158` and `hud.gd:39`, so `AppShell.apply_look()` reaches them. Slice 4's dock replaces `slot_tray.gd:193`, which uses the unscaled `UiTheme.OPTION_RADIUS`.
+- Slice 6 must make `SettingsSheet` and `Feedback` read `Settings.current()` instead of loading their own copies, so a look edit cannot be overwritten by an open sheet saving stale look fields.
