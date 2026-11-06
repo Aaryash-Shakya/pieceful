@@ -95,3 +95,29 @@ Extra font pairs are not planned. The owner skipped them on 2026-11-06.
 ## Open for the owner
 
 - Everything in "Mine" above, on review.
+
+## Review round 2 (2026-11-06)
+
+An independent designer-level review of the approved screens found these problems. The reference (`docs/prototype/ui-flow.html`) is updated for the visual ones. The behaviour rules below bind the build.
+
+Changed in the reference:
+- Setup shows Wild disabled with "Coming soon". Daily says Thursday to Saturday play as Irregular until Wild ships.
+- The store is "More pictures" and every download is a disabled "Coming soon" button. The bundled collection shows "On your phone". No progress bar.
+- Pause loses the Ghost tile (ghost is the board's eye button and the Settings strength). Sound and Vibration are neutral tiles with an accent underline when on. Restart is a quiet outlined button, "Restart…".
+- The active tab is a raised tile with an accent underline, so it no longer competes with the amber primary button.
+- Home and Daily hero text sits on a stronger fade into the page colour. Amber used as text uses the accent shadow colour.
+- The fan hint sits above the dock, the fan has a dark plate, loose pieces dim further, the empty slot has no plus, and slot stacks show a larger top piece.
+- Settings Look has no typography row (the app ships the locked pair only). The accent swatches are larger. Settings Play scrolls above the nav. The Daily share line no longer shows a made-up time, and each count sits under its day.
+- Confetti runs behind the text on the finish screen. All blur is gone. Panels are opaque or near-opaque.
+- A first-launch Home frame was added: no Resume, today's puzzle leads.
+
+Behaviour rules for the build:
+- A button press that starts while a finger is dragging a piece is ignored. Pause, Ghost and Tidy never fire from the end of a drag.
+- Tidy shows a short Undo toast. Restart and Reset progress ask for confirmation, and the Restart prompt names the time that would be lost.
+- Ghost: the board eye toggles it for this puzzle, Settings sets the strength, Setup sets the starting value. On Daily the ghost is always on and the eye is disabled.
+- Hit areas are at least 44 dp even where the visual is smaller (accent swatches, slider thumbs, Reset).
+- Every tab screen scrolls, with bottom padding of the nav height plus the safe area, and is checked at a large system font.
+- Android back: Fan cancels the fan, Pause resumes, Complete goes Home, Setup and Store pop, Home quits.
+- A save or picture that cannot load shows a message and "Start a new one" instead of Resume. Daily already done today shows the time and Share, with "Come back tomorrow".
+
+Build simplifications: two fixed columns for the Pictures grid, three static icons for the cut style tiles, a static image for the Look preview, no per-frame motion on Home.
