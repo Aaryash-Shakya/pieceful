@@ -14,6 +14,8 @@ var _stack: Array[Node] = []
 func _ready() -> void:
 	add_to_group("app_shell")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# The shell only holds screens. Left on STOP it swallows touches the board needs from _unhandled_input.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	Settings.use(Settings.load_from(settings_path))
 	apply_look()
 	if make_home.is_valid():
