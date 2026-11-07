@@ -34,7 +34,7 @@ const TAP_SLOP := TapGuard.SLOP
 var save_path := SaveFile.DEFAULT_PATH
 var collection: Collection = null
 var quit_app: Callable
-## Picture to start on when there is no save to resume; an id the collection lacks means the first.
+## Picture to start a new puzzle on, which skips resuming a save; an id the collection lacks means the first.
 var start_picture_id := ""
 
 ## What the picker offers: the parts of a merged collection, or the collection itself.
@@ -156,8 +156,9 @@ func _ready() -> void:
 	preview_timer.timeout.connect(regenerate_preview)
 	add_child(preview_timer)
 
-	saved = resumable(save_path, collection)
-	if saved == null and FileAccess.file_exists(save_path):
+	# A chosen picture means a new puzzle; resuming lives on Home. The save stays until Start replaces it.
+	saved = null if start_picture_id != "" else resumable(save_path, collection)
+	if saved == null and start_picture_id == "" and FileAccess.file_exists(save_path):
 		# With no pictures at all the save cannot be judged, so it waits for a launch that has them.
 		if collection.pictures.is_empty():
 			_keep_save("no pictures are available")

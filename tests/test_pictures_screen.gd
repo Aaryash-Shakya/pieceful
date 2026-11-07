@@ -19,6 +19,7 @@ func _init() -> void:
 	await _test_single_collection_has_no_tabs()
 	await _test_select_collection()
 	await _test_cut_opens_setup()
+	await _test_chosen_picture_beats_save()
 	await _test_back_from_setup()
 	await _test_swipe_does_not_select()
 	await _test_all_pictures_fail()
@@ -157,6 +158,62 @@ func _test_cut_opens_setup() -> void:
 	check(top.start_picture_id == chosen and top.picture.id == chosen, "Setup opens on the chosen picture")
 	check(top.save_path == SAVE and top.collection == _library, "Setup gets the save path and collection")
 	shell.free()
+
+
+func _write_save_for(picture_id: String) -> void:
+	var snapshot := SaveGame.Snapshot.new()
+	var saved_picture := _fixture.find(picture_id)
+	snapshot.puzzle.image_id = picture_id
+	snapshot.puzzle.image_size = saved_picture.size()
+	snapshot.puzzle.style = "regular"
+	snapshot.puzzle.piece_count = 24
+	snapshot.puzzle.cut_seed = 7
+	for id in 24:
+		var cluster := SaveGame.Cluster.new()
+		cluster.root = id
+		cluster.pieces = PackedInt32Array([id])
+		snapshot.clusters.append(cluster)
+	for s in PuzzleState.SLOT_COUNT:
+		snapshot.slots.append(PackedInt32Array())
+	SaveFile.write_atomic(SAVE, SaveGame.to_json(snapshot))
+
+
+func _test_chosen_picture_beats_save() -> void:
+	var a := _fixture.pictures[0]
+	var b := _fixture.pictures[1]
+	_write_save_for(a.id)
+	var before := FileAccess.get_file_as_string(SAVE)
+	var setup := (load(SetupScreen.SCENE) as PackedScene).instantiate() as SetupScreen
+	setup.save_path = SAVE
+	setup.collection = _fixture
+	setup.quit_app = func() -> void: _quits += 1
+	setup.start_picture_id = b.id
+	root.add_child(setup)
+	check(setup.picture != null and setup.picture.id == b.id, "Setup shows the chosen picture, not the saved one")
+	check(not setup.resume_card.visible and setup.saved == null, "the resume card stays hidden")
+	check(FileAccess.get_file_as_string(SAVE) == before and not FileAccess.file_exists(SaveFile.bad_path(SAVE)), "the save is untouched")
+	setup.free()
+
+	# The whole flow: Home, New puzzle, pick B, Cut.
+	var shell := (load("res://src/ui/app_shell.tscn") as PackedScene).instantiate() as AppShell
+	shell.settings_path = SHELL_SETTINGS
+	shell.make_home = func() -> Node: return Control.new()
+	root.add_child(shell)
+	await _frames()
+	var home := HomeScreen.open(self, SAVE, _fixture, func() -> void: _quits += 1)
+	await _frames()
+	home.new_button.pressed.emit()
+	await _frames()
+	var pictures_screen := (shell.top() as TabHost).body as PicturesScreen
+	pictures_screen.select_picture(1)
+	pictures_screen.cut()
+	await _frames()
+	var top := shell.top() as SetupScreen
+	check(top != null and top.picture.id == b.id, "Home, Pictures, Cut lands on the picked picture")
+	check(top != null and not top.resume_card.visible, "with no resume card")
+	check(FileAccess.get_file_as_string(SAVE) == before, "and the save is still there")
+	shell.free()
+	SaveFile.remove(SAVE)
 
 
 func _test_back_from_setup() -> void:
