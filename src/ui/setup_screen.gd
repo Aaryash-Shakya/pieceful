@@ -156,14 +156,17 @@ func _ready() -> void:
 	preview_timer.timeout.connect(regenerate_preview)
 	add_child(preview_timer)
 
-	# A chosen picture means a new puzzle; resuming lives on Home. The save stays until Start replaces it.
-	saved = null if start_picture_id != "" else resumable(save_path, collection)
-	if saved == null and start_picture_id == "" and FileAccess.file_exists(save_path):
+	saved = resumable(save_path, collection)
+	if saved == null and FileAccess.file_exists(save_path):
 		# With no pictures at all the save cannot be judged, so it waits for a launch that has them.
 		if collection.pictures.is_empty():
 			_keep_save("no pictures are available")
 		else:
 			_set_save_aside()
+	# A chosen picture means a new puzzle; resuming lives on Home. A usable save stays until Start
+	# replaces it, but it is judged above first so Start never overwrites one that is not.
+	if start_picture_id != "":
+		saved = null
 
 	if collection.parts.is_empty():
 		sections.append(collection)
