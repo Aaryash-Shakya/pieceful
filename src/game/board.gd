@@ -507,11 +507,19 @@ func _leave() -> void:
 	save_game()
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventScreenTouch:
-		_on_touch(event)
-	elif event is InputEventScreenDrag:
+# A press goes through the GUI first, so a button or a sheet under the finger keeps it. Once the
+# board owns a finger, its moves and its release are read here, before the GUI, so no control the
+# finger crosses or lifts over can take them and leave a piece frozen mid-drag or a finger stuck down.
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenDrag:
 		_on_drag(event)
+	elif event is InputEventScreenTouch and not event.pressed and (event.canceled or _touches.has(event.index)):
+		_on_touch(event)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch and event.pressed:
+		_on_touch(event)
 	elif event is InputEventMouseButton:
 		_on_wheel(event)
 

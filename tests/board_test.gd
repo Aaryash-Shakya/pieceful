@@ -50,7 +50,7 @@ func _touch(index: int, position: Vector2, pressed: bool, canceled := false) -> 
 	event.position = position
 	event.pressed = pressed
 	event.canceled = canceled
-	board._unhandled_input(event)
+	_deliver(event)
 
 
 func _drag(index: int, position: Vector2, relative: Vector2) -> void:
@@ -58,6 +58,12 @@ func _drag(index: int, position: Vector2, relative: Vector2) -> void:
 	event.index = index
 	event.position = position
 	event.relative = relative
+	_deliver(event)
+
+
+# Both stages, in the engine's order, with no control in between. tests/test_shell_touch.gd covers the GUI.
+func _deliver(event: InputEvent) -> void:
+	board._input(event)
 	board._unhandled_input(event)
 
 
