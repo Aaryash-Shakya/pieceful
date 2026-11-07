@@ -33,10 +33,12 @@ func _frames() -> void:
 	await process_frame
 
 
-# Home built with the test save and collection, so the real save is never read or written.
+# Either way Home reads the test save path, never the real save. The default home uses the
+# bundled collection; the injected one uses the fixture.
 func _shell(use_default := false) -> AppShell:
 	var shell := (load("res://src/ui/app_shell.tscn") as PackedScene).instantiate() as AppShell
 	shell.settings_path = SHELL_SETTINGS
+	shell.save_path = SAVE
 	if not use_default:
 		shell.make_home = func() -> Node:
 			return HomeScreen.make_host(SAVE, _fixture, func() -> void: _quits += 1)
@@ -68,6 +70,7 @@ func _test_default_home() -> void:
 	await _frames()
 	check(shell.depth() == 1 and shell.top() is TabHost, "the app opens on a tab host")
 	check(_home_body(shell) != null, "whose body is the Home screen")
+	check(_home_body(shell) != null and _home_body(shell).save_path == SAVE, "reading the shell's save path")
 	_end(shell)
 
 

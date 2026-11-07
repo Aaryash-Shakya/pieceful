@@ -277,4 +277,10 @@ func _test_nav_button_inherits_option() -> void:
 	check(fill != null and fill.bg_color == Palette.raised_surface(true), "a nav button resolves the Option fill")
 	check(b.get_theme_color("font_color") == Palette.text(true), "a nav button resolves the Option text colour")
 	check(b.get_theme_color("icon_normal_color") == Palette.text(true), "a nav button gets its own icon tint")
+	for dark in [true, false]:
+		b.theme = UiTheme.build(dark)
+		var off := b.get_theme_stylebox("disabled") as StyleBoxFlat
+		var on := b.get_theme_stylebox("normal") as StyleBoxFlat
+		check(off != null and on != null and off.bg_color == on.bg_color and off.bg_color != Palette.accent(dark), "a disabled nav tab is the quiet tile, not the accent (dark %s)" % dark)
+		check(b.get_theme_color("font_disabled_color").a < 1.0 and b.get_theme_color("icon_disabled_color").a < 1.0, "a disabled nav tab is faded (dark %s)" % dark)
 	b.free()

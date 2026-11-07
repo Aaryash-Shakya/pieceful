@@ -5,6 +5,8 @@ extends Control
 signal look_applied
 
 var settings_path := Settings.DEFAULT_PATH
+## The save the default Home reads.
+var save_path := SaveFile.DEFAULT_PATH
 ## Returns the root screen. Left empty, the Home screen is the root.
 var make_home := Callable()
 
@@ -21,7 +23,7 @@ func _ready() -> void:
 	if make_home.is_valid():
 		push(make_home.call())
 	else:
-		push(HomeScreen.make_host(SaveFile.DEFAULT_PATH, CollectionLibrary.load_bundled(), get_tree().quit))
+		push(HomeScreen.make_host(save_path, CollectionLibrary.load_bundled(), get_tree().quit))
 
 
 func push(screen: Node) -> void:
