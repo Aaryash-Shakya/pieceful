@@ -20,4 +20,4 @@ static func launch(tree: SceneTree, save_path: String, source: Collection, puzzl
 
 # The quit seam is handed on so a test's seam survives the round trip.
 static func _return_home(tree: SceneTree, path: String, source: Collection, quit: Callable) -> void:
-	SetupScreen.open(tree, path, source).quit_app = quit
+	HomeScreen.open(tree, path, source, quit)

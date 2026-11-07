@@ -5,7 +5,7 @@ extends Control
 signal look_applied
 
 var settings_path := Settings.DEFAULT_PATH
-## Returns the root screen. Left empty, the setup screen is the home.
+## Returns the root screen. Left empty, the Home screen is the root.
 var make_home := Callable()
 
 var _stack: Array[Node] = []
@@ -21,7 +21,7 @@ func _ready() -> void:
 	if make_home.is_valid():
 		push(make_home.call())
 	else:
-		push((load(SetupScreen.SCENE) as PackedScene).instantiate())
+		push(HomeScreen.make_host(SaveFile.DEFAULT_PATH, CollectionLibrary.load_bundled(), get_tree().quit))
 
 
 func push(screen: Node) -> void:
