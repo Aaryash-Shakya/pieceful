@@ -21,7 +21,95 @@ func _init() -> void:
 	_test_fallback_never_saves()
 	_test_test_picture()
 	board.free()
+	await _test_launch_helper()
+	await _test_start_picture()
+	await _test_setup_back()
 	finish()
+
+
+const SHELL_SETTINGS := "user://test_board_launch_shell.cfg"
+const LAUNCH_SAVE := "user://test_board_launch/current.json"
+var _quits := 0
+
+
+func _shell() -> AppShell:
+	var shell := (load("res://src/ui/app_shell.tscn") as PackedScene).instantiate() as AppShell
+	shell.settings_path = SHELL_SETTINGS
+	shell.make_home = func() -> Node: return Control.new()
+	root.add_child(shell)
+	return shell
+
+
+func _end_shell(shell: AppShell) -> void:
+	root.remove_child(shell)
+	shell.free()
+	Settings.use(Settings.new())
+	if FileAccess.file_exists(SHELL_SETTINGS):
+		DirAccess.remove_absolute(SHELL_SETTINGS)
+
+
+func _test_launch_helper() -> void:
+	SaveFile.remove(LAUNCH_SAVE)
+	var shell := _shell()
+	var puzzle := _puzzle("fixture-ember-rings", Vector2i(240, 160), "regular", 12, 7)
+	var launched := BoardLaunch.launch(shell.get_tree(), LAUNCH_SAVE, _fixture, puzzle, false, func() -> void: _quits += 1)
+	await process_frame
+	check(launched != null and launched.start_puzzle == puzzle and not launched.resume, "launch: the board gets the puzzle")
+	check(launched.save_path == LAUNCH_SAVE and launched.collection == _fixture, "launch: the board gets the save path and collection")
+	check(shell.top() == launched, "launch: the board is the shell's top")
+	var feedback := launched.get_node("Feedback") as Feedback
+	feedback.sound_enabled = false
+	feedback.vibration_enabled = false
+	launched.home_requested.emit()
+	await process_frame
+	await process_frame
+	check(shell.top() != null and not (shell.top() is Board), "launch: home leaves a non-board screen on top")
+	_end_shell(shell)
+	SaveFile.remove(LAUNCH_SAVE)
+	DirAccess.remove_absolute(LAUNCH_SAVE.get_base_dir())
+
+
+func _setup(tree_parent: Node = null) -> SetupScreen:
+	var s := (load(SetupScreen.SCENE) as PackedScene).instantiate() as SetupScreen
+	s.save_path = "user://test_board_launch/none.json"
+	s.collection = _fixture
+	s.quit_app = func() -> void: _quits += 1
+	return s
+
+
+func _test_start_picture() -> void:
+	var second := _fixture.pictures[1]
+	var s := _setup()
+	s.start_picture_id = second.id
+	root.add_child(s)
+	check(s.picture != null and s.picture.id == second.id, "start picture: the chosen picture is selected")
+	s.free()
+	var unknown := _setup()
+	unknown.start_picture_id = "fixture-gone"
+	root.add_child(unknown)
+	check(unknown.picture != null and unknown.picture.id == _fixture.pictures[0].id, "start picture: an unknown id falls back to the first")
+	unknown.free()
+
+
+func _test_setup_back() -> void:
+	var shell := _shell()
+	var s := _setup()
+	shell.push(s)
+	s._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	check(shell.depth() == 1 and _quits == 0, "back: setup above the root pops")
+	await process_frame
+	_end_shell(shell)
+	var alone := _setup()
+	root.add_child(alone)
+	alone._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	check(_quits == 1, "back: setup with no shell quits")
+	alone.free()
+	var root_shell := _shell()
+	var at_root := _setup()
+	root_shell.replace(at_root)
+	at_root._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	check(_quits == 2 and root_shell.depth() == 1, "back: setup at depth 1 quits")
+	_end_shell(root_shell)
 
 
 # Lists a real picture under another picture's id and size, so the manifest check passes but the load fails.
