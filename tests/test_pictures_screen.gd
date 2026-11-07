@@ -225,9 +225,10 @@ func _test_back_from_setup() -> void:
 	var chosen := screen.picture.id
 	screen.cut()
 	await _frames()
-	shell.top().notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	root.propagate_notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	await _frames()
 	check(shell.depth() == 1 and shell.top() is TabHost, "back from Setup returns to the Pictures tab")
+	check(shell.get_child_count() == 1 and shell.top().is_inside_tree(), "Pictures is the only child, in the tree")
 	check(screen.is_inside_tree() and screen.picture.id == chosen and screen.section_index == 1, "with the same choice")
 	# Cut works again after coming back.
 	var again := screen.cut()
@@ -295,7 +296,7 @@ func _test_back_goes_home() -> void:
 	var made: Array = await _shell_with_pictures(_fixture)
 	var shell := made[0] as AppShell
 	var screen := made[1] as PicturesScreen
-	screen.notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	root.propagate_notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	await _frames()
 	var host := shell.top() as TabHost
 	check(host != null and host.body is HomeScreen, "back from Pictures presents Home")

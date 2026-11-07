@@ -35,15 +35,25 @@ func push(screen: Node) -> void:
 	_show(screen)
 
 
+## True when there is a screen to pop. The change itself is deferred, like present(), because back
+## arrives while the tree is busy and refuses child changes.
 func pop() -> bool:
 	if _stack.size() < 2:
 		return false
-	# Out of the tree first, like replace(), so only the top screen is ever a child.
-	var old: Node = _stack.pop_back()
-	remove_child(old)
-	old.queue_free()
-	add_child(_stack.back())
+	_pop_now.call_deferred()
 	return true
+
+
+## Drops every screen in the stack and leaves only this one, for a new root destination.
+func reset(screen: Node) -> void:
+	for old in _stack:
+		if is_instance_valid(old):
+			if old.get_parent() == self:
+				remove_child(old)
+			old.queue_free()
+	_stack.clear()
+	_stack.append(screen)
+	_show(screen)
 
 
 func replace(screen: Node) -> void:
@@ -86,6 +96,25 @@ static func present(tree: SceneTree, screen: Node) -> void:
 		shell.replace.call_deferred(screen)
 	else:
 		tree.change_scene_to_node(screen)
+
+
+## Like present(), for a screen that becomes the only one, such as the board or Home.
+static func reset_to(tree: SceneTree, screen: Node) -> void:
+	var shell := find(tree)
+	if shell != null:
+		shell.reset.call_deferred(screen)
+	else:
+		tree.change_scene_to_node(screen)
+
+
+func _pop_now() -> void:
+	if _stack.size() < 2:
+		return
+	# Out of the tree first, like replace(), so only the top screen is ever a child.
+	var old: Node = _stack.pop_back()
+	remove_child(old)
+	old.queue_free()
+	add_child(_stack.back())
 
 
 func _show(screen: Node) -> void:

@@ -97,7 +97,8 @@ static func make_host(path: String, source: Collection, quit: Callable) -> TabHo
 
 static func open(tree: SceneTree, path: String, source: Collection, quit: Callable) -> HomeScreen:
 	var host := make_host(path, source, quit)
-	AppShell.present(tree, host)
+	# Home is a root, so whatever was under the screen it replaces goes too.
+	AppShell.reset_to(tree, host)
 	return host.body as HomeScreen
 
 

@@ -14,7 +14,7 @@ static func launch(tree: SceneTree, save_path: String, source: Collection, puzzl
 	board.resume = resume_save
 	# Static and bound to values, so it never reaches the launching screen, which is freed by then.
 	board.home_requested.connect(BoardLaunch._return_home.bind(tree, save_path, source, quit))
-	AppShell.present(tree, board)
+	AppShell.reset_to(tree, board)
 	return board
 
 

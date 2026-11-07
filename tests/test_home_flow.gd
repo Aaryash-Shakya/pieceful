@@ -15,6 +15,7 @@ func _init() -> void:
 	await _test_default_home()
 	await _test_flow()
 	await _test_back_steps()
+	await _test_stack_stays_flat()
 	_clear()
 	DirAccess.remove_absolute(SAVE.get_base_dir())
 	finish()
@@ -117,13 +118,39 @@ func _test_back_steps() -> void:
 	var pictures := (shell.top() as TabHost).body as PicturesScreen
 	pictures.cut()
 	await _frames()
-	var setup := shell.top() as SetupScreen
-	setup._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	# Delivered the way the engine does, from the root, where the tree refuses child changes.
+	root.propagate_notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	await _frames()
-	check(shell.top() is TabHost and (shell.top() as TabHost).body == pictures and _quits == 0, "back from Setup returns to Pictures")
-	pictures._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	var host := shell.top() as TabHost
+	check(host != null and host.body == pictures and _quits == 0, "back from Setup returns to Pictures")
+	check(shell.depth() == 1 and shell.get_child_count() == 1 and host.is_inside_tree(), "Pictures is the shell's only child, in the tree")
+	root.propagate_notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	await _frames()
 	check(_home_body(shell) != null and _quits == 0, "back from Pictures returns to Home")
-	_home_body(shell)._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	root.propagate_notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	check(_quits == 1, "back from Home quits")
+	_end(shell)
+
+
+# Every puzzle started ends on a root board and every return to Home on a root Home, so the stack
+# does not keep a Pictures screen per puzzle.
+func _test_stack_stays_flat() -> void:
+	var shell := _shell()
+	await _frames()
+	for round in 2:
+		_home_body(shell).new_button.pressed.emit()
+		await _frames()
+		var pictures := (shell.top() as TabHost).body as PicturesScreen
+		pictures.cut()
+		await _frames()
+		check(shell.depth() == 2, "round %d: Pictures sits under Setup" % round)
+		var board := (shell.top() as SetupScreen).start()
+		await _frames()
+		check(board != null and shell.depth() == 1 and shell.top() == board, "round %d: the board is the only screen" % round)
+		_quiet(board)
+		board.home_requested.emit()
+		await _frames()
+		check(shell.depth() == 1 and _home_body(shell) != null, "round %d: Home is the only screen" % round)
+		check(shell.get_child_count() == 1, "round %d: one child" % round)
+		check(not is_instance_valid(pictures), "round %d: the old Pictures is freed" % round)
 	_end(shell)
