@@ -20,13 +20,14 @@ static func make(active: StringName, screen_body: Control, tab_routes: Dictionar
 	host._active = active
 	host.body = screen_body
 	host.routes = tab_routes
+	# Parented now, so a host freed before it enters the tree frees its body too.
+	host.add_child(screen_body)
 	return host
 
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	body.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(body)
 	_nav = FloatingNav.new()
 	add_child(_nav)
 	for id in _nav.buttons:
