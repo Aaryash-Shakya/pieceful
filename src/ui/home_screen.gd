@@ -83,14 +83,22 @@ static func format_played(seconds: float) -> String:
 	return "%d:%02d" % [minutes, secs]
 
 
-static func open(tree: SceneTree, path: String, source: Collection, quit: Callable) -> HomeScreen:
+## The tab host for Home, not yet presented, so a route can hand it to the shell.
+static func make_host(path: String, source: Collection, quit: Callable) -> TabHost:
 	var home := HomeScreen.new()
 	home.save_path = path
 	home.collection = source
 	home.quit_app = quit
-	# Pictures is not a tab yet, so its route is left out and the nav keeps it disabled.
-	AppShell.present(tree, TabHost.make(&"home", home, {}))
-	return home
+	# Built when called, so Home and Pictures can each open the other without a load-time cycle.
+	var pictures := func() -> Node: return PicturesScreen.make_host(path, source, quit)
+	home.open_pictures = pictures
+	return TabHost.make(&"home", home, {&"pictures": pictures})
+
+
+static func open(tree: SceneTree, path: String, source: Collection, quit: Callable) -> HomeScreen:
+	var host := make_host(path, source, quit)
+	AppShell.present(tree, host)
+	return host.body as HomeScreen
 
 
 func _ready() -> void:
