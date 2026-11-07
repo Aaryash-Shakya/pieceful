@@ -100,20 +100,18 @@ func _test_a_drag_survives_a_control_over_the_finger(board: Board, shell: AppShe
 	var viewport_size := root.get_viewport().get_visible_rect().size
 	var to_screen := func(world: Vector2) -> Vector2:
 		return (world - board.camera.position) * board.camera.zoom.x + viewport_size / 2.0
-	var node: PieceNode = null
-	var start := Vector2.INF
-	for child in board.pieces.get_children():
-		var piece := child as PieceNode
-		var outline := board.cut[piece.piece_id].outline
-		var tri := Geometry2D.triangulate_polygon(outline)
-		var world := (outline[tri[0]] + outline[tri[1]] + outline[tri[2]]) / 3.0 + piece.position
-		var screen: Vector2 = to_screen.call(world)
-		if board.piece_at(world) == piece and board.slot_at(screen) == -1 \
-				and Rect2(Vector2.ZERO, viewport_size).grow(-80).has_point(screen):
-			node = piece
-			start = screen
-			break
-	check(node != null, "found a loose piece on screen")
+	# The setup screen picks a fresh seed, so the scatter differs every run. The topmost loose piece is
+	# moved under the screen centre, away from its home so it cannot lock, where nothing covers it.
+	var node := board.pieces.get_child(board.pieces.get_child_count() - 1) as PieceNode
+	var outline := board.cut[node.piece_id].outline
+	var tri := Geometry2D.triangulate_polygon(outline)
+	var inside := (outline[tri[0]] + outline[tri[1]] + outline[tri[2]]) / 3.0
+	var home_far := Vector2(board.puzzle.image_size).length()
+	board.camera.position = inside + Vector2(home_far, 0)
+	board.state.move_cluster(node.piece_id, Vector2(home_far, 0))
+	node.position = Vector2(home_far, 0)
+	var start: Vector2 = to_screen.call(inside + node.position)
+	check(board.piece_at(inside + node.position) == node and board.slot_at(start) == -1, "a loose piece is under the screen centre")
 	if node == null:
 		return
 	var from := board.state.offset_of(node.piece_id)
