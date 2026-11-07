@@ -24,6 +24,7 @@ func _init() -> void:
 	await _test_pictures_route()
 	await _test_back_quits()
 	await _test_layout()
+	await _test_background()
 	_clear()
 	DirAccess.remove_absolute(SAVE.get_base_dir())
 	finish()
@@ -219,6 +220,19 @@ func _test_back_quits() -> void:
 	await _frames()
 	home.notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	check(_quits == 1, "back quits from Home")
+	frame.free()
+
+
+func _test_background() -> void:
+	_clear()
+	var home := _home()
+	home.collection = Collection.new()
+	var frame := _mount(home)
+	await _frames()
+	var back := home.get_child(0) as ColorRect
+	check(back != null and back.color == Palette.page_background(), "the backmost child is the page colour")
+	check(back != null and back.get_global_rect().size.is_equal_approx(Vector2(540, 1200)), "the background covers the viewport")
+	check(home.hero.texture == null and home.get_child(0) == home.background, "with no picture the hero area shows the background")
 	frame.free()
 
 

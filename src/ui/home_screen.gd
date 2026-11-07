@@ -29,6 +29,7 @@ var quit_app: Callable
 ## Returns the Pictures screen. While it is empty the buttons that lead there stay disabled.
 var open_pictures: Callable
 
+var background: ColorRect
 var hero: TextureRect
 var eyebrow_label: Label
 var title_label: Label
@@ -129,6 +130,12 @@ func show_pictures() -> void:
 
 func _build_ui() -> void:
 	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	# The board leaves the clear colour on felt, so Home paints its own ground.
+	background = ColorRect.new()
+	background.color = Palette.page_background()
+	background.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	background.mouse_filter = MOUSE_FILTER_IGNORE
+	add_child(background)
 	var scroller := ScrollContainer.new()
 	scroller.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	scroller.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
