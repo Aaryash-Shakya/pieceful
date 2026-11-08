@@ -9,6 +9,7 @@ func _init() -> void:
 	_test_set_active()
 	_test_press_emits_once()
 	_test_press_switches_tab()
+	_test_icon_size()
 	await _test_theme()
 	finish()
 
@@ -69,6 +70,12 @@ func _test_press_switches_tab() -> void:
 	check(b.button_pressed and not (nav.buttons[&"home"] as Button).button_pressed, "the old tab is released")
 	check(_fired == [&"settings"], "one signal with the new id")
 	nav.free()
+
+
+func _test_icon_size() -> void:
+	for id in FloatingNav.ICONS:
+		var width := (FloatingNav.ICONS[id] as Texture2D).get_width()
+		check(width >= 30 and width <= 36, "%s icon is about 33 px wide (%d)" % [id, width])
 
 
 func _test_theme() -> void:

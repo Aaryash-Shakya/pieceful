@@ -18,6 +18,8 @@ func _init() -> void:
 	await _test_apply_look()
 	await _test_present()
 	await _test_present_during_back()
+	await _test_pop_during_back()
+	await _test_reset()
 	await _test_push_lower_screen()
 	await _test_free_releases_hidden()
 	_remove()
@@ -66,11 +68,10 @@ func _test_push_pop() -> void:
 	check(shell.depth() == 2 and shell.top() == second, "push adds a screen")
 	check(not home.is_inside_tree() and is_instance_valid(home), "the pushed-over screen is out of the tree but kept")
 	check(shell.pop(), "pop returns true above the root")
-	check(second.get_parent() == null, "the popped screen leaves the shell at once")
-	check(shell.get_child_count() == 1, "only the restored screen is a child right after pop")
-	check(not is_instance_valid(second) or second.is_queued_for_deletion(), "the popped screen is freed")
-	check(home.is_inside_tree() and shell.top() == home, "home is back")
 	await process_frame
+	check(shell.get_child_count() == 1, "only the restored screen is a child")
+	check(not is_instance_valid(second), "the popped screen is freed")
+	check(home.is_inside_tree() and shell.top() == home, "home is back")
 	_finish_shell(shell)
 
 
@@ -159,6 +160,46 @@ func _test_present_during_back() -> void:
 	check(shell.get_child_count() == 1 and shell.get_child(0) == next, "the new screen is the shell's only child")
 	check(shell.top() == next and shell.depth() == 1, "the stack names the new screen")
 	_finish_shell(shell)
+
+
+class PopScreen extends Node2D:
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+			AppShell.find(get_tree()).pop()
+
+
+# A screen above the root pops from inside the back notification too.
+func _test_pop_during_back() -> void:
+	var home := Control.new()
+	var shell := _shell(home)
+	shell.push(PopScreen.new())
+	root.propagate_notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	await process_frame
+	check(shell.depth() == 1 and shell.top() == home and home.is_inside_tree(), "pop from the back notification restores the screen below")
+	check(shell.get_child_count() == 1, "and it is the only child")
+	_finish_shell(shell)
+
+
+func _test_reset() -> void:
+	var home := Control.new()
+	var shell := _shell(home)
+	var middle := Control.new()
+	var upper := Control.new()
+	shell.push(middle)
+	shell.push(upper)
+	var fresh := Control.new()
+	AppShell.reset_to(self, fresh)
+	await process_frame
+	check(shell.depth() == 1 and shell.top() == fresh and shell.get_child_count() == 1, "reset leaves only the new screen")
+	check(not is_instance_valid(home) and not is_instance_valid(middle) and not is_instance_valid(upper), "reset frees every screen in the stack")
+	_finish_shell(shell)
+	var b := Control.new()
+	AppShell.reset_to(self, b)
+	await process_frame
+	check(current_scene == b, "without a shell reset changes the scene")
+	b.free()
+	current_scene = null
+	await process_frame
 
 
 func _test_push_lower_screen() -> void:

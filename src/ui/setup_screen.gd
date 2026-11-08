@@ -4,7 +4,6 @@ extends Control
 ## in code like the HUD so every control takes its look from UiTheme.
 
 const SCENE := "res://src/ui/setup_screen.tscn"
-const BOARD_SCENE := "res://src/game/board.tscn"
 const DEFAULT_COUNT := 54
 # The slider offers about this many counts, not every valid split.
 const SLIDER_STEPS := 20
@@ -30,12 +29,13 @@ const PREVIEW_MAX_HEIGHT := 420.0
 const RESUME_THUMB_SIZE := Vector2(72, 54)
 # A finger target: the slider takes a press anywhere in its rect, and the theme keeps the track 10 px.
 const SLIDER_HEIGHT := 44
-# How far a finger may travel and still tap. Further, it is a scroll, and the tile under it is not chosen.
-const TAP_SLOP := 8.0
+const TAP_SLOP := TapGuard.SLOP
 
 var save_path := SaveFile.DEFAULT_PATH
 var collection: Collection = null
 var quit_app: Callable
+## Picture to start a new puzzle on, which skips resuming a save; an id the collection lacks means the first.
+var start_picture_id := ""
 
 ## What the picker offers: the parts of a merged collection, or the collection itself.
 var sections: Array[Collection] = []
@@ -71,11 +71,7 @@ var resume_thumb: TextureRect
 
 var _dragging := false
 var _last_preview_ms := -1000000
-var _press_at := Vector2.ZERO
-# Set on a release that travelled past TAP_SLOP, read by the pressed handler that follows it.
-var _swiped := false
-# Motion counts toward a swipe only while a press is down; a hovering mouse is not dragging.
-var _pointer_down := false
+var _taps := TapGuard.new()
 # Set by the first launch: a double tap or Start then Resume must not open two boards.
 var _launched := false
 var _picture_group := ButtonGroup.new()
@@ -145,14 +141,6 @@ static func open(tree: SceneTree, path: String, source: Collection) -> SetupScre
 	return screen
 
 
-## The screen a board returns to. Every setting a new screen inherits from the one that launched
-## the board is handed on here, the quit seam included, so a test's seam survives the round trip.
-static func return_from_board(tree: SceneTree, path: String, source: Collection, quit: Callable) -> SetupScreen:
-	var screen := open(tree, path, source)
-	screen.quit_app = quit
-	return screen
-
-
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(Palette.page_background())
 	theme = UiTheme.build()
@@ -175,6 +163,10 @@ func _ready() -> void:
 			_keep_save("no pictures are available")
 		else:
 			_set_save_aside()
+	# A chosen picture means a new puzzle; resuming lives on Home. A usable save stays until Start
+	# replaces it, but it is judged above first so Start never overwrites one that is not.
+	if start_picture_id != "":
+		saved = null
 
 	if collection.parts.is_empty():
 		sections.append(collection)
@@ -205,14 +197,18 @@ func _ready() -> void:
 		style = CutGenerator.STYLE_REGULAR
 		count = DEFAULT_COUNT
 		select_style(style)
-		_show_section(0)
-		select_picture(0)
+		var chosen := collection.find(start_picture_id) if start_picture_id != "" else null
+		_show_section(_section_of(start_picture_id) if chosen != null else 0)
+		select_picture(maxi(0, pictures.find(chosen)) if chosen != null else 0)
 
 
 func _notification(what: int) -> void:
 	match what:
 		NOTIFICATION_WM_GO_BACK_REQUEST:
-			if quit_app.is_valid():
+			var shell := AppShell.find(get_tree())
+			if shell != null and shell.depth() > 1:
+				shell.pop()
+			elif quit_app.is_valid():
 				quit_app.call()
 		# A slider that is hidden or leaves the tree can lose its grab without drag_ended, which
 		# would leave later track taps never scheduling a preview.
@@ -265,16 +261,7 @@ func _launch(puzzle: SaveGame.Puzzle, resume_save: bool) -> Board:
 	start_button.disabled = true
 	resume_button.disabled = true
 	preview_timer.stop()
-	var board := (load(BOARD_SCENE) as PackedScene).instantiate() as Board
-	board.save_path = save_path
-	board.collection = collection
-	board.start_puzzle = puzzle
-	board.resume = resume_save
-	var tree := get_tree()
-	# Static and bound to values, so it never reaches this screen, which is freed by then.
-	board.home_requested.connect(SetupScreen.return_from_board.bind(tree, save_path, collection, quit_app))
-	AppShell.present(tree, board)
-	return board
+	return BoardLaunch.launch(get_tree(), save_path, collection, puzzle, resume_save, quit_app)
 
 
 ## Shows another collection and chooses its first picture. The count stays the nearest valid one.
@@ -430,7 +417,7 @@ func _on_slider_drag_ended(_value_changed: bool) -> void:
 
 
 func _on_picture_pressed(button: Button) -> void:
-	if _take_swipe():
+	if _taps.take_swipe():
 		if picture != null:
 			picture_buttons[pictures.find(picture)].button_pressed = true
 		return
@@ -438,53 +425,22 @@ func _on_picture_pressed(button: Button) -> void:
 
 
 func _on_collection_pressed(index: int) -> void:
-	if _take_swipe():
+	if _taps.take_swipe():
 		collection_buttons[section_index].button_pressed = true
 		return
 	select_collection(index)
 
 
 func _on_style_pressed(value: String) -> void:
-	if _take_swipe():
+	if _taps.take_swipe():
 		style_buttons[STYLES.find(style)].button_pressed = true
 		return
 	select_style(value)
 
 
 func _on_resume_pressed() -> void:
-	if not _take_swipe():
+	if not _taps.take_swipe():
 		resume()
-
-
-# Read once, so a press that arrives without pointer input (a test, accessibility) is never
-# mistaken for the last swipe.
-func _take_swipe() -> bool:
-	var swiped := _swiped
-	_swiped = false
-	return swiped
-
-
-# A button in a scroller still fires when the finger lifts over it after scrolling. The gui_input
-# signal runs before the button's own handling, so the release is judged here and the pressed
-# handler that follows undoes the toggle. The furthest point counts, so a swipe that comes back is
-# still a swipe.
-func _on_scrolled_button_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
-		var button_event := event as InputEventMouseButton
-		if button_event.pressed:
-			_press_at = button_event.global_position
-			_swiped = false
-			_pointer_down = true
-		elif _pointer_down:
-			_pointer_down = false
-			_note_travel(button_event.global_position)
-	elif event is InputEventMouseMotion and _pointer_down:
-		_note_travel((event as InputEventMouseMotion).global_position)
-
-
-func _note_travel(at: Vector2) -> void:
-	if at.distance_to(_press_at) > TAP_SLOP:
-		_swiped = true
 
 
 # Fitted to the width and capped in height, so a tall picture does not push the choices away.
@@ -660,4 +616,4 @@ func _make_option(group: ButtonGroup) -> Button:
 # Every option tile sits in a scroller, which drag-scrolls only from events its children pass on.
 func _pass_to_scroller(button: Button) -> void:
 	button.mouse_filter = MOUSE_FILTER_PASS
-	button.gui_input.connect(_on_scrolled_button_input)
+	button.gui_input.connect(_taps.watch)

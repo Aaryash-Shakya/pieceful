@@ -33,6 +33,7 @@ func _init() -> void:
 	await _test_completed_home_leaves_no_save()
 	await _test_resume_in_another_collection()
 	_test_no_save_no_card()
+	_test_chosen_picture_still_judges_the_save()
 	_test_main_scene()
 	if is_instance_valid(current_scene):
 		current_scene.free()
@@ -86,11 +87,18 @@ func _children_of_type(type: Variant) -> int:
 	return n
 
 
-func _go_home() -> void:
+func _home_body() -> HomeScreen:
+	var host := current_scene as TabHost
+	return host.body as HomeScreen if host != null else null
+
+
+# The board returns to Home. Setup is then opened over the same save, which later steps read.
+func _go_home(source := _fixture) -> void:
 	var board := current_scene as Board
 	if board != null:
 		board.go_home()
 	await _frames()
+	_open(source)
 
 
 func _test_start_builds_the_chosen_board() -> void:
@@ -133,11 +141,12 @@ func _test_home_returns_and_saves() -> void:
 	node.position = _moved_offset
 	board.go_home()
 	await _frames()
-	check(current_scene is SetupScreen, "Home opens the setup screen")
-	var s := current_scene as SetupScreen
-	if s == null:
+	var home := _home_body()
+	check(home != null, "Home opens the Home screen")
+	if home == null:
 		return
-	check(s.save_path == SAVE and s.collection == _fixture, "the screen keeps the save path and collection")
+	check(home.save_path == SAVE and home.collection == _fixture, "Home keeps the save path and collection")
+	check(home.continue_button != null and home.title_label.text == "Confetti Field", "Home offers to continue the puzzle")
 	var found := false
 	var d := _saved()
 	# JSON numbers read back as floats, and Array.has does not match an int against a float.
@@ -145,6 +154,7 @@ func _test_home_returns_and_saves() -> void:
 		if (c.pieces as Array).has(float(_moved_id)):
 			found = Vector2(c.offset[0], c.offset[1]) == _moved_offset
 	check(found, "the moved piece is saved where it was left")
+	var s := _open()
 	check(s.resume_card.visible, "the resume card shows")
 	check(s.resume_label.text == "Confetti Field · %d pieces · Irregular" % _count, "resume label: %s" % s.resume_label.text)
 	check(s.resume_thumb.texture != null, "the resume card shows the thumbnail")
@@ -177,13 +187,16 @@ func _test_resume_restores() -> void:
 func _test_back_on_board_goes_home() -> void:
 	current_scene._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	await _frames()
-	check(current_scene is SetupScreen, "back on the board opens the setup screen")
+	check(_home_body() != null, "back on the board opens Home")
 	check(_quits == 0, "back on the board does not quit")
+	_home_body()._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	check(_quits == 1, "back on Home quits: %d" % _quits)
+	_open()
 
 
 func _test_back_on_setup_quits() -> void:
 	current_scene._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
-	check(_quits == 1, "back on the setup screen quits: %d" % _quits)
+	check(_quits == 2, "back on the setup screen quits: %d" % _quits)
 	check(current_scene is SetupScreen, "the runner did not quit")
 
 
@@ -208,8 +221,9 @@ func _test_start_twice_launches_once() -> void:
 	b1.go_home()
 	b1._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	await _frames()
-	check(_children_of_type(SetupScreen) == 1, "one setup screen: %d" % _children_of_type(SetupScreen))
+	check(_children_of_type(TabHost) == 1, "one Home: %d" % _children_of_type(TabHost))
 	check(_children_of_type(Board) == 0, "the board is gone")
+	_open()
 
 
 func _test_start_replaces_the_save() -> void:
@@ -309,12 +323,13 @@ func _test_completed_home_leaves_no_save() -> void:
 	board.go_home()
 	await _frames()
 	OS.remove_logger(capture)
-	check(current_scene is SetupScreen, "Home on a finished puzzle opens the setup screen")
+	var home := _home_body()
+	check(home != null, "Home on a finished puzzle opens the Home screen")
 	check(capture.warnings.is_empty() and capture.errors.is_empty(), "a finished puzzle logs nothing: %s %s" % [capture.warnings, capture.errors])
 	check(not FileAccess.file_exists(SAVE), "a finished puzzle leaves no save")
 	check(not FileAccess.file_exists(SaveFile.bad_path(SAVE)), "nothing is set aside")
-	if current_scene is SetupScreen:
-		check(not (current_scene as SetupScreen).resume_card.visible, "no resume card for a finished puzzle")
+	if home != null:
+		check(home.continue_button == null, "no Continue for a finished puzzle")
 
 
 # The picture's thumbnail loads, so its tile shows, but the full picture does not.
@@ -387,6 +402,29 @@ func _test_save_kept_when_pictures_are_unavailable() -> void:
 	_check_kept(text, "no tile")
 
 
+# A chosen picture only hides a usable save; Start would overwrite an unusable one, so it is set aside.
+func _test_chosen_picture_still_judges_the_save() -> void:
+	_clear()
+	SaveFile.write_atomic(SAVE, "{bad")
+	if is_instance_valid(current_scene):
+		current_scene.free()
+	var capture := LogCapture.new()
+	OS.add_logger(capture)
+	var s := (load(SetupScreen.SCENE) as PackedScene).instantiate() as SetupScreen
+	s.save_path = SAVE
+	s.collection = _fixture
+	s.quit_app = func() -> void: _quits += 1
+	s.start_picture_id = _fixture.pictures[1].id
+	root.add_child(s)
+	current_scene = s
+	OS.remove_logger(capture)
+	check(capture.warnings.size() == 1 and capture.warnings[0].begins_with("SetupScreen: could not resume"), "chosen picture, corrupt save: one warning: %s" % [capture.warnings])
+	check(capture.errors.is_empty(), "chosen picture, corrupt save: no errors: %s" % [capture.errors])
+	check(not FileAccess.file_exists(SAVE) and FileAccess.file_exists(SaveFile.bad_path(SAVE)), "chosen picture, corrupt save: moved aside")
+	check(s.picture != null and s.picture.id == _fixture.pictures[1].id and not s.resume_card.visible, "chosen picture, corrupt save: the chosen picture is shown")
+	_clear()
+
+
 func _test_no_save_no_card() -> void:
 	_clear()
 	var capture := LogCapture.new()
@@ -415,10 +453,9 @@ func _test_resume_in_another_collection() -> void:
 	check(board.puzzle.image_id == "second-confetti-field", "the board opens a picture of the second collection")
 	board.go_home()
 	await _frames()
-	var home := current_scene as SetupScreen
-	if home == null:
-		check(false, "Home opens the setup screen")
-		return
+	var landing := _home_body()
+	check(landing != null and landing.collection == merged and landing.continue_button != null, "Home keeps the merged collection and offers Continue")
+	var home := _open(merged)
 	check(home.collection == merged and home.sections.size() == 2, "the screen keeps the merged collection")
 	check(home.resume_card.visible and home.saved != null, "the resume card shows")
 	check(home.section_index == 1 and home.collection_buttons[1].button_pressed, "the picker opens on the saved picture's collection")

@@ -195,3 +195,9 @@ static func _add_nav_button(theme: Theme, dark: bool) -> void:
 		theme.set_color(color_name, NAV_BUTTON, Palette.text(dark))
 	for color_name in ["icon_pressed_color", "icon_hover_pressed_color"]:
 		theme.set_color(color_name, NAV_BUTTON, Palette.text_on_accent(dark))
+	# Option inherits the amber Button fill when disabled, which reads as the active tab.
+	theme.set_stylebox("disabled", NAV_BUTTON, theme.get_stylebox("normal", OPTION))
+	var faded := Palette.muted_text(dark)
+	faded.a = DISABLED_ALPHA
+	theme.set_color("font_disabled_color", NAV_BUTTON, faded)
+	theme.set_color("icon_disabled_color", NAV_BUTTON, faded)

@@ -10,10 +10,12 @@ func _init() -> void:
 	await process_frame
 	var shell := (load("res://src/ui/app_shell.tscn") as PackedScene).instantiate() as AppShell
 	shell.settings_path = SETTINGS_PATH
+	shell.save_path = SAVE_PATH
 	root.add_child(shell)
 	await process_frame
-	var setup := shell.top() as SetupScreen
-	setup.save_path = SAVE_PATH
+	# The shell opens on Home; the board is reached through Setup as from Pictures.
+	var setup := SetupScreen.open(self,SAVE_PATH, CollectionLibrary.load_bundled())
+	await process_frame
 	setup.start()
 	for k in 3:
 		await process_frame

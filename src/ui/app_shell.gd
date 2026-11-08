@@ -5,7 +5,9 @@ extends Control
 signal look_applied
 
 var settings_path := Settings.DEFAULT_PATH
-## Returns the root screen. Left empty, the setup screen is the home.
+## The save the default Home reads.
+var save_path := SaveFile.DEFAULT_PATH
+## Returns the root screen. Left empty, the Home screen is the root.
 var make_home := Callable()
 
 var _stack: Array[Node] = []
@@ -21,7 +23,7 @@ func _ready() -> void:
 	if make_home.is_valid():
 		push(make_home.call())
 	else:
-		push((load(SetupScreen.SCENE) as PackedScene).instantiate())
+		push(HomeScreen.make_host(save_path, CollectionLibrary.load_bundled(), get_tree().quit))
 
 
 func push(screen: Node) -> void:
@@ -33,15 +35,25 @@ func push(screen: Node) -> void:
 	_show(screen)
 
 
+## True when there is a screen to pop. The change itself is deferred, like present(), because back
+## arrives while the tree is busy and refuses child changes.
 func pop() -> bool:
 	if _stack.size() < 2:
 		return false
-	# Out of the tree first, like replace(), so only the top screen is ever a child.
-	var old: Node = _stack.pop_back()
-	remove_child(old)
-	old.queue_free()
-	add_child(_stack.back())
+	_pop_now.call_deferred()
 	return true
+
+
+## Drops every screen in the stack and leaves only this one, for a new root destination.
+func reset(screen: Node) -> void:
+	for old in _stack:
+		if is_instance_valid(old):
+			if old.get_parent() == self:
+				remove_child(old)
+			old.queue_free()
+	_stack.clear()
+	_stack.append(screen)
+	_show(screen)
 
 
 func replace(screen: Node) -> void:
@@ -84,6 +96,25 @@ static func present(tree: SceneTree, screen: Node) -> void:
 		shell.replace.call_deferred(screen)
 	else:
 		tree.change_scene_to_node(screen)
+
+
+## Like present(), for a screen that becomes the only one, such as the board or Home.
+static func reset_to(tree: SceneTree, screen: Node) -> void:
+	var shell := find(tree)
+	if shell != null:
+		shell.reset.call_deferred(screen)
+	else:
+		tree.change_scene_to_node(screen)
+
+
+func _pop_now() -> void:
+	if _stack.size() < 2:
+		return
+	# Out of the tree first, like replace(), so only the top screen is ever a child.
+	var old: Node = _stack.pop_back()
+	remove_child(old)
+	old.queue_free()
+	add_child(_stack.back())
 
 
 func _show(screen: Node) -> void:
