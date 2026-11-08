@@ -2,7 +2,7 @@ extends "res://tests/base_test.gd"
 
 const LogCapture := preload("res://tests/log_capture.gd")
 const Two := preload("res://tests/two_collections.gd")
-const IDS: Array[String] = ["abstract", "geometry", "landscape", "pattern"]
+const IDS: Array[String] = ["animals", "abstract", "geometry", "landscape", "pattern"]
 
 
 func _init() -> void:
@@ -17,7 +17,7 @@ func _init() -> void:
 
 
 func _test_bundled_list() -> void:
-	check(CollectionLibrary.BUNDLED.size() == IDS.size(), "four bundled collections")
+	check(CollectionLibrary.BUNDLED.size() == IDS.size(), "five bundled collections")
 	for i in mini(IDS.size(), CollectionLibrary.BUNDLED.size()):
 		check(CollectionLibrary.BUNDLED[i] == "res://assets/collections/%s/manifest.json" % IDS[i], "bundled path %d" % i)
 
@@ -45,7 +45,11 @@ func _test_bundled_pictures_have_counts() -> void:
 				check(counts[0] >= Collection.MIN_COUNT and counts[-1] <= Collection.MAX_COUNT, "%s: counts stay in range" % p.id)
 			check(c.load_texture(p) != null, "%s: loads" % p.id)
 			check(c.load_thumbnail(p) != null and p.thumbnail_path != "", "%s: has a thumbnail" % p.id)
-			check(p.generated and p.licence == "CC-BY-4.0", "%s: generated and licensed" % p.id)
+			# Generated art is the owner's under CC BY; found photos must be free of any licence terms.
+			if p.generated:
+				check(p.licence == "CC-BY-4.0", "%s: generated and licensed" % p.id)
+			else:
+				check(p.licence in ["CC0-1.0", "public-domain"] and p.credit.contains("Wikimedia Commons"), "%s: CC0 or public domain, credited" % p.id)
 
 
 func _test_load_bundled() -> void:
@@ -54,8 +58,8 @@ func _test_load_bundled() -> void:
 	var library := CollectionLibrary.load_bundled()
 	OS.remove_logger(capture)
 	check(capture.warnings.is_empty() and capture.errors.is_empty(), "load_bundled: nothing logged")
-	check(library.parts.size() == 4, "four parts")
-	check(library.pictures.size() == 24, "24 pictures in all: %d" % library.pictures.size())
+	check(library.parts.size() == 5, "five parts")
+	check(library.pictures.size() == 30, "30 pictures in all: %d" % library.pictures.size())
 	var ids: Array[String] = []
 	for part in library.parts:
 		ids.append(part.id)
@@ -65,7 +69,7 @@ func _test_load_bundled() -> void:
 		seen[p.id] = true
 	check(seen.size() == library.pictures.size(), "picture ids are unique")
 	check(library.find("pattern-brick-weave") != null and library.find("geometry-sunburst") != null, "find reaches every collection")
-	check(library.find("abstract-ember-rings") == library.parts[0].find("abstract-ember-rings"), "a part and the merge share pictures")
+	check(library.find("abstract-ember-rings") == library.parts[1].find("abstract-ember-rings"), "a part and the merge share pictures")
 	check(library.find("nope") == null, "find an unknown id")
 	check(library.load_texture(library.find("landscape-low-sun")) != null, "a picture of a later collection loads")
 

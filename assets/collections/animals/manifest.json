@@ -1,0 +1,72 @@
+{
+	"id": "animals",
+	"pictures": [
+		{
+			"credit": "Bernard Spragg, via Wikimedia Commons",
+			"file": "koi.webp",
+			"generated": false,
+			"height": 1371,
+			"id": "animals-koi",
+			"licence": "public-domain",
+			"source": "https://commons.wikimedia.org/wiki/File:Colourful_Koi_carp._(52513566219).jpg",
+			"title": "Koi Pond",
+			"width": 2048
+		},
+		{
+			"credit": "Bruno Liljefors (1914), via Wikimedia Commons",
+			"file": "fox-family.webp",
+			"generated": false,
+			"height": 1339,
+			"id": "animals-fox-family",
+			"licence": "public-domain",
+			"source": "https://commons.wikimedia.org/wiki/File:Bruno_Liljefors_-_A_fox_family_with_stretching_mallard_1914.jpg",
+			"title": "Fox Family",
+			"width": 2048
+		},
+		{
+			"credit": "Jebulon, via Wikimedia Commons",
+			"file": "blue-macaw.webp",
+			"generated": false,
+			"height": 1763,
+			"id": "animals-blue-macaw",
+			"licence": "CC0-1.0",
+			"source": "https://commons.wikimedia.org/wiki/File:Ara_ararauna_portrait_Rhodes.jpg",
+			"title": "Blue Macaw",
+			"width": 2048
+		},
+		{
+			"credit": "Mathias Appel, via Wikimedia Commons",
+			"file": "red-panda.webp",
+			"generated": false,
+			"height": 1356,
+			"id": "animals-red-panda",
+			"licence": "CC0-1.0",
+			"source": "https://commons.wikimedia.org/wiki/File:Red_Panda_(24685085159).jpg",
+			"title": "Red Panda",
+			"width": 2048
+		},
+		{
+			"credit": "Wilfredor, via Wikimedia Commons",
+			"file": "flamingo.webp",
+			"generated": false,
+			"height": 1360,
+			"id": "animals-flamingo",
+			"licence": "CC0-1.0",
+			"source": "https://commons.wikimedia.org/wiki/File:Phoenicopterus_ruber_in_S%C3%A3o_Paulo_Zoo.jpg",
+			"title": "Flamingo",
+			"width": 2048
+		},
+		{
+			"credit": "Dave Pape, via Wikimedia Commons",
+			"file": "tiger.webp",
+			"generated": false,
+			"height": 1388,
+			"id": "animals-tigers",
+			"licence": "public-domain",
+			"source": "https://commons.wikimedia.org/wiki/File:Panthera_tigris_altaica_13_-_Buffalo_Zoo.jpg",
+			"title": "Tigers in the Snow",
+			"width": 2048
+		}
+	],
+	"title": "Animals"
+}

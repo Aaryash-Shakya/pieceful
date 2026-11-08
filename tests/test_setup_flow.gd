@@ -488,5 +488,5 @@ func _test_main_scene() -> void:
 	s.save_path = SAVE
 	root.add_child(s)
 	current_scene = s
-	check(s.collection_buttons.size() == 4 and s.collection_buttons[0].text == "Abstract", "the bundled collections are offered")
-	check(s.section_index == 0 and s.picture.id == "abstract-ember-rings", "the first collection's first picture is chosen")
+	check(s.collection_buttons.size() == CollectionLibrary.BUNDLED.size() and s.collection_buttons[0].text == "Animals", "the bundled collections are offered")
+	check(s.section_index == 0 and s.picture.id == "animals-koi", "the first collection's first picture is chosen")
