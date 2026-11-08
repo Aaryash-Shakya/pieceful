@@ -2,6 +2,16 @@
 
 Written 2026-11-06. The design is `docs/superpowers/specs/2026-11-06-ui-rebuild-design.md`, and the approved screens are in `docs/prototype/ui-flow.html`. This file records what has been built, what is next, and the calls made while building that the owner can overturn.
 
+## Workshop look (2026-11-08)
+
+The owner replaced the look on 2026-11-08. The new mockup is `docs/prototype/workshop.html` (open it in a browser from the repo, the pictures load from `assets/collections`). The tokens, fonts and icon are in `docs/visual-design.md`. Where `ui-flow.html` and `workshop.html` disagree on looks, `workshop.html` wins; `ui-flow.html` still sets which screens exist and how they behave.
+
+Built: the Workshop palette is the default theme, Laila and Monda replace Baloo 2 and Quicksand, panels have a 3 px rim, the Home logo is sun yellow with a dark rim, and the app icon and boot splash are new. Settings files from before have their theme reset to Workshop once (`look_version`), because no screen could pick a theme yet, so the stored "midnight" was only the old default.
+
+Not built yet, for the slices that own those screens: peach paper panels, wooden picture frames and ribbon titles, the Setup card over Pictures, the board's wooden shelf and tool keys, and the Pause, Complete and Settings layouts. The board's Edges and Fit keys in the mockup are new features, not a restyle, and need the owner's go-ahead.
+
+`tools/capture_screens.gd` saves Home, Pictures, Setup and the board as PNGs from a windowed run. It reads the viewport directly, which avoids the zoomed movie capture on this machine.
+
 ## Slice 1: foundations (built)
 
 The app now starts in an `AppShell`, which is the main scene and holds a stack of screens (push, pop, replace). The look is data: theme, light/dark/auto, accent and corner roundness are settings in `user://settings.cfg`, and `Palette` and `UiTheme` read them. Four themes are in (Midnight table is the default and unchanged, then Orchard, Berry jam, Slate). This section describes slice 1 as it was built then. At the end of slice 1, no screen used the safe-area helper or tab bar; slice 2 mounts the tab bar on Home and Pictures. The setup screen and the board worked as before and swapped through the shell. All 43 headless test files passed then. Nothing has run on a phone.

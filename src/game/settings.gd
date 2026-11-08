@@ -6,7 +6,8 @@ extends RefCounted
 const DEFAULT_PATH := "user://settings.cfg"
 const SECTION := "feedback"
 const LOOK_SECTION := "look"
-const THEMES: Array[String] = ["midnight", "orchard", "berry", "slate"]
+const THEMES: Array[String] = ["workshop", "midnight", "orchard", "berry", "slate"]
+const LOOK_VERSION := 2
 const MODES: Array[String] = ["auto", "light", "dark"]
 const ROUNDNESS_MIN := 0
 const ROUNDNESS_MAX := 250
@@ -14,7 +15,7 @@ const ROUNDNESS_DEFAULT := 100
 
 var sound := true
 var vibration := true
-var theme := "midnight"
+var theme := "workshop"
 var mode := "auto"
 ## Empty means the theme's own accent, otherwise lowercase #rrggbb.
 var accent := ""
@@ -50,8 +51,11 @@ static func load_from(path: String = DEFAULT_PATH) -> Settings:
 	var vibration_value: Variant = file.get_value(SECTION, "vibration", true)
 	settings.sound = sound_value if sound_value is bool else true
 	settings.vibration = vibration_value if vibration_value is bool else true
-	var theme_value: Variant = file.get_value(LOOK_SECTION, "theme", "midnight")
-	if theme_value is String and theme_value in THEMES:
+	# Files from before Workshop hold "midnight" only because it was the default then, and no screen
+	# could pick a theme, so their theme is not a choice to keep.
+	var theme_value: Variant = file.get_value(LOOK_SECTION, "theme", THEMES[0])
+	var version: Variant = file.get_value(LOOK_SECTION, "look_version", 1)
+	if version is int and version >= LOOK_VERSION and theme_value is String and theme_value in THEMES:
 		settings.theme = theme_value
 	var mode_value: Variant = file.get_value(LOOK_SECTION, "mode", "auto")
 	if mode_value is String and mode_value in MODES:
@@ -70,6 +74,7 @@ func save_to(path: String = DEFAULT_PATH) -> Error:
 	var file := ConfigFile.new()
 	file.set_value(SECTION, "sound", sound)
 	file.set_value(SECTION, "vibration", vibration)
+	file.set_value(LOOK_SECTION, "look_version", LOOK_VERSION)
 	file.set_value(LOOK_SECTION, "theme", theme)
 	file.set_value(LOOK_SECTION, "mode", mode)
 	file.set_value(LOOK_SECTION, "accent", accent)

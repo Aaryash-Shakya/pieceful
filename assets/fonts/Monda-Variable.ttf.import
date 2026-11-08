@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://dinpio4aphe4"
-path="res://.godot/imported/Baloo2-Variable.ttf-f45e5b5782461f2943e35949edc2002b.fontdata"
+uid="uid://c2t20coht1pp1"
+path="res://.godot/imported/Monda-Variable.ttf-fba5e0bd36e7815a85159838500c46c9.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/Baloo2-Variable.ttf"
-dest_files=["res://.godot/imported/Baloo2-Variable.ttf-f45e5b5782461f2943e35949edc2002b.fontdata"]
+source_file="res://assets/fonts/Monda-Variable.ttf"
+dest_files=["res://.godot/imported/Monda-Variable.ttf-fba5e0bd36e7815a85159838500c46c9.fontdata"]
 
 [params]
 

@@ -1,6 +1,10 @@
 extends "res://tests/base_test.gd"
 
 const EXPECTED := {
+	"workshop": [
+		["#b8420f", "#43160a", "#7a3418", "#fff3dc", "#f3cfa3", "#d27a2a", "#4cc417", "#ffffff", "#2c8209", "#43160a", "#5e2410"],
+		["#b8420f", "#43160a", "#7a3418", "#fff3dc", "#f3cfa3", "#d27a2a", "#4cc417", "#ffffff", "#2c8209", "#43160a", "#5e2410"],
+	],
 	"midnight": [
 		["#e7e9f0", "#f6f7fb", "#dbdfea", "#141b2d", "#566079", "#c9cfdd", "#e2a41f", "#2a1d00", "#a87612", "#223a63", "#2c4878"],
 		["#0b1020", "#131a2e", "#1c2540", "#e9edf7", "#8d98b5", "#27314f", "#ffc857", "#2a1d00", "#b58712", "#14264a", "#1c3463"],
@@ -21,7 +25,9 @@ const EXPECTED := {
 
 
 func _init() -> void:
-	Settings.use(Settings.new())
+	check(Settings.new().theme == "workshop", "Workshop is the default theme")
+	# The role checks below are Midnight's, which has a light and a dark set.
+	_with()
 	check(Palette.felt(false) == Color.html("#223a63"), "felt light")
 	check(Palette.felt(true) == Color.html("#14264a"), "felt dark")
 	check(Palette.board(false) == Color.html("#2c4878"), "board light")
@@ -76,7 +82,7 @@ func _test_themes() -> void:
 
 
 func _test_unknown_theme() -> void:
-	check(PaletteThemes.color("nope", false, PaletteThemes.Role.ACCENT) == Color.html("#e2a41f"), "unknown theme falls back to midnight")
+	check(PaletteThemes.color("nope", false, PaletteThemes.Role.ACCENT) == Color.html("#4cc417"), "unknown theme falls back to workshop")
 
 
 func _test_settings_drive_palette() -> void:

@@ -41,7 +41,7 @@ func _test_hud_is_screen_space(hud: Hud) -> void:
 
 func _test_button_uses_theme(hud: Hud) -> void:
 	var b := hud.cleanup_button
-	check((b.get_theme_font("font") as FontVariation).base_font.resource_path == UiTheme.BALOO_PATH, "the button uses Baloo 2")
+	check(b.get_theme_font("font").resource_path == UiTheme.BUTTON_PATH, "the button uses Laila")
 	check(b.get_theme_font_size("font_size") == UiTheme.BUTTON_FONT_SIZE, "the button uses the button font size")
 	var normal := b.get_theme_stylebox("normal") as StyleBoxFlat
 	check(normal.bg_color == Palette.accent(), "the button face is the accent")

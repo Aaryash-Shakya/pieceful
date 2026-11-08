@@ -12,6 +12,9 @@ const NEW_TEXT := "New puzzle\nPick a picture"
 const DAILY_TEXT := "Daily puzzle\nComing soon"
 const EMPTY_NOTE_TEXT := "Start a new one"
 const TITLE_TEXT := "Pieceful"
+const LOGO_SIZE := 54
+const LOGO_OUTLINE := 6
+const LOGO_COLOR := Color("#ffd21f")
 const SIDE_MARGIN := 24
 const GAP := 18
 const HERO_HEIGHT := 640
@@ -230,8 +233,13 @@ func _build_hero(resuming: bool) -> void:
 	var logo := Label.new()
 	logo.text = TITLE_TEXT
 	logo.theme_type_variation = UiTheme.TITLE
-	logo.add_theme_color_override("font_color", Color.WHITE)
+	# A sign-painted logo: sun yellow, a dark rim and a drop below it.
+	logo.add_theme_font_size_override("font_size", LOGO_SIZE)
+	logo.add_theme_color_override("font_color", LOGO_COLOR)
+	logo.add_theme_color_override("font_outline_color", Palette.surface())
+	logo.add_theme_constant_override("outline_size", LOGO_OUTLINE)
 	logo.add_theme_color_override("font_shadow_color", Palette.outline())
+	logo.add_theme_constant_override("shadow_offset_y", LOGO_OUTLINE)
 	logo.position = Vector2(SIDE_MARGIN, LOGO_TOP + SafeArea.current(get_tree()).y)
 	frame.add_child(logo)
 

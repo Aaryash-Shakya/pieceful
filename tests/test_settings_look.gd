@@ -25,7 +25,7 @@ func _write(values: Dictionary) -> void:
 func _test_defaults() -> void:
 	DirAccess.remove_absolute(PATH)
 	var s := Settings.load_from(PATH)
-	check(s.theme == "midnight" and s.mode == "auto", "theme and mode default")
+	check(s.theme == "workshop" and s.mode == "auto", "theme and mode default")
 	check(s.accent == "" and s.roundness == 100, "accent and roundness default")
 	check(s.sound and s.vibration, "sound and vibration stay on")
 
@@ -49,7 +49,11 @@ func _test_round_trip() -> void:
 func _test_bad_values() -> void:
 	_write({"theme": "neon", "mode": 5, "accent": "red", "roundness": 900})
 	var s := Settings.load_from(PATH)
-	check(s.theme == "midnight", "unknown theme falls back")
+	check(s.theme == "workshop", "unknown theme falls back")
+	_write({"theme": "berry"})
+	check(Settings.load_from(PATH).theme == "workshop", "a theme saved before Workshop existed was only the old default")
+	_write({"theme": "berry", "look_version": Settings.LOOK_VERSION})
+	check(Settings.load_from(PATH).theme == "berry", "a theme saved since Workshop is kept")
 	check(s.mode == "auto", "non-string mode falls back")
 	check(s.accent == "", "bad accent falls back")
 	check(s.roundness == 250, "roundness clamps high")

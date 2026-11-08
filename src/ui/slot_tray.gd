@@ -72,7 +72,7 @@ func _ready() -> void:
 		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		badge.add_theme_font_override("font", UiTheme.weighted(UiTheme.BALOO_PATH, UiTheme.BUTTON_WEIGHT))
+		badge.add_theme_font_override("font", load(UiTheme.BUTTON_PATH))
 		badge.add_theme_font_size_override("font_size", BADGE_FONT_SIZE)
 		# The tray sits on the navy table in both modes, so its text is the dark mode's.
 		badge.add_theme_color_override("font_color", Palette.text(true))
