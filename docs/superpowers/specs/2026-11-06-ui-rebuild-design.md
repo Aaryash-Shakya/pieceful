@@ -11,7 +11,7 @@ Why: the old screens are one long setup page with a Settings button bolted on. T
 ## Goals
 
 - Every screen in the reference exists in the app and behaves as in the reference: Home, Daily, Pictures, Collections store, Setup, Board, Slot stack fanned, Pause, Puzzle complete, Settings Look, Settings Play.
-- The look is data, not code: theme, light/dark/auto, accent, corner roundness are settings that restyle every screen at once. Midnight table with Baloo 2 and Quicksand stays the default and stays exactly as `docs/visual-design.md` locks it.
+- The look is data, not code: theme, light/dark/auto, accent, corner roundness are settings that restyle every screen at once. The default look is the one `docs/visual-design.md` locks: Workshop with Laila and Monda since 2026-11-08 (Midnight table with Baloo 2 and Quicksand before that).
 - Same game, same saves. No change to cut output, save format or piece behaviour.
 - One screen stack with Android back handling: Home is the root, back pops, back on Home quits.
 - 400 pieces still hold the frame rate. New screens must not add per-frame work while the board runs.

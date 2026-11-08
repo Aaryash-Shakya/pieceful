@@ -1,19 +1,21 @@
 # Fonts
 
-`Baloo2-Variable.ttf` is Baloo 2: Copyright 2019 The Baloo 2 Project Authors (https://github.com/EkType/Baloo2).
+`Laila-SemiBold.ttf` and `Laila-Bold.ttf` are Laila: Copyright (c) 2014 Indian Type Foundry (info@indiantypefoundry.com).
 
-`Quicksand-Variable.ttf` is Quicksand: Copyright 2011 The Quicksand Project Authors (https://github.com/andrew-paglinawan/QuicksandFamily), with Reserved Font Name "Quicksand".
+`Monda-Variable.ttf` is Monda: Copyright 2012 The Monda Project Authors (https://github.com/googlefonts/mondaFont).
 
-Both are licensed under the SIL Open Font License 1.1: <https://openfontlicense.org>. The full texts are `OFL-Baloo2.txt` and `OFL-Quicksand.txt`, shipped in the APK. The fonts are unmodified; only the file names were changed (the `[wght]` brackets became `-Variable`).
+Both are licensed under the SIL Open Font License 1.1: <https://openfontlicense.org>. The full texts are `OFL-Laila.txt` and `OFL-Monda.txt`, shipped in the APK. The fonts are unmodified; only the Monda file name was changed (the `[wght]` brackets became `-Variable`).
 
-Source: https://github.com/google/fonts, commit `2fe1e8c6b137fb13041a7cfca6fdcd8a910ea4dc`.
+Source: https://github.com/google/fonts, `main` as of 2026-11-08 (commit `86aced91de05cd4f96a06838124cca45be337b2b`).
 
-- https://raw.githubusercontent.com/google/fonts/2fe1e8c6b137fb13041a7cfca6fdcd8a910ea4dc/ofl/baloo2/Baloo2%5Bwght%5D.ttf
-- https://raw.githubusercontent.com/google/fonts/2fe1e8c6b137fb13041a7cfca6fdcd8a910ea4dc/ofl/baloo2/OFL.txt
-- https://raw.githubusercontent.com/google/fonts/2fe1e8c6b137fb13041a7cfca6fdcd8a910ea4dc/ofl/quicksand/Quicksand%5Bwght%5D.ttf
-- https://raw.githubusercontent.com/google/fonts/2fe1e8c6b137fb13041a7cfca6fdcd8a910ea4dc/ofl/quicksand/OFL.txt
+- https://github.com/google/fonts/raw/main/ofl/laila/Laila-SemiBold.ttf
+- https://github.com/google/fonts/raw/main/ofl/laila/Laila-Bold.ttf
+- https://github.com/google/fonts/raw/main/ofl/laila/OFL.txt
+- https://github.com/google/fonts/raw/main/ofl/monda/Monda%5Bwght%5D.ttf
+- https://github.com/google/fonts/raw/main/ofl/monda/OFL.txt
 
 ```
-sha256 d47a6852548059b1db49a1319d06d499d546c3fa2237cf9eee9c43c8abb025c2  Baloo2-Variable.ttf
-sha256 39c9b64223561f56aaff6062a6f04063c4fc86809ad6768722c06614d977e1cc  Quicksand-Variable.ttf
+sha256 df916fbc664bbf3e25702b30fe0d94712217e09468ef875e43e4e183e719ab66  Laila-SemiBold.ttf
+sha256 3b50aae09041e0941e4309ba1cbc4bacd858f8852b5e76e240157ae6e7da87b3  Laila-Bold.ttf
+sha256 c95b63f7612df912adc262cb0ef3e8a6c3e6022beb279d9c2ca01c557aa94b59  Monda-Variable.ttf
 ```

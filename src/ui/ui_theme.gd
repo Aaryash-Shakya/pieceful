@@ -1,15 +1,14 @@
 class_name UiTheme
 extends RefCounted
-## The one Theme every screen uses: bundled fonts, Midnight colours and the
+## The one Theme every screen uses: bundled fonts, palette colours and the
 ## 3D-edged buttons from docs/visual-design.md. Built in code so the colours
 ## follow the palette functions instead of being copied into a .tres.
 
-const BALOO_PATH := "res://assets/fonts/Baloo2-Variable.ttf"
-const QUICKSAND_PATH := "res://assets/fonts/Quicksand-Variable.ttf"
+const TITLE_PATH := "res://assets/fonts/Laila-Bold.ttf"
+const BUTTON_PATH := "res://assets/fonts/Laila-SemiBold.ttf"
+const BODY_PATH := "res://assets/fonts/Monda-Variable.ttf"
 
-const BODY_WEIGHT := 600
-const BUTTON_WEIGHT := 700
-const TITLE_WEIGHT := 800
+const BODY_WEIGHT := 500
 const BODY_FONT_SIZE := 20
 const BUTTON_FONT_SIZE := 22
 const TITLE_FONT_SIZE := 28
@@ -24,6 +23,8 @@ const BUTTON_PADDING_Y := 8
 const PANEL_PADDING := 12
 const SHEET_PADDING := 20
 const LINE_WIDTH := 1
+# Panels and sheets wear a thick rim, like the wooden edge on a puzzle box.
+const RIM_WIDTH := 3
 const OPTION_RADIUS := 9
 const OPTION_PADDING := 8
 const SLIDER_RADIUS := 6
@@ -52,17 +53,17 @@ static func scaled(base: int, roundness: int) -> int:
 
 static func build(dark := Palette.is_dark(), roundness := Settings.current().roundness) -> Theme:
 	var theme := Theme.new()
-	theme.default_font = weighted(QUICKSAND_PATH, BODY_WEIGHT)
+	theme.default_font = weighted(BODY_PATH, BODY_WEIGHT)
 	theme.default_font_size = BODY_FONT_SIZE
 	theme.set_color("font_color", "Label", Palette.text(dark))
 
 	theme.add_type(TITLE)
 	theme.set_type_variation(TITLE, &"Label")
-	theme.set_font("font", TITLE, weighted(BALOO_PATH, TITLE_WEIGHT))
+	theme.set_font("font", TITLE, load(TITLE_PATH))
 	theme.set_font_size("font_size", TITLE, TITLE_FONT_SIZE)
 	theme.set_color("font_color", TITLE, Palette.text(dark))
 
-	theme.set_font("font", "Button", weighted(BALOO_PATH, BUTTON_WEIGHT))
+	theme.set_font("font", "Button", load(BUTTON_PATH))
 	theme.set_font_size("font_size", "Button", BUTTON_FONT_SIZE)
 	for color_name in ["font_color", "font_pressed_color", "font_hover_color", "font_hover_pressed_color", "font_focus_color"]:
 		theme.set_color(color_name, "Button", Palette.text_on_accent(dark))
@@ -116,7 +117,7 @@ static func _panel_box(dark: bool, radius: int, padding: int) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
 	box.bg_color = Palette.surface(dark)
 	box.border_color = Palette.lines(dark)
-	box.set_border_width_all(LINE_WIDTH)
+	box.set_border_width_all(RIM_WIDTH)
 	box.set_corner_radius_all(radius)
 	box.set_content_margin_all(padding)
 	return box

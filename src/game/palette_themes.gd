@@ -5,6 +5,9 @@ extends RefCounted
 
 enum Role { PAGE, SURFACE, RAISED, TEXT, MUTED, LINES, ACCENT, ON_ACCENT, ACCENT_SHADOW, FELT, BOARD }
 
+# Workshop is one warm world: a rust table, chocolate panels, cream text, green go buttons and
+# orange rims. It looks the same in light and dark mode.
+const WORKSHOP := ["#b8420f", "#43160a", "#7a3418", "#fff3dc", "#f3cfa3", "#d27a2a", "#4cc417", "#ffffff", "#2c8209", "#43160a", "#5e2410"]
 const MIDNIGHT_LIGHT := ["#e7e9f0", "#f6f7fb", "#dbdfea", "#141b2d", "#566079", "#c9cfdd", "#e2a41f", "#2a1d00", "#a87612", "#223a63", "#2c4878"]
 const MIDNIGHT_DARK := ["#0b1020", "#131a2e", "#1c2540", "#e9edf7", "#8d98b5", "#27314f", "#ffc857", "#2a1d00", "#b58712", "#14264a", "#1c3463"]
 const ORCHARD_LIGHT := ["#e6ece4", "#f5f8f3", "#d7e0d3", "#16241a", "#516052", "#c5d1c0", "#2f9e5b", "#ffffff", "#1f6e3f", "#2b5a3e", "#35704c"]
@@ -24,6 +27,8 @@ static func color(theme_id: String, dark: bool, role: Role) -> Color:
 			list = BERRY_DARK if dark else BERRY_LIGHT
 		"slate":
 			list = SLATE_DARK if dark else SLATE_LIGHT
-		_:
+		"midnight":
 			list = MIDNIGHT_DARK if dark else MIDNIGHT_LIGHT
+		_:
+			list = WORKSHOP
 	return Color.html(list[role])

@@ -3,6 +3,10 @@ extends "res://tests/base_test.gd"
 
 func _init() -> void:
 	await process_frame
+	# Workshop looks the same in both modes, so the mode checks below run on Midnight.
+	var midnight := Settings.new()
+	midnight.theme = "midnight"
+	Settings.use(midnight)
 	_test_font_files()
 	_test_font_licence()
 	_test_fonts_ship()
@@ -23,10 +27,10 @@ func _init() -> void:
 
 
 func _test_font_files() -> void:
-	for path in [UiTheme.BALOO_PATH, UiTheme.QUICKSAND_PATH]:
+	for path in [UiTheme.TITLE_PATH, UiTheme.BUTTON_PATH, UiTheme.BODY_PATH]:
 		check(FileAccess.file_exists(path), "%s exists" % path)
 		check(load(path) is FontFile, "%s loads as FontFile" % path)
-	for path in ["res://assets/fonts/OFL-Baloo2.txt", "res://assets/fonts/OFL-Quicksand.txt"]:
+	for path in ["res://assets/fonts/OFL-Laila.txt", "res://assets/fonts/OFL-Monda.txt"]:
 		check(FileAccess.file_exists(path), "%s exists" % path)
 		check(FileAccess.get_file_as_string(path).contains("SIL OPEN FONT LICENSE"), "%s holds the licence" % path)
 
@@ -35,9 +39,9 @@ func _test_font_licence() -> void:
 	var path := "res://assets/fonts/LICENSE.md"
 	check(FileAccess.file_exists(path), "fonts LICENSE.md exists")
 	var text := FileAccess.get_file_as_string(path)
-	for needle in ["SIL Open Font License", "Baloo 2", "Quicksand", "github.com/google/fonts"]:
+	for needle in ["SIL Open Font License", "Laila", "Monda", "github.com/google/fonts"]:
 		check(text.contains(needle), "LICENSE.md mentions %s" % needle)
-	for font in [UiTheme.BALOO_PATH, UiTheme.QUICKSAND_PATH]:
+	for font in [UiTheme.TITLE_PATH, UiTheme.BUTTON_PATH, UiTheme.BODY_PATH]:
 		check(text.contains(FileAccess.get_sha256(font)), "recorded sum matches %s" % font)
 
 
@@ -52,8 +56,8 @@ func _wght() -> int:
 
 
 func _test_weighted() -> void:
-	var f := UiTheme.weighted(UiTheme.QUICKSAND_PATH, 600)
-	check(f.base_font.resource_path == UiTheme.QUICKSAND_PATH, "weighted base font path")
+	var f := UiTheme.weighted(UiTheme.BODY_PATH, 600)
+	check(f.base_font.resource_path == UiTheme.BODY_PATH, "weighted base font path")
 	check(f.variation_opentype[_wght()] == 600, "weighted wght axis")
 
 
@@ -74,14 +78,13 @@ func _test_theme(dark: bool) -> void:
 	if n == null or p == null:
 		return
 
-	check(_base_path_of(t.default_font) == UiTheme.QUICKSAND_PATH, tag + "default font is Quicksand")
-	check(_weight_of(t.default_font) == 600, tag + "default weight")
+	check(_base_path_of(t.default_font) == UiTheme.BODY_PATH, tag + "default font is Monda")
+	check(_weight_of(t.default_font) == UiTheme.BODY_WEIGHT, tag + "default weight")
 	check(t.default_font_size == 20, tag + "default size")
 	check(t.get_color("font_color", "Label") == Palette.text(dark), tag + "label colour")
 
 	var bf := t.get_font("font", "Button")
-	check(_base_path_of(bf) == UiTheme.BALOO_PATH, tag + "button font is Baloo")
-	check(_weight_of(bf) == 700, tag + "button weight")
+	check(bf.resource_path == UiTheme.BUTTON_PATH, tag + "button font is Laila SemiBold")
 	check(t.get_font_size("font_size", "Button") == 22, tag + "button size")
 	check(t.get_color("font_color", "Button") == Palette.text_on_accent(dark), tag + "button font colour")
 	check(t.get_color("font_pressed_color", "Button") == Palette.text_on_accent(dark), tag + "button pressed font colour")
@@ -109,7 +112,7 @@ func _test_theme(dark: bool) -> void:
 	check(panel != null and panel.bg_color == Palette.surface(dark), tag + "panel fill")
 	if panel != null:
 		check(panel.border_color == Palette.lines(dark), tag + "panel line")
-		check(panel.border_width_left == 1, tag + "panel border")
+		check(panel.border_width_left == UiTheme.RIM_WIDTH, tag + "panel rim")
 		check(panel.corner_radius_top_left == 10, tag + "panel radius")
 	check(t.get_type_variation_base(UiTheme.SHEET) == &"PanelContainer", tag + "Sheet variation base")
 	var sheet := t.get_stylebox("panel", "Sheet") as StyleBoxFlat
@@ -118,8 +121,7 @@ func _test_theme(dark: bool) -> void:
 
 	check(t.get_type_variation_base(UiTheme.TITLE) == &"Label", tag + "Title variation base")
 	var tf := t.get_font("font", "Title")
-	check(_base_path_of(tf) == UiTheme.BALOO_PATH, tag + "title font")
-	check(_weight_of(tf) == 800, tag + "title weight")
+	check(tf.resource_path == UiTheme.TITLE_PATH, tag + "title font is Laila Bold")
 	check(t.get_font_size("font_size", "Title") == 28, tag + "title size")
 
 

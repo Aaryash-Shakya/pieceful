@@ -15,6 +15,10 @@ run/main_scene="res://src/ui/app_shell.tscn"
 config/quit_on_go_back=false
 config/features=PackedStringArray("4.7", "Mobile")
 config/icon="res://icon.svg"
+boot_splash/bg_color=Color(0.72156864, 0.25882354, 0.05882353, 1)
+boot_splash/show_image=true
+boot_splash/image="res://assets/app_icon/main_192.png"
+boot_splash/fullsize=false
 
 [display]
 

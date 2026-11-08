@@ -1,0 +1,330 @@
+<title>Pieceful Workshop Redesign</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Laila:wght@500;600;700&family=Monda:wght@400;700&display=swap">
+<style>
+/* Layout: a warm workbench page; phone frames wrap in a row, each with a short note under it. One deliberate world, so one theme only. */
+:root {
+  color-scheme: dark;
+  --rust: #a8380f; --rust-hi: #e0662c; --rust-lo: #7a2608;
+  --peach: #fdc47a; --peach-hi: #ffe0ac; --peach-lo: #e9a352;
+  --choc: #43160a; --choc-2: #5e2410; --choc-3: #7a3418;
+  --wood: #c97a35; --wood-lo: #8a4a1c;
+  --lime: #4cc417; --lime-hi: #7be83a; --lime-lo: #2c8209;
+  --sun: #ffd21f; --sun-lo: #c79b00;
+  --red: #f0321e; --red-lo: #a3150a;
+  --ink: #4a1d08; --cream: #fff3dc; --cream-dim: #f3cfa3;
+  --display: "Laila", Georgia, "Times New Roman", serif;
+  --body: "Monda", "Trebuchet MS", system-ui, sans-serif;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--cream); font-family: var(--body);
+  background: var(--grain), radial-gradient(ellipse at 50% 20%, var(--rust-hi), var(--rust) 45%, var(--rust-lo));
+  background-attachment: fixed;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px 64px; }
+main { max-width: 1240px; margin: 0 auto; display: grid; gap: 36px; }
+.intro { display: grid; gap: 10px; max-width: 70ch; }
+.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--cream-dim); }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1; margin: 0; color: var(--sun);
+  text-shadow: 0 3px 0 var(--choc), 0 6px 14px rgb(0 0 0 / .35); text-wrap: balance; }
+.intro p { margin: 0; line-height: 1.6; color: var(--cream); }
+h2.sec { font-family: var(--display); font-size: 1.6rem; margin: 0; color: var(--cream); text-shadow: 0 2px 0 var(--choc); }
+.row { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; }
+figure { margin: 0; display: grid; gap: 10px; width: 300px; max-width: 100%; }
+figcaption { font-size: 13px; line-height: 1.5; color: var(--cream-dim); }
+figcaption b { color: var(--cream); font-family: var(--display); font-size: 15px; display: block; }
+
+/* ---------- phone ---------- */
+.phone { width: 300px; max-width: 100%; aspect-ratio: 360 / 760; border-radius: 36px; background: #120804; padding: 8px;
+  box-shadow: 0 24px 50px rgb(40 8 0 / .55); }
+.scr { position: relative; width: 100%; height: 100%; border-radius: 29px; overflow: hidden; color: var(--ink);
+  font-size: 11px; display: flex; flex-direction: column; }
+.scr.warm { background: var(--grain), radial-gradient(ellipse at 50% 25%, var(--rust-hi), var(--rust) 55%, var(--rust-lo)); color: var(--cream); }
+.scr.peachy { background: var(--grain), linear-gradient(var(--peach-hi), var(--peach)); }
+.status { height: 26px; flex: none; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; font-size: 10px; font-weight: 700; }
+
+/* ---------- parts ---------- */
+.btn { display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 10px; font-family: var(--display); font-weight: 700;
+  color: #fff; text-shadow: 0 1px 0 rgb(0 0 0 / .35); height: 38px; font-size: 14px; position: relative;
+  background: linear-gradient(var(--lime-hi), var(--lime) 55%); box-shadow: inset 0 -4px 0 var(--lime-lo), 0 3px 0 rgb(0 0 0 / .25); }
+.btn.orange { background: linear-gradient(#ff9356, #e5612a 55%); box-shadow: inset 0 -4px 0 #a33e12, 0 3px 0 rgb(0 0 0 / .25); }
+.btn.red { background: linear-gradient(#ff6a55, var(--red) 55%); box-shadow: inset 0 -4px 0 var(--red-lo), 0 3px 0 rgb(0 0 0 / .25); }
+.btn.big { height: 46px; font-size: 17px; }
+.round { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: linear-gradient(var(--lime-hi), var(--lime) 60%); box-shadow: inset 0 -3px 0 var(--lime-lo), 0 0 0 2px var(--choc); }
+.round.lg { width: 46px; height: 46px; }
+.round svg, .tool svg, .tab svg { width: 55%; height: 55%; fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.ribbon { position: absolute; left: 50%; transform: translateX(-50%); top: -15px; padding: 5px 26px 7px; font-family: var(--display); font-weight: 700;
+  font-size: 14px; color: #fff; white-space: nowrap; text-shadow: 0 1px 0 var(--choc);
+  background: linear-gradient(#ffb15a, #d9711f 60%, #b25412); clip-path: polygon(0 0, 100% 0, 94% 100%, 6% 100%); }
+.sheet { position: relative; background: var(--grain), linear-gradient(var(--peach-hi), var(--peach)); border-radius: 14px; border: 3px solid #d27a2a;
+  box-shadow: 0 0 0 2px var(--choc), 0 14px 30px rgb(0 0 0 / .45); color: var(--ink); }
+.well { background: var(--choc); border-radius: 12px; border: 3px solid #e07a2c; box-shadow: 0 0 0 2px var(--choc), 0 14px 30px rgb(0 0 0 / .45); color: var(--cream); position: relative; }
+.frame { border-radius: 10px; padding: 4px; background: linear-gradient(135deg, #e3954a, var(--wood) 40%, var(--wood-lo)); box-shadow: 0 0 0 1.5px var(--choc), 0 4px 0 rgb(0 0 0 / .2); }
+.frame img { display: block; width: 100%; border-radius: 7px; aspect-ratio: 1; object-fit: cover; }
+.bar { height: 12px; border-radius: 6px; background: var(--choc); box-shadow: inset 0 2px 0 rgb(0 0 0 / .4); overflow: hidden; position: relative; }
+.bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(#ffe36b, var(--sun) 60%, var(--sun-lo)); border-radius: 6px; }
+.bar span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 8px; font-weight: 700; color: #fff; text-shadow: 0 1px 0 #000; }
+.pill { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--choc-2);
+  box-shadow: inset 0 -2px 0 var(--choc), 0 0 0 1.5px #d27a2a; color: var(--cream); font-weight: 700; font-size: 11px; font-variant-numeric: tabular-nums; }
+.title { font-family: var(--display); font-weight: 700; }
+
+/* nav */
+.nav { margin: auto 10px 10px; height: 56px; border-radius: 16px; background: var(--choc); border: 2px solid #d27a2a;
+  display: grid; grid-template-columns: repeat(4, 1fr); padding: 5px; gap: 4px; flex: none; }
+.tab { display: grid; justify-items: center; align-content: center; gap: 1px; border-radius: 11px; color: var(--cream-dim); font-size: 8.5px; font-weight: 700; }
+.tab svg { width: 20px; height: 20px; stroke: var(--cream-dim); }
+.tab.on { background: linear-gradient(#ffb15a, #e07a2c); color: #fff; box-shadow: inset 0 -3px 0 #a3480f; }
+.tab.on svg { stroke: #fff; }
+
+/* floating toy pieces */
+.toy { position: absolute; width: 26px; height: 26px; }
+.toy svg { width: 100%; height: 100%; }
+
+/* pictures grid */
+.chips { display: flex; gap: 6px; padding: 0 12px; overflow: hidden; flex: none; }
+.chip { padding: 5px 11px; border-radius: 10px; font-weight: 700; font-size: 10.5px; background: var(--peach-lo); color: var(--ink); box-shadow: inset 0 -2px 0 #c47f2f; white-space: nowrap; }
+.chip.on { background: linear-gradient(#ff9356, #e5612a); color: #fff; box-shadow: inset 0 -3px 0 #a33e12; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px 12px; overflow: hidden; flex: 1; align-content: start; }
+.card { border-radius: 10px; background: linear-gradient(135deg, #e3954a, var(--wood) 40%, var(--wood-lo)); padding: 4px; box-shadow: 0 0 0 1.5px var(--choc); }
+.card img { display: block; width: 100%; aspect-ratio: 1.15; object-fit: cover; border-radius: 7px 7px 0 0; }
+.card .lab { background: var(--choc); color: var(--cream); border-radius: 0 0 7px 7px; padding: 5px 7px; font-weight: 700; font-size: 10px; display: flex; justify-content: space-between; }
+.card.sel { box-shadow: 0 0 0 3px var(--sun), 0 0 0 5px var(--choc); }
+.tick { position: absolute; }
+
+/* board */
+.felt { position: relative; flex: 1; margin: 0 10px; border-radius: 14px; background: var(--grain), radial-gradient(#6a2a10, var(--choc));
+  box-shadow: inset 0 0 0 3px #b8622a, inset 0 0 0 5px var(--choc), inset 0 6px 18px rgb(0 0 0 / .5); overflow: hidden; }
+.dock { flex: none; height: 64px; margin: 8px 0 0; background: var(--grain), linear-gradient(#b8682c, #8a4a1c); box-shadow: inset 0 3px 0 #d98a45, inset 0 -3px 0 #5e2a0c;
+  display: flex; align-items: center; gap: 8px; padding: 0 10px; overflow: hidden; }
+.slot { width: 46px; height: 46px; border-radius: 9px; background: rgb(60 20 5 / .55); box-shadow: inset 0 2px 4px rgb(0 0 0 / .5); flex: none; display: grid; place-items: center; }
+.slot.lit { box-shadow: inset 0 2px 4px rgb(0 0 0 / .5), 0 0 0 2px var(--sun); }
+.tools { flex: none; display: flex; justify-content: space-around; padding: 10px 14px 14px; background: var(--peach); }
+.tool { display: grid; justify-items: center; gap: 3px; font-weight: 700; font-size: 9.5px; color: var(--ink); }
+.tool > i { width: 38px; height: 38px; border-radius: 9px; display: grid; place-items: center; background: linear-gradient(#ffb15a, #e07a2c); box-shadow: inset 0 -3px 0 #a3480f, 0 0 0 1.5px var(--choc); }
+
+.dim::after { content: ""; position: absolute; inset: 0; background: rgb(25 6 0 / .62); }
+.over { position: absolute; z-index: 2; }
+.toggle { width: 34px; height: 20px; border-radius: 10px; background: var(--lime); box-shadow: inset 0 -2px 0 var(--lime-lo), 0 0 0 1.5px var(--choc); position: relative; flex: none; }
+.toggle::after { content: ""; position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 0 rgb(0 0 0 / .3); }
+.toggle.off { background: var(--choc-3); box-shadow: inset 0 2px 0 rgb(0 0 0 / .3), 0 0 0 1.5px var(--choc); }
+.toggle.off::after { right: auto; left: 2px; }
+.line { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 9px; background: var(--peach-lo); box-shadow: inset 0 -2px 0 #c47f2f; font-weight: 700; }
+.icons { display: flex; gap: 22px; justify-content: center; }
+.icons > div { display: grid; justify-items: center; gap: 4px; font-weight: 700; font-size: 10px; }
+
+/* icon cards */
+.iconrow { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; }
+.ic { display: grid; justify-items: center; gap: 8px; font-size: 13px; color: var(--cream); }
+.ic .big { width: 150px; height: 150px; border-radius: 30%; overflow: hidden; box-shadow: 0 14px 30px rgb(40 8 0 / .5); }
+.ic svg { width: 100%; height: 100%; display: block; }
+.small { display: flex; gap: 10px; }
+.small > div { width: 44px; height: 44px; overflow: hidden; }
+.palette { display: flex; flex-wrap: wrap; gap: 10px; }
+.sw { display: grid; gap: 4px; font-size: 11px; color: var(--cream-dim); width: 92px; }
+.sw i { height: 44px; border-radius: 8px; box-shadow: 0 0 0 2px var(--choc), 0 4px 0 rgb(0 0 0 / .25); }
+.types { display: flex; flex-wrap: wrap; gap: 24px; align-items: baseline; }
+.types div { display: grid; gap: 2px; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <path id="pc" d="M30 40 L42 40 C40 32 44 28 48 28 C52 28 56 32 54 40 L66 40 L66 52 C74 50 78 54 78 58 C78 62 74 66 66 64 L66 76 L54 76 C56 68 52 64 48 64 C44 64 40 68 42 76 L30 76 L30 64 C38 66 42 62 42 58 C42 54 38 50 30 52 Z"/>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6h-6v6H4z"/></symbol>
+    <symbol id="i-pics" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z" fill="#fff"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-tidy" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></symbol>
+    <symbol id="i-edge" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 3"/></symbol>
+    <symbol id="i-zoom" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5M8 11h6"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6"/></symbol>
+    <symbol id="i-buzz" viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="18" rx="2"/><path d="M4 8v8M20 8v8"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v5h5"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 11l7.6-4M8.2 13l7.6 4"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M6 12h12M12 6v12"/></symbol>
+    <symbol id="i-exit" viewBox="0 0 24 24"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/></symbol>
+    <pattern id="img-sun" patternUnits="userSpaceOnUse" width="108" height="108"><image href="../../assets/collections/landscape/thumbs/low-sun.webp" width="108" height="108"/></pattern>
+    <clipPath id="pclip"><use href="#pc"/></clipPath>
+  </defs>
+</svg>
+
+<main>
+  <section class="intro">
+    <span class="eyebrow">Redesign concept · round one</span>
+    <h1>Pieceful, workshop edition</h1>
+    <p>A warm, tactile look inspired by your reference. Rust table with grain, peach paper panels, chocolate wells, wooden picture frames, and chunky buttons that look pressable. Laila for titles, Monda for everything else. The coins, gems, store and achievements in the reference are left out, because Pieceful is free with no ads or purchases.</p>
+  </section>
+
+  <section class="row" id="screens"></section>
+
+  <section style="display:grid;gap:16px">
+    <h2 class="sec">App icon in the same style</h2>
+    <div class="iconrow" id="icons"></div>
+  </section>
+
+  <section style="display:grid;gap:16px">
+    <h2 class="sec">Colours and type</h2>
+    <div class="palette">
+      <div class="sw"><i style="background:var(--rust)"></i>Rust table</div>
+      <div class="sw"><i style="background:var(--peach)"></i>Peach paper</div>
+      <div class="sw"><i style="background:var(--choc)"></i>Chocolate well</div>
+      <div class="sw"><i style="background:var(--wood)"></i>Wood frame</div>
+      <div class="sw"><i style="background:var(--lime)"></i>Go green</div>
+      <div class="sw"><i style="background:#e5612a"></i>Orange action</div>
+      <div class="sw"><i style="background:var(--sun)"></i>Sun yellow</div>
+      <div class="sw"><i style="background:var(--red)"></i>Stop red</div>
+    </div>
+    <div class="types">
+      <div><span class="title" style="font-size:34px;color:var(--sun);text-shadow:0 2px 0 var(--choc)">Laila</span><span style="font-size:12px;color:var(--cream-dim)">Titles, buttons, numbers</span></div>
+      <div><span style="font-size:26px">Monda</span><span style="font-size:12px;color:var(--cream-dim)">Labels and body text</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const P = n => `../../assets/collections/landscape/thumbs/${n}.webp`;
+const use = (id, extra = "") => `<svg viewBox="0 0 24 24" ${extra}><use href="#i-${id}"/></svg>`;
+const toy = (c, x, y, r, s = 26, o = 1) => `<div class="toy" style="left:${x}%;top:${y}%;width:${s}px;height:${s}px;transform:rotate(${r}deg);opacity:${o}"><svg viewBox="24 24 60 60"><use href="#pc" fill="${c}" stroke="rgb(0 0 0 / .25)" stroke-width="2"/></svg></div>`;
+const toys = toy("#ffd21f", 8, 9, -20) + toy("#3d8bff", 80, 6, 25, 30) + toy("#ff4f9a", 70, 30, 10, 18, .8) + toy("#7be83a", 12, 33, 40, 18, .8) + toy("#fff3dc", 86, 52, -15, 22, .5);
+const nav = on => `<div class="nav">${[["home","Home"],["pics","Pictures"],["cal","Daily"],["gear","Settings"]].map(([i,l]) =>
+  `<div class="tab ${l===on?"on":""}">${use(i)}${l}</div>`).join("")}</div>`;
+const status = `<div class="status"><span>9:41</span><span>▮▮▮</span></div>`;
+
+const screens = [
+["Home", "The table greets you. Your puzzle in progress sits in a wooden frame with one big green Continue. New puzzle and Daily are two chunky tiles below. The tab bar is a chocolate dock.", `
+<div class="scr warm">${status}${toys}
+  <div style="text-align:center;margin-top:18px;position:relative">
+    <div class="title" style="font-size:36px;color:var(--sun);text-shadow:0 3px 0 var(--choc),0 6px 12px rgb(0 0 0/.4);line-height:1">Pieceful</div>
+  </div>
+  <div class="well" style="margin:30px 16px 0;padding:22px 12px 12px;display:grid;gap:9px">
+    <div class="ribbon">Keep going</div>
+    <div class="frame"><img src="${P("low-sun")}" alt="" style="aspect-ratio:1.5"></div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="title" style="font-size:15px">Low sun</span><span style="color:var(--cream-dim)">150 pieces · 12:40</span></div>
+    <div class="bar"><i style="width:62%"></i><span>93 / 150</span></div>
+    <div class="btn big">${use("play","width=16 height=16")} Continue</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 16px 0">
+    <div class="btn orange" style="height:44px">New puzzle</div>
+    <div class="btn orange" style="height:44px;background:linear-gradient(#ffe36b,#ffc61a 55%);box-shadow:inset 0 -4px 0 #b88a00,0 3px 0 rgb(0 0 0/.25);color:var(--ink);text-shadow:none">Daily · Sat</div>
+  </div>
+  ${nav("Home")}
+</div>`],
+
+["Pictures", "Peach paper page. Collections are chunky chips, pictures sit in wooden frames with a chocolate name strip. The chosen one gets a yellow ring, and Cut this picture waits in the thumb zone.", `
+<div class="scr peachy">${status}
+  <div style="display:flex;align-items:center;gap:10px;padding:6px 14px 10px"><span class="title" style="font-size:24px;color:var(--ink)">Pictures</span></div>
+  <div class="chips"><span class="chip on">Landscape</span><span class="chip">Abstract</span><span class="chip">Pattern</span><span class="chip">Geometry</span></div>
+  <div class="grid">
+    ${["low-sun","amber-dunes","green-hills","blue-range","night-valley","terraced-fields"].map((n,i)=>`<div class="card ${i===1?"sel":""}"><img src="${P(n)}" alt=""><div class="lab"><span>${n.replace("-"," ").replace(/^./,c=>c.toUpperCase())}</span>${i===0?"<span style='color:var(--sun)'>62%</span>":""}</div></div>`).join("")}
+  </div>
+  <div style="position:absolute;left:14px;right:14px;bottom:76px"><div class="btn big">Cut this picture</div></div>
+  ${nav("Pictures")}
+</div>`],
+
+["Setup", "Opens as a chocolate card over Pictures, like a box lid. The preview shows the real cut. Piece count steps with round plus and minus buttons, and the three cut styles are tiles.", `
+<div class="scr peachy dim">${status}
+  <div style="padding:6px 14px"><span class="title" style="font-size:24px">Pictures</span></div>
+  <div class="grid">${["low-sun","amber-dunes","green-hills","blue-range"].map(n=>`<div class="card"><img src="${P(n)}" alt=""><div class="lab">&nbsp;</div></div>`).join("")}</div>
+  <div class="well over" style="left:14px;right:14px;top:60px;padding:24px 12px 14px;display:grid;gap:10px">
+    <div class="ribbon">Amber dunes</div>
+    <div class="round" style="position:absolute;right:-8px;top:-10px;width:28px;height:28px;background:linear-gradient(#ff6a55,var(--red));box-shadow:inset 0 -3px 0 var(--red-lo),0 0 0 2px var(--choc)">${use("x")}</div>
+    <div class="frame" style="position:relative"><img src="${P("amber-dunes")}" alt="" style="aspect-ratio:1.4">
+      <svg viewBox="0 0 140 100" style="position:absolute;inset:4px;width:calc(100% - 8px);height:calc(100% - 8px)" preserveAspectRatio="none"><g stroke="rgb(255 243 220/.75)" stroke-width=".8" fill="none">
+      ${[1,2,3,4,5,6].map(i=>`<path d="M${i*20} 0 ${Array.from({length:5},(_,k)=>`L${i*20+(k%2?2:-2)} ${k*20+10} L${i*20} ${k*20+20}`).join(" ")}"/>`).join("")}
+      ${[1,2,3,4].map(j=>`<path d="M0 ${j*20} ${Array.from({length:7},(_,k)=>`L${k*20+10} ${j*20+(k%2?2:-2)} L${k*20+20} ${j*20}`).join(" ")}"/>`).join("")}</g></svg></div>
+    <div style="background:var(--choc-2);border-radius:10px;padding:8px 10px;display:grid;gap:6px">
+      <span style="text-align:center;color:#ffb15a;font-size:10px;font-weight:700">Number of pieces</span>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="round" style="width:26px;height:26px">${use("minus")}</div>
+        <span style="display:flex;gap:8px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--cream-dim)"><span>54</span><span>96</span><span style="color:var(--sun);font-size:15px;font-family:var(--display)">150</span><span>200</span><span>300</span></span>
+        <div class="round" style="width:26px;height:26px">${use("plus")}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+      ${["Regular","Irregular","Wild"].map((s,i)=>`<div style="border-radius:9px;padding:6px 4px;text-align:center;font-weight:700;font-size:10px;${i===1?"background:linear-gradient(#ffb15a,#e07a2c);color:#fff;box-shadow:inset 0 -3px 0 #a3480f":"background:var(--choc-3);color:var(--cream-dim)"}"><svg viewBox="0 0 30 18" width="34" height="20"><g fill="none" stroke="currentColor" stroke-width="1.4"><path d="${i===0?"M2 2h26v14H2zM15 2v14M2 9h26":i===1?"M2 3l25-1 1 14-26 0zM13 2l2 14M2 10l26-2":"M3 3l10 -1 6 6 -5 8 -11-2zM13 2l14 3 1 9-9 2"}"/></g></svg><br>${s}</div>`).join("")}
+    </div>
+    <div class="btn big">Start puzzle</div>
+  </div>
+</div>`],
+
+["Board", "The picture sits on a chocolate board in a wooden rim. A slim top bar has pause, time and progress. The slot tray becomes a wooden shelf, and Ghost, Tidy, Edges and Fit sit on peach keys.", `
+<div class="scr peachy">${status}
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 12px 8px">
+    <div class="round">${use("pause")}</div>
+    <span class="pill">⏱ 12:40</span>
+    <span class="pill" style="color:var(--sun)">93 / 150</span>
+  </div>
+  <div class="felt">
+    <svg viewBox="0 0 108 140" style="width:100%;height:100%" preserveAspectRatio="xMidYMid slice">
+      <rect x="14" y="20" width="80" height="80" rx="2" fill="rgb(255 243 220/.06)" stroke="rgb(255 243 220/.25)" stroke-dasharray="2 2" stroke-width=".6"/>
+      <image href="../../assets/collections/landscape/thumbs/low-sun.webp" x="14" y="20" width="80" height="80" opacity=".18"/>
+      <g clip-path="url(#half)"><image href="../../assets/collections/landscape/thumbs/low-sun.webp" x="14" y="20" width="80" height="80"/></g>
+      <clipPath id="half"><path d="M14 20h80v38h-22c2 6-2 9-6 9s-8-3-6-9H14z"/></clipPath>
+      <g transform="translate(40 66) scale(.42)"><g transform="translate(-54 -54)"><use href="#pc" fill="rgb(0 0 0/.4)" transform="translate(3 5)"/><g clip-path="url(#pclip)"><image href="../../assets/collections/landscape/thumbs/low-sun.webp" width="108" height="108" transform="translate(-20 -30) scale(1.6)"/></g><use href="#pc" fill="none" stroke="#ffd21f" stroke-width="2.5"/></g></g>
+      <g transform="translate(78 112) rotate(12) scale(.32)"><g transform="translate(-54 -54)"><g clip-path="url(#pclip)"><image href="../../assets/collections/landscape/thumbs/low-sun.webp" width="108" height="108" transform="translate(-40 -10) scale(1.6)"/></g><use href="#pc" fill="none" stroke="rgb(0 0 0/.5)" stroke-width="2"/></g></g>
+      <g transform="translate(26 120) rotate(-18) scale(.32)"><g transform="translate(-54 -54)"><g clip-path="url(#pclip)"><image href="../../assets/collections/landscape/thumbs/low-sun.webp" width="108" height="108" transform="translate(-10 -60) scale(1.6)"/></g><use href="#pc" fill="none" stroke="rgb(0 0 0/.5)" stroke-width="2"/></g></g>
+    </svg>
+  </div>
+  <div class="dock">${[0,1,2,3,4,5].map(i=>`<div class="slot ${i===2?"lit":""}">${i<4?`<svg viewBox="24 24 60 60" width="36" height="36"><g clip-path="url(#pclip)"><image href="../../assets/collections/landscape/thumbs/low-sun.webp" width="108" height="108" transform="translate(${-i*14} ${-40+i*6}) scale(1.6)"/></g></svg>`:""}</div>`).join("")}</div>
+  <div class="tools">${[["eye","Ghost"],["tidy","Tidy"],["edge","Edges"],["zoom","Fit"]].map(([i,l])=>`<div class="tool"><i>${use(i)}</i>${l}</div>`).join("")}</div>
+</div>`],
+
+["Pause", "A peach card with a ribbon title slides over the dimmed board. Time first, then round toggles for sound, vibration and ghost, then three clear actions.", `
+<div class="scr warm dim">${status}${toys}
+  <div class="sheet over" style="left:18px;right:18px;top:120px;padding:26px 14px 16px;display:grid;gap:12px">
+    <div class="ribbon">Paused</div>
+    <div style="text-align:center"><div class="title" style="font-size:34px;line-height:1;font-variant-numeric:tabular-nums">12:40</div><span style="font-size:10px;opacity:.8">Low sun · 93 of 150 placed</span></div>
+    <div class="line" style="justify-content:center;padding:10px">
+      <div class="icons">${[["sound","Sound",1],["buzz","Vibrate",1],["eye","Ghost",0]].map(([i,l,on])=>`<div>${l}<div class="round" style="${on?"":"background:var(--choc-3);box-shadow:inset 0 -3px 0 var(--choc),0 0 0 2px var(--choc)"}">${use(i)}</div></div>`).join("")}</div>
+    </div>
+    <div class="btn big">${use("play","width=14 height=14")} Resume</div>
+    <div class="btn orange">${use("redo","width=14 height=14")} Restart</div>
+    <div class="btn red">${use("exit","width=14 height=14")} Save and exit</div>
+  </div>
+</div>`],
+
+["Complete", "A paper scroll banner over a chocolate card, the finished picture in its frame, and the time in big yellow numbers. Round buttons for Home, Play again and Share.", `
+<div class="scr warm">${status}${toys}${toy("#ffd21f",20,70,30,16)}${toy("#3d8bff",74,74,-10,14)}${toy("#ff4f9a",48,92,20,12)}
+  <div class="well over" style="left:18px;right:18px;top:110px;padding:34px 14px 16px;display:grid;gap:10px;text-align:center">
+    <div style="position:absolute;left:50%;top:-24px;transform:translateX(-50%);width:200px;height:46px">
+      <svg viewBox="0 0 200 46" width="200" height="46"><path d="M14 10 Q100 -4 186 10 L190 38 Q100 26 10 38Z" fill="#f6dcae" stroke="#8a4a1c" stroke-width="2"/><ellipse cx="12" cy="24" rx="9" ry="16" fill="#e6c08a" stroke="#8a4a1c" stroke-width="2"/><ellipse cx="188" cy="24" rx="9" ry="16" fill="#e6c08a" stroke="#8a4a1c" stroke-width="2"/></svg>
+      <span class="title" style="position:absolute;inset:0;display:grid;place-items:center;color:#d9621f;font-size:19px;letter-spacing:.04em;padding-bottom:4px">Complete!</span>
+    </div>
+    <div class="frame"><img src="${P("low-sun")}" alt="" style="aspect-ratio:1.4"></div>
+    <div class="title" style="font-size:38px;line-height:1;color:var(--sun);text-shadow:0 2px 0 #000;font-variant-numeric:tabular-nums">18:02</div>
+    <div style="display:flex;gap:6px;justify-content:center"><span class="pill">150 pieces</span><span class="pill">Irregular</span></div>
+    <div style="display:flex;gap:18px;justify-content:center;margin-top:4px">${["home","redo","share"].map(i=>`<div class="round lg">${use(i)}</div>`).join("")}</div>
+  </div>
+</div>`],
+
+["Settings", "Same peach paper as Pictures. Rows are pressed-in strips with chunky toggles. Ghost and edge strength get sliders in the same style.", `
+<div class="scr peachy">${status}
+  <div style="padding:6px 14px 10px"><span class="title" style="font-size:24px">Settings</span></div>
+  <div style="display:grid;gap:7px;padding:0 14px">
+    ${[["Sound",1],["Vibration",1],["Snap effects",1],["Reduce motion",0]].map(([l,on])=>`<div class="line">${l}<span class="toggle ${on?"":"off"}"></span></div>`).join("")}
+    ${[["Ghost strength",20,33],["Edge strength",100,100]].map(([l,v,w])=>`<div class="line" style="display:grid;gap:6px"><div style="display:flex;justify-content:space-between">${l}<span>${v}%</span></div><div class="bar" style="height:10px"><i style="width:${w}%"></i></div></div>`).join("")}
+    <div class="btn red" style="margin-top:6px;height:34px;font-size:13px">Reset progress</div>
+    <div style="text-align:center;font-size:10px;opacity:.7">Pieceful 1.0 · free, no ads, works offline</div>
+  </div>
+  ${nav("Settings")}
+</div>`],
+];
+
+document.getElementById("screens").innerHTML = screens.map(([t, note, html]) =>
+  `<figure><div class="phone">${html}</div><figcaption><b>${t}</b>${note}</figcaption></figure>`).join("");
+
+const icons = [
+  ["Orange piece on rust", `<rect width="108" height="108" fill="#b8420f"/><rect width="108" height="108" fill="url(#rg)"/><use href="#pc" fill="#43160a" transform="translate(0 4)"/><use href="#pc" fill="#ffb15a" stroke="#43160a" stroke-width="2.5"/><path d="M33 44h7" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".7"/>`],
+  ["Picture piece in a frame", `<rect width="108" height="108" fill="#43160a"/><rect x="21" y="21" width="66" height="66" rx="8" fill="#c97a35" stroke="#8a4a1c" stroke-width="2"/><g clip-path="url(#pclip)"><image href="../../assets/collections/landscape/thumbs/low-sun.webp" width="108" height="108"/></g><use href="#pc" fill="none" stroke="#ffd21f" stroke-width="2.5"/>`],
+  ["Yellow piece, green go", `<rect width="108" height="108" fill="#4cc417"/><use href="#pc" fill="#2c8209" transform="translate(0 4)"/><use href="#pc" fill="#ffd21f" stroke="#43160a" stroke-width="2.5"/>`],
+];
+const svgI = a => `<svg viewBox="18 18 72 72"><defs><radialGradient id="rg"><stop offset="0" stop-color="#e0662c"/><stop offset="1" stop-color="#7a2608" stop-opacity=".9"/></radialGradient></defs>${a}</svg>`;
+document.getElementById("icons").innerHTML = icons.map(([t,a]) => `<div class="ic"><div class="big">${svgI(a)}</div>
+  <div class="small"><div style="border-radius:50%">${svgI(a)}</div><div style="border-radius:32%">${svgI(a)}</div><div style="border-radius:18%">${svgI(a)}</div></div>${t}</div>`).join("");
+</script>

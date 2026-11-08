@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://bmydqik8i1eo2"
-path="res://.godot/imported/Quicksand-Variable.ttf-b9cc17f0aaa5b0b9be88aab8a7ee5cb3.fontdata"
+uid="uid://dn122b5w3k1mi"
+path="res://.godot/imported/Laila-Bold.ttf-d7ecfdd11cd64e4bcfef35ceb55d8622.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/Quicksand-Variable.ttf"
-dest_files=["res://.godot/imported/Quicksand-Variable.ttf-b9cc17f0aaa5b0b9be88aab8a7ee5cb3.fontdata"]
+source_file="res://assets/fonts/Laila-Bold.ttf"
+dest_files=["res://.godot/imported/Laila-Bold.ttf-d7ecfdd11cd64e4bcfef35ceb55d8622.fontdata"]
 
 [params]
 

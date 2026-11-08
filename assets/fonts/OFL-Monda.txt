@@ -1,8 +1,8 @@
-Copyright 2011 The Quicksand Project Authors (https://github.com/andrew-paglinawan/QuicksandFamily), with Reserved Font Name “Quicksand”.
+Copyright 2021 The Monda Project Authors (https://github.com/googlefonts/mondaFont)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
-http://scripts.sil.org/OFL
+https://openfontlicense.org
 
 
 -----------------------------------------------------------
