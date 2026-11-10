@@ -4,6 +4,7 @@ extends RefCounted
 ## hands it one merged collection that also lists its parts for the setup screen's picker.
 
 const BUNDLED: Array[String] = [
+	"res://assets/collections/animals/manifest.json",
 	"res://assets/collections/abstract/manifest.json",
 	"res://assets/collections/geometry/manifest.json",
 	"res://assets/collections/landscape/manifest.json",
