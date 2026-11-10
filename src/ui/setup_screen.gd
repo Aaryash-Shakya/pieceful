@@ -17,6 +17,8 @@ const START_TEXT := "Start"
 const SETTINGS_TEXT := "Settings"
 const RESUME_TEXT := "Resume"
 const EMPTY_TEXT := "No pictures found"
+const RIBBON_TEXT := "New puzzle"
+const RIBBON_CLEARANCE := 30
 const MARGIN := 16
 # Clears the Android status bar, as the HUD does.
 const MARGIN_TOP := 56
@@ -56,6 +58,8 @@ var picture_buttons: Array[Button] = []
 var collection_buttons: Array[Button] = []
 var style_buttons: Array[Button] = []
 var slider: HSlider
+var minus_button: Button
+var plus_button: Button
 var count_label: Label
 var split_label: Label
 var picture_label: Label
@@ -78,6 +82,7 @@ var _picture_group := ButtonGroup.new()
 var _collection_group := ButtonGroup.new()
 var _style_group := ButtonGroup.new()
 var _rows: VBoxContainer
+var _preview_frame: PanelContainer
 var _strip: HBoxContainer
 var _collection_scroller: ScrollContainer
 # Hidden together when the collection has no usable picture.
@@ -407,6 +412,12 @@ func _on_slider_value_changed(value: float) -> void:
 		_schedule_preview()
 
 
+## Moves the count one slider notch; the slider clamps at either end and draws the new cut.
+func step_count(direction: int) -> void:
+	if picture != null:
+		slider.value += direction
+
+
 func _on_slider_drag_started() -> void:
 	_dragging = true
 
@@ -453,6 +464,7 @@ func _size_preview() -> void:
 
 func _build_ui() -> void:
 	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	add_child(Workshop.backdrop(true))
 	var page := VBoxContainer.new()
 	page.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	page.offset_left = MARGIN
@@ -466,11 +478,12 @@ func _build_ui() -> void:
 	page.add_child(title_row)
 	var title := Label.new()
 	title.text = TITLE_TEXT
-	title.theme_type_variation = UiTheme.TITLE
+	title.theme_type_variation = Workshop.INK_TITLE
 	title.size_flags_horizontal = SIZE_EXPAND_FILL
 	title_row.add_child(title)
 	settings_button = Button.new()
 	settings_button.text = SETTINGS_TEXT
+	settings_button.theme_type_variation = Workshop.CHIP
 	settings_button.focus_mode = FOCUS_NONE
 	title_row.add_child(settings_button)
 
@@ -480,10 +493,16 @@ func _build_ui() -> void:
 	scroller.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	scroller.scroll_deadzone = int(TAP_SLOP)
 	page.add_child(scroller)
+	# The choices sit in a chocolate well under a ribbon, like the lid of a puzzle box. The margin
+	# keeps the ribbon, which rises above the well, inside the scroller's clip.
+	var lid := MarginContainer.new()
+	lid.size_flags_horizontal = SIZE_EXPAND_FILL
+	lid.add_theme_constant_override("margin_top", RIBBON_CLEARANCE)
+	scroller.add_child(lid)
 	_rows = VBoxContainer.new()
 	_rows.size_flags_horizontal = SIZE_EXPAND_FILL
 	_rows.add_theme_constant_override("separation", ROW_GAP)
-	scroller.add_child(_rows)
+	lid.add_child(Workshop.card(RIBBON_TEXT, _rows))
 	settings_sheet = SettingsSheet.new()
 	settings_sheet.visible = false
 	_rows.add_child(settings_sheet)
@@ -496,7 +515,11 @@ func _build_ui() -> void:
 	# It fills most of the scroller, so drags on it must reach the scroller.
 	preview.mouse_filter = MOUSE_FILTER_PASS
 	preview.resized.connect(_size_preview)
-	_rows.add_child(preview)
+	_preview_frame = PanelContainer.new()
+	_preview_frame.theme_type_variation = Workshop.FRAME
+	_preview_frame.mouse_filter = MOUSE_FILTER_PASS
+	_preview_frame.add_child(preview)
+	_rows.add_child(_preview_frame)
 
 	empty_label = Label.new()
 	empty_label.text = EMPTY_TEXT
@@ -556,9 +579,20 @@ func _build_ui() -> void:
 	slider.value_changed.connect(_on_slider_value_changed)
 	slider.drag_started.connect(_on_slider_drag_started)
 	slider.drag_ended.connect(_on_slider_drag_ended)
-	_rows.add_child(slider)
+	# Round keys step the count one notch, for a thumb that would rather tap than drag.
+	var stepper := HBoxContainer.new()
+	stepper.add_theme_constant_override("separation", ROW_GAP)
+	_rows.add_child(stepper)
+	minus_button = Workshop.round_button("minus")
+	minus_button.pressed.connect(step_count.bind(-1))
+	stepper.add_child(minus_button)
+	slider.size_flags_vertical = SIZE_SHRINK_CENTER
+	stepper.add_child(slider)
+	plus_button = Workshop.round_button("plus")
+	plus_button.pressed.connect(step_count.bind(1))
+	stepper.add_child(plus_button)
 
-	_choice_rows = [preview, picture_label, strip_scroller, style_row, count_label, split_label, slider]
+	_choice_rows = [_preview_frame, preview, picture_label, strip_scroller, style_row, count_label, split_label, stepper, slider]
 
 	start_button = Button.new()
 	start_button.text = START_TEXT

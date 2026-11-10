@@ -42,11 +42,12 @@ func _test_timer_label(hud: Hud) -> void:
 	board.elapsed = 754.7
 	hud._process(0.0)
 	check(hud.timer_label.text == "12:34", "the clock shows minutes and seconds")
+	check(hud.progress_label.text == "%d / %d" % [board.state.locked_piece_count(), board.state.piece_count()], "progress shows placed of all pieces")
 
 
 func _test_top_row_does_not_overlap(hud: Hud) -> void:
 	var rects: Array[Rect2] = []
-	for c: Control in [hud.home_button, hud.timer_label, hud.ghost_button, hud.cleanup_button]:
+	for c: Control in [hud.pause_button, hud.timer_label, hud.progress_label]:
 		rects.append(Rect2(c.offset_left if c.anchor_left == 0.0 else viewport_size.x + c.offset_left, c.offset_top,
 				c.offset_right - c.offset_left, c.offset_bottom - c.offset_top))
 	for i in rects.size():

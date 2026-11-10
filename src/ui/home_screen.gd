@@ -5,25 +5,28 @@ extends Control
 
 const CONTINUE_TEXT := "Continue"
 const RESUME_TEXT := "Resume"
+const RESUME_RIBBON := "Keep going"
+const FIRST_RIBBON := "Welcome"
 const FIRST_EYEBROW := "Free · no ads · works offline"
 const FIRST_TITLE := "Let's make a puzzle"
 const PICK_TEXT := "Pick a picture"
-const NEW_TEXT := "New puzzle\nPick a picture"
+const NEW_TEXT := "New puzzle"
 const DAILY_TEXT := "Daily puzzle\nComing soon"
 const EMPTY_NOTE_TEXT := "Start a new one"
 const TITLE_TEXT := "Pieceful"
-const LOGO_SIZE := 54
-const LOGO_OUTLINE := 6
+const LOGO_SIZE := 72
+const LOGO_OUTLINE := 8
 const LOGO_COLOR := Color("#ffd21f")
 const SIDE_MARGIN := 24
 const GAP := 18
-const HERO_HEIGHT := 640
-const HERO_TEXT_BOTTOM := 12
-const LOGO_TOP := 24
-const BUTTON_HEIGHT := 72
-const TILE_HEIGHT := 120
-const BAR_HEIGHT := 14
-const HEADLINE_SIZE := 46
+const HERO_HEIGHT := 300
+const LOGO_TOP := 28
+const CARD_TOP := 36
+const BUTTON_HEIGHT := 76
+const TILE_HEIGHT := 92
+const BAR_HEIGHT := 24
+const BAR_FONT_SIZE := 16
+const HEADLINE_SIZE := 34
 const EYEBROW_SIZE := 18
 
 var save_path := SaveFile.DEFAULT_PATH
@@ -34,6 +37,7 @@ var open_pictures: Callable
 
 var background: ColorRect
 var hero: TextureRect
+var card: PanelContainer
 var eyebrow_label: Label
 var title_label: Label
 var progress_bar: ProgressBar
@@ -66,6 +70,7 @@ static func summary(path: String, source: Collection) -> Dictionary:
 	var result := {
 		"title": picture.title,
 		"piece_count": snapshot.puzzle.piece_count,
+		"placed": locked,
 		"style_name": SetupScreen.STYLE_NAMES[snapshot.puzzle.style],
 		"saved": snapshot,
 		"texture": texture,
@@ -95,7 +100,7 @@ static func make_host(path: String, source: Collection, quit: Callable) -> TabHo
 	# Built when called, so Home and Pictures can each open the other without a load-time cycle.
 	var pictures := func() -> Node: return PicturesScreen.make_host(path, source, quit)
 	home.open_pictures = pictures
-	return TabHost.make(&"home", home, {&"pictures": pictures})
+	return TabHost.make(&"home", home, {&"pictures": pictures, &"settings": SettingsScreen.route(path, source, quit)})
 
 
 static func open(tree: SceneTree, path: String, source: Collection, quit: Callable) -> HomeScreen:
@@ -148,160 +153,134 @@ func _build_ui() -> void:
 	background.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	background.mouse_filter = MOUSE_FILTER_IGNORE
 	add_child(background)
+	add_child(Workshop.backdrop())
 	var scroller := ScrollContainer.new()
 	scroller.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	scroller.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroller.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	scroller.scroll_deadzone = int(SetupScreen.TAP_SLOP)
 	add_child(scroller)
+	var margin := MarginContainer.new()
+	margin.size_flags_horizontal = SIZE_EXPAND_FILL
+	margin.add_theme_constant_override("margin_left", SIDE_MARGIN)
+	margin.add_theme_constant_override("margin_right", SIDE_MARGIN)
+	margin.add_theme_constant_override("margin_top", LOGO_TOP + int(SafeArea.current(get_tree()).y))
+	scroller.add_child(margin)
 	_content = VBoxContainer.new()
-	_content.size_flags_horizontal = SIZE_EXPAND_FILL
 	_content.add_theme_constant_override("separation", GAP)
-	scroller.add_child(_content)
+	margin.add_child(_content)
+
+	_content.add_child(_logo())
+	var spacer := Control.new()
+	spacer.custom_minimum_size.y = CARD_TOP - GAP
+	spacer.mouse_filter = MOUSE_FILTER_IGNORE
+	_content.add_child(spacer)
 
 	var resuming := not _summary.is_empty()
-	_build_hero(resuming)
-	var actions := VBoxContainer.new()
-	actions.add_theme_constant_override("separation", GAP)
-	_content.add_child(_inset(actions))
+	_build_card(resuming)
 
 	empty_note = Label.new()
 	empty_note.text = EMPTY_NOTE_TEXT
-	empty_note.add_theme_color_override("font_color", Palette.muted_text())
+	empty_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	empty_note.add_theme_color_override("font_color", Workshop.CREAM_DIM)
 	empty_note.visible = not resuming and FileAccess.file_exists(save_path)
-	actions.add_child(empty_note)
+	_content.add_child(empty_note)
 
+	daily_tile = _tile(DAILY_TEXT, Workshop.SUN_BUTTON)
+	daily_tile.disabled = true
 	if resuming:
-		continue_button = _button(CONTINUE_TEXT, continue_game)
-		actions.add_child(continue_button)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", GAP)
-		actions.add_child(row)
-		daily_tile = _tile(DAILY_TEXT)
-		new_button = _tile(NEW_TEXT)
+		_content.add_child(row)
+		new_button = _tile(NEW_TEXT, Workshop.ORANGE_BUTTON)
 		new_button.pressed.connect(show_pictures)
-		row.add_child(daily_tile)
 		row.add_child(new_button)
+		row.add_child(daily_tile)
 	else:
-		new_button = _button(PICK_TEXT, show_pictures)
-		actions.add_child(new_button)
-		daily_tile = _tile(DAILY_TEXT)
-		actions.add_child(daily_tile)
-	new_button.disabled = not open_pictures.is_valid()
-	daily_tile.disabled = true
+		_content.add_child(daily_tile)
+	# Read once in the tree, where the theme's sun key resolves; it stays bright while it waits.
 	daily_tile.add_theme_stylebox_override("disabled", daily_tile.get_theme_stylebox("normal"))
-	daily_tile.add_theme_color_override("font_disabled_color", Palette.muted_text())
+	daily_tile.add_theme_color_override("font_disabled_color", Color(Workshop.INK, 0.7))
+	new_button.disabled = not open_pictures.is_valid()
 
 	bottom_pad = Control.new()
 	bottom_pad.mouse_filter = MOUSE_FILTER_IGNORE
 	_content.add_child(bottom_pad)
 
 
-func _build_hero(resuming: bool) -> void:
-	var frame := Control.new()
-	frame.custom_minimum_size = Vector2(0, HERO_HEIGHT)
-	frame.clip_contents = true
-	frame.mouse_filter = MOUSE_FILTER_IGNORE
-	_content.add_child(frame)
-
-	hero = TextureRect.new()
-	hero.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	hero.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	hero.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	hero.mouse_filter = MOUSE_FILTER_IGNORE
-	hero.texture = _summary.texture if resuming else _first_picture_texture()
-	frame.add_child(hero)
-
-	# The picture fades into the page colour so the text below it sits on a plain ground.
-	var page := Palette.page_background()
-	var gradient := Gradient.new()
-	gradient.colors = PackedColorArray([Color(page, 0.0), Color(page, 1.0)])
-	var fade_texture := GradientTexture2D.new()
-	fade_texture.gradient = gradient
-	fade_texture.fill_from = Vector2(0, 0)
-	fade_texture.fill_to = Vector2(0, 1)
-	var fade := TextureRect.new()
-	fade.texture = fade_texture
-	fade.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	fade.stretch_mode = TextureRect.STRETCH_SCALE
-	fade.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	fade.anchor_top = 0.4
-	fade.offset_top = 0
-	fade.mouse_filter = MOUSE_FILTER_IGNORE
-	frame.add_child(fade)
-
+# A sign-painted logo: sun yellow, a dark rim and a drop below it.
+func _logo() -> Label:
 	var logo := Label.new()
 	logo.text = TITLE_TEXT
 	logo.theme_type_variation = UiTheme.TITLE
-	# A sign-painted logo: sun yellow, a dark rim and a drop below it.
+	logo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	logo.add_theme_font_size_override("font_size", LOGO_SIZE)
 	logo.add_theme_color_override("font_color", LOGO_COLOR)
-	logo.add_theme_color_override("font_outline_color", Palette.surface())
+	logo.add_theme_color_override("font_outline_color", Workshop.CHOC)
 	logo.add_theme_constant_override("outline_size", LOGO_OUTLINE)
-	logo.add_theme_color_override("font_shadow_color", Palette.outline())
+	logo.add_theme_color_override("font_shadow_color", Color(Workshop.CHOC, 0.6))
 	logo.add_theme_constant_override("shadow_offset_y", LOGO_OUTLINE)
-	logo.position = Vector2(SIDE_MARGIN, LOGO_TOP + SafeArea.current(get_tree()).y)
-	frame.add_child(logo)
+	logo.mouse_filter = MOUSE_FILTER_IGNORE
+	return logo
 
-	var text := VBoxContainer.new()
-	text.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
-	text.anchor_top = 1.0
-	text.offset_left = SIDE_MARGIN
-	text.offset_right = -SIDE_MARGIN
-	text.offset_bottom = -HERO_TEXT_BOTTOM
-	text.grow_vertical = GROW_DIRECTION_BEGIN
-	text.alignment = BoxContainer.ALIGNMENT_END
-	text.mouse_filter = MOUSE_FILTER_IGNORE
-	frame.add_child(text)
+
+# The puzzle in progress in a wooden frame inside a chocolate well, or the first picture as a welcome.
+func _build_card(resuming: bool) -> void:
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", UiTheme.PANEL_PADDING)
+	var frame := Workshop.framed(_summary.texture if resuming else _first_picture_texture(), HERO_HEIGHT)
+	hero = frame.get_child(0) as TextureRect
+	body.add_child(frame)
 
 	eyebrow_label = Label.new()
 	eyebrow_label.add_theme_font_size_override("font_size", EYEBROW_SIZE)
-	eyebrow_label.add_theme_color_override("font_color", Palette.muted_text())
-	text.add_child(eyebrow_label)
+	eyebrow_label.add_theme_color_override("font_color", Workshop.CREAM_DIM)
 	title_label = Label.new()
 	title_label.theme_type_variation = UiTheme.TITLE
 	title_label.add_theme_font_size_override("font_size", HEADLINE_SIZE)
 	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	text.add_child(title_label)
+	body.add_child(title_label)
+	body.add_child(eyebrow_label)
 
 	if resuming:
-		eyebrow_label.text = RESUME_TEXT if not _summary.has("played") else "%s · %s played" % [RESUME_TEXT, _summary.played]
+		eyebrow_label.text = "%s · %d pieces · %s" % [RESUME_TEXT, _summary.piece_count, _summary.style_name]
+		if _summary.has("played"):
+			eyebrow_label.text += " · %s played" % _summary.played
 		title_label.text = _summary.title
-		progress_bar = _progress_row(text, _summary.progress)
+		progress_bar = _progress_bar(_summary.progress, "%d / %d" % [_summary.placed, _summary.piece_count])
+		body.add_child(progress_bar)
+		continue_button = _button(CONTINUE_TEXT, continue_game)
+		continue_button.icon = Workshop.icon("play")
+		body.add_child(continue_button)
 	else:
 		eyebrow_label.text = FIRST_EYEBROW
 		title_label.text = FIRST_TITLE
+		new_button = _button(PICK_TEXT, show_pictures)
+		body.add_child(new_button)
+	card = Workshop.card(RESUME_RIBBON if resuming else FIRST_RIBBON, body)
+	_content.add_child(card)
 
 
-func _progress_row(parent: Control, fraction: float) -> ProgressBar:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", GAP)
-	parent.add_child(row)
+func _progress_bar(fraction: float, text: String) -> ProgressBar:
 	var bar := ProgressBar.new()
 	bar.show_percentage = false
 	bar.min_value = 0.0
 	bar.max_value = 100.0
 	bar.value = roundf(fraction * 100.0)
-	bar.size_flags_horizontal = SIZE_EXPAND_FILL
-	bar.size_flags_vertical = SIZE_SHRINK_CENTER
 	bar.custom_minimum_size = Vector2(0, BAR_HEIGHT)
-	var radius := UiTheme.scaled(UiTheme.SLIDER_RADIUS, Settings.current().roundness)
-	bar.add_theme_stylebox_override("background", _bar_box(Palette.raised_surface(), radius))
-	bar.add_theme_stylebox_override("fill", _bar_box(Palette.accent(), radius))
 	bar.mouse_filter = MOUSE_FILTER_IGNORE
-	row.add_child(bar)
-	var percent := Label.new()
-	percent.theme_type_variation = UiTheme.TITLE
-	percent.text = "%d%%" % int(bar.value)
-	row.add_child(percent)
+	var label := Label.new()
+	label.text = text
+	label.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", BAR_FONT_SIZE)
+	label.add_theme_color_override("font_color", Color.WHITE)
+	label.add_theme_color_override("font_outline_color", Workshop.CHOC)
+	label.add_theme_constant_override("outline_size", 4)
+	label.mouse_filter = MOUSE_FILTER_IGNORE
+	bar.add_child(label)
 	return bar
-
-
-func _bar_box(color: Color, radius: int) -> StyleBoxFlat:
-	var box := StyleBoxFlat.new()
-	box.bg_color = color
-	box.set_corner_radius_all(radius)
-	return box
 
 
 # The first picture that loads, so a failed one does not leave the hero bare when another would do.
@@ -313,14 +292,6 @@ func _first_picture_texture() -> Texture2D:
 	return null
 
 
-func _inset(child: Control) -> MarginContainer:
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", SIDE_MARGIN)
-	margin.add_theme_constant_override("margin_right", SIDE_MARGIN)
-	margin.add_child(child)
-	return margin
-
-
 func _button(label: String, action: Callable) -> Button:
 	var button := Button.new()
 	button.text = label
@@ -330,12 +301,11 @@ func _button(label: String, action: Callable) -> Button:
 	return button
 
 
-func _tile(label: String) -> Button:
+func _tile(label: String, variation: StringName) -> Button:
 	var tile := Button.new()
 	tile.text = label
-	tile.theme_type_variation = UiTheme.OPTION
+	tile.theme_type_variation = variation
 	tile.focus_mode = FOCUS_NONE
-	tile.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	tile.size_flags_horizontal = SIZE_EXPAND_FILL
 	tile.custom_minimum_size = Vector2(0, TILE_HEIGHT)
 	return tile

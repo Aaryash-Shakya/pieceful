@@ -41,23 +41,33 @@ func _test_hud_is_screen_space(hud: Hud) -> void:
 
 func _test_button_uses_theme(hud: Hud) -> void:
 	var b := hud.cleanup_button
+	check(b.theme_type_variation == Workshop.TOOL_BUTTON, "Tidy is a tool key")
 	check(b.get_theme_font("font").resource_path == UiTheme.BUTTON_PATH, "the button uses Laila")
-	check(b.get_theme_font_size("font_size") == UiTheme.BUTTON_FONT_SIZE, "the button uses the button font size")
 	var normal := b.get_theme_stylebox("normal") as StyleBoxFlat
-	check(normal.bg_color == Palette.accent(), "the button face is the accent")
-	check(normal.border_color == Palette.accent_shadow(), "the button edge is the accent shadow")
-	check(b.get_theme_color("font_color") == Palette.text_on_accent(), "the button text is on-accent")
+	check(normal.bg_color == Workshop.TAB, "the key face is orange")
+	check(normal.border_color == Workshop.TAB_LO, "the key edge is the darker orange")
+	check(b.get_theme_color("font_color") == Color.WHITE, "the key text is white")
+	check(hud.pause_button.theme_type_variation == Workshop.ROUND_BUTTON, "Pause is a round key")
 
 
+# Pause sits top left under the status bar; Ghost and Tidy sit on the strip at the bottom, under the slots.
 func _test_button_placement(hud: Hud) -> void:
-	var r := hud.cleanup_button.get_global_rect()
-	check(r.size.is_equal_approx(Hud.BUTTON_SIZE), "the button is its fixed size")
-	check(is_equal_approx(r.end.x, viewport_size.x - Hud.MARGIN_RIGHT), "the button sits at the right margin")
-	check(is_equal_approx(r.position.y, Hud.MARGIN_TOP), "the button clears the status bar")
-	check(r.end.y <= viewport_size.y * 0.25, "the bottom stays free for slots")
+	var p := hud.pause_button.get_global_rect()
+	check(p.size.is_equal_approx(Hud.BUTTON_SIZE), "Pause is its fixed size")
+	check(p.position.is_equal_approx(Vector2(Hud.MARGIN_LEFT, Hud.MARGIN_TOP)), "Pause sits top left, clear of the status bar")
 	var label = board.get_node("FpsCounter")._label
 	if label != null:
-		check(not (label as Label).get_global_rect().intersects(r), "the button does not cover the frame-rate counter")
+		check(not (label as Label).get_global_rect().intersects(p), "Pause does not cover the frame-rate counter")
+	var strip := hud.tool_strip.get_global_rect()
+	check(is_equal_approx(strip.end.y, viewport_size.y) and is_equal_approx(strip.size.x, viewport_size.x), "the tool strip spans the bottom edge")
+	check(is_equal_approx(strip.size.y, Hud.TOOL_STRIP_HEIGHT), "the tool strip keeps its height: %s" % strip.size)
+	for b: Button in [hud.ghost_button, hud.cleanup_button]:
+		var r := b.get_global_rect()
+		check(r.size.x >= Hud.TOOL_SIZE.x and r.size.y >= Hud.TOOL_SIZE.y, "%s is at least its key size" % b.text)
+		check(strip.encloses(r), "%s sits on the strip" % b.text)
+		for slot in hud.slot_tray.rects:
+			check(not slot.intersects(r), "%s does not cover a slot" % b.text)
+	check(not hud.ghost_button.get_global_rect().intersects(hud.cleanup_button.get_global_rect()), "Ghost and Tidy do not overlap")
 
 
 func _test_button_does_not_zoom(hud: Hud) -> void:
@@ -162,22 +172,43 @@ func _test_press_tidies(hud: Hud) -> void:
 	check(not board.is_tidying(), "an app pause completes it")
 
 
+# Home lives on the Pause card as Save and exit, so it is out of reach until Pause is pressed.
 func _test_home_button(hud: Hud) -> void:
 	var b := hud.home_button
-	check(b.text == "Home", "the Home button says Home")
-	check(b.mouse_filter == Control.MOUSE_FILTER_STOP, "the Home button stops touches")
-	check(b.focus_mode == Control.FOCUS_NONE, "the Home button takes no focus")
-	var r := b.get_global_rect()
-	check(r.size.is_equal_approx(Hud.BUTTON_SIZE), "the Home button is its fixed size")
-	check(r.position.is_equal_approx(Vector2(Hud.MARGIN_LEFT, Hud.MARGIN_TOP)), "the Home button sits top left")
-	check(not r.intersects(hud.cleanup_button.get_global_rect()), "Home does not cover Tidy")
-	var label = board.get_node("FpsCounter")._label
-	if label != null:
-		check(not (label as Label).get_global_rect().intersects(r), "Home does not cover the frame-rate counter")
-	check(r.end.y <= viewport_size.y * 0.25, "Home leaves the bottom free for slots")
-	var normal := b.get_theme_stylebox("normal") as StyleBoxFlat
-	var tidy := hud.cleanup_button.get_theme_stylebox("normal") as StyleBoxFlat
-	check(normal.bg_color == tidy.bg_color and normal.border_color == tidy.border_color, "Home is styled like Tidy")
+	check(b.text == "Save and exit", "the leave button says Save and exit")
+	check(b.theme_type_variation == Workshop.RED_BUTTON, "it is the red key")
+	check(b.mouse_filter == Control.MOUSE_FILTER_STOP, "it stops touches")
+	check(b.focus_mode == Control.FOCUS_NONE, "it takes no focus")
+	check(not b.is_visible_in_tree() and not hud.pause_overlay.visible, "it waits on the hidden Pause card")
+	board.elapsed = 10.0
+	hud.pause_button.pressed.emit()
+	check(hud.pause_overlay.visible and b.is_visible_in_tree(), "Pause shows the card with it")
+	check(board.paused and hud.pause_time.text == "0:10", "Pause stops the clock and shows the time")
+	check(hud.pause_overlay.mouse_filter == Control.MOUSE_FILTER_STOP, "the card's dim keeps touches off the board")
+	board._focused = true
+	board._process(1.0)
+	check(is_equal_approx(board.elapsed, 10.0), "the clock does not run while paused")
+	hud.ghost_toggle.toggled.emit(false)
+	check(not board.puzzle.ghost, "the Ghost switch on the card turns the ghost off")
+	hud.ghost_toggle.toggled.emit(true)
+	hud.resume_button.pressed.emit()
+	check(not hud.pause_overlay.visible and not board.paused, "Resume closes the card and starts the clock")
+	_test_restart(hud)
+
+
+func _test_restart(hud: Hud) -> void:
+	var asked: Array[SaveGame.Puzzle] = []
+	var listen := func(p: SaveGame.Puzzle) -> void: asked.append(p)
+	board.restart_requested.connect(listen)
+	hud.restart_button.pressed.emit()
+	hud.restart_button.pressed.emit()
+	check(asked.size() == 1, "Restart asks once however often it is pressed in a frame")
+	if asked.size() == 1:
+		var p := asked[0]
+		check(p.image_id == board.puzzle.image_id and p.piece_count == board.puzzle.piece_count and p.style == board.puzzle.style, "the same picture, count and style")
+		check(p != board.puzzle, "a copy, not the board's own puzzle")
+	board.restart_requested.disconnect(listen)
+	board._release_home()
 
 
 func _test_home_press_goes_home(hud: Hud) -> void:

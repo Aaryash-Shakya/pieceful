@@ -48,6 +48,8 @@ signal slot_hover_changed(slot: int)
 signal ghost_changed(on: bool)
 ## The player asked to leave the board, by Home or back. The game is already saved.
 signal home_requested
+## The player asked to start this picture again from scratch. The puzzle is a fresh copy with a new seed.
+signal restart_requested(puzzle: SaveGame.Puzzle)
 
 
 # One cluster's glide during a tidy. Its members share one offset, so they share one path.
@@ -65,8 +67,10 @@ var start_puzzle: SaveGame.Puzzle = null
 ## Off when the player chose a new puzzle: the save is ignored, and the new game replaces it.
 var resume := true
 var puzzle: SaveGame.Puzzle
-## Seconds of play, counted only while the app has focus and the puzzle is unfinished.
+## Seconds of play, counted only while the app has focus, the puzzle is unfinished and it is not paused.
 var elapsed := 0.0
+## Set by the Pause card. Only stops the clock: the card itself keeps touches off the board.
+var paused := false
 var camera: Camera2D
 var cut: Array[CutPiece]
 var state: PuzzleState
@@ -454,7 +458,7 @@ func save_game() -> bool:
 
 
 func _process(delta: float) -> void:
-	if _focused and not state.is_complete():
+	if _focused and not paused and not state.is_complete():
 		elapsed += minf(delta, ELAPSED_STEP_LIMIT)
 	_check_stale_fingers()
 	if _mode != Mode.DRAGGING:
@@ -487,6 +491,18 @@ func go_home() -> void:
 	_going_home = true
 	_leave()
 	home_requested.emit()
+	_release_home.call_deferred()
+
+
+## Asks for a new game on the same picture, style and count, shuffled again. Shares Home's latch, so
+## a double tap or a Restart racing Home opens one board.
+func restart() -> void:
+	if _going_home:
+		return
+	_going_home = true
+	var fresh := puzzle.copy()
+	fresh.cut_seed = SeededRng.hash2(int(Time.get_unix_time_from_system() * 1000.0), Time.get_ticks_usec())
+	restart_requested.emit(fresh)
 	_release_home.call_deferred()
 
 

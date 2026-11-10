@@ -11,10 +11,10 @@ const TOP_MARGIN := 24
 const GAP := 18
 const GRID_GAP := 12
 const COLUMNS := 2
-const TILE_HEIGHT := 180
+const TILE_HEIGHT := 190
+const STRIP_HEIGHT := 34
 const TAB_HEIGHT := 66
-const BUTTON_HEIGHT := 72
-const TICK_SIZE := 36
+const BUTTON_HEIGHT := 76
 
 var save_path := SaveFile.DEFAULT_PATH
 var collection: Collection = null
@@ -53,6 +53,7 @@ static func make_host(path: String, source: Collection, quit: Callable) -> TabHo
 	screen.quit_app = quit
 	return TabHost.make(&"pictures", screen, {
 		&"home": func() -> Node: return HomeScreen.make_host(path, source, quit),
+		&"settings": SettingsScreen.route(path, source, quit),
 	})
 
 
@@ -151,54 +152,45 @@ func _show_section(index: int) -> void:
 		_grid.add_child(_make_cell(candidate, thumbnail))
 
 
+# A wooden frame holding the picture over a chocolate name strip. The chosen one wears a yellow ring.
 func _make_cell(candidate: Collection.Picture, thumbnail: Texture2D) -> VBoxContainer:
 	var cell := VBoxContainer.new()
 	cell.size_flags_horizontal = SIZE_EXPAND_FILL
-	cell.add_theme_constant_override("separation", 6)
 	var tile := Button.new()
 	tile.toggle_mode = true
 	tile.button_group = _tile_group
-	tile.theme_type_variation = UiTheme.OPTION
+	tile.theme_type_variation = Workshop.PICTURE_TILE
 	tile.focus_mode = FOCUS_NONE
-	tile.icon = thumbnail
-	tile.expand_icon = true
-	tile.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	tile.custom_minimum_size = Vector2(0, TILE_HEIGHT)
+	tile.custom_minimum_size = Vector2(0, TILE_HEIGHT + STRIP_HEIGHT)
 	tile.tooltip_text = candidate.title
 	# In a scroller, the button must pass its events on so a drag can scroll.
 	tile.mouse_filter = MOUSE_FILTER_PASS
 	tile.gui_input.connect(_taps.watch)
 	tile.pressed.connect(_on_tile_pressed.bind(tile))
-	tile.add_child(_make_tick(tile))
 	cell.add_child(tile)
 	tiles.append(tile)
+	var inside := VBoxContainer.new()
+	# Inset by the frame's padding by hand: a Button does not lay out its children.
+	inside.set_anchors_and_offsets_preset(PRESET_FULL_RECT, PRESET_MODE_MINSIZE, Workshop.FRAME_PADDING)
+	inside.add_theme_constant_override("separation", 0)
+	inside.mouse_filter = MOUSE_FILTER_IGNORE
+	tile.add_child(inside)
+	var picture_rect := TextureRect.new()
+	picture_rect.texture = thumbnail
+	picture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	picture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	picture_rect.size_flags_vertical = SIZE_EXPAND_FILL
+	picture_rect.clip_contents = true
+	picture_rect.mouse_filter = MOUSE_FILTER_IGNORE
+	inside.add_child(picture_rect)
 	var label := Label.new()
 	label.text = candidate.title
+	label.theme_type_variation = Workshop.STRIP
 	label.clip_text = true
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	label.mouse_filter = MOUSE_FILTER_IGNORE
-	cell.add_child(label)
+	inside.add_child(label)
 	return cell
-
-
-# A check mark on the chosen tile, drawn so it needs no glyph from the font.
-func _make_tick(tile: Button) -> Control:
-	var tick := Control.new()
-	tick.custom_minimum_size = Vector2(TICK_SIZE, TICK_SIZE)
-	tick.size = tick.custom_minimum_size
-	tick.set_anchors_and_offsets_preset(PRESET_TOP_RIGHT, PRESET_MODE_KEEP_SIZE, GAP / 2)
-	tick.mouse_filter = MOUSE_FILTER_IGNORE
-	tick.visible = false
-	var radius := UiTheme.scaled(UiTheme.OPTION_RADIUS, Settings.current().roundness)
-	tick.draw.connect(func() -> void:
-		var box := StyleBoxFlat.new()
-		box.bg_color = Palette.accent()
-		box.set_corner_radius_all(radius)
-		tick.draw_style_box(box, Rect2(Vector2.ZERO, tick.size))
-		var s := tick.size.x
-		tick.draw_polyline(PackedVector2Array([Vector2(0.26, 0.52) * s, Vector2(0.43, 0.68) * s, Vector2(0.74, 0.34) * s]),
-				Palette.text_on_accent(), 4.0, true))
-	tile.toggled.connect(func(on: bool) -> void: tick.visible = on)
-	return tick
 
 
 func _on_tile_pressed(tile: Button) -> void:
@@ -225,6 +217,7 @@ func _build_ui() -> void:
 	background.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	background.mouse_filter = MOUSE_FILTER_IGNORE
 	add_child(background)
+	add_child(Workshop.backdrop(true))
 	var scroller := ScrollContainer.new()
 	scroller.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	scroller.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -245,7 +238,7 @@ func _build_ui() -> void:
 	content.add_child(header)
 	var title := Label.new()
 	title.text = TITLE_TEXT
-	title.theme_type_variation = UiTheme.TITLE
+	title.theme_type_variation = Workshop.INK_TITLE
 	title.size_flags_horizontal = SIZE_EXPAND_FILL
 	header.add_child(title)
 	# Collections to download arrive with the Store; until then the pill only says so.
@@ -255,12 +248,12 @@ func _build_ui() -> void:
 	more_button.text = MORE_TEXT
 	more_button.disabled = true
 	more_button.focus_mode = FOCUS_NONE
-	more_button.theme_type_variation = UiTheme.OPTION
+	more_button.theme_type_variation = Workshop.CHIP
 	more.add_child(more_button)
 	more_note = Label.new()
 	more_note.text = MORE_NOTE_TEXT
 	more_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	more_note.add_theme_color_override("font_color", Palette.muted_text())
+	more_note.theme_type_variation = Workshop.INK_LABEL
 	more.add_child(more_note)
 
 	_tab_scroller = ScrollContainer.new()
@@ -276,7 +269,7 @@ func _build_ui() -> void:
 		tab.text = sections[i].title
 		tab.toggle_mode = true
 		tab.button_group = _tab_group
-		tab.theme_type_variation = UiTheme.OPTION
+		tab.theme_type_variation = Workshop.CHIP
 		tab.focus_mode = FOCUS_NONE
 		tab.custom_minimum_size = Vector2(0, TAB_HEIGHT)
 		tab.mouse_filter = MOUSE_FILTER_PASS
@@ -290,6 +283,7 @@ func _build_ui() -> void:
 	empty_label = Label.new()
 	empty_label.text = EMPTY_TEXT
 	empty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	empty_label.theme_type_variation = Workshop.INK_LABEL
 	empty_label.visible = false
 	content.add_child(empty_label)
 
