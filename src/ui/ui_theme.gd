@@ -89,10 +89,11 @@ static func build(dark := Palette.is_dark(), roundness := Settings.current().rou
 	theme.add_type(SHEET)
 	theme.set_type_variation(SHEET, &"PanelContainer")
 	theme.set_stylebox("panel", SHEET, _panel_box(dark, scaled(SHEET_RADIUS, roundness), SHEET_PADDING))
-	_add_nav_button(theme, dark)
+	_add_nav_button(theme, dark, roundness)
 	theme.add_type(NAV)
 	theme.set_type_variation(NAV, &"PanelContainer")
 	theme.set_stylebox("panel", NAV, _panel_box(dark, scaled(SHEET_RADIUS * 2, roundness), NAV_PADDING))
+	Workshop.add_to(theme)
 	return theme
 
 
@@ -189,13 +190,20 @@ static func _rounded_tile(tile_size: Vector2i, radius: int, color: Color) -> Ima
 
 # Tab icons are white SVGs tinted by these colours. Kept off Option, whose icons are
 # full-colour thumbnails that must not be multiplied.
-static func _add_nav_button(theme: Theme, dark: bool) -> void:
+static func _add_nav_button(theme: Theme, dark: bool, roundness: int) -> void:
 	theme.add_type(NAV_BUTTON)
 	theme.set_type_variation(NAV_BUTTON, OPTION)
 	for color_name in ["icon_normal_color", "icon_hover_color", "icon_focus_color"]:
 		theme.set_color(color_name, NAV_BUTTON, Palette.text(dark))
 	for color_name in ["icon_pressed_color", "icon_hover_pressed_color"]:
 		theme.set_color(color_name, NAV_BUTTON, Palette.text_on_accent(dark))
+	# The active tab is an orange key, as in the Workshop mockup, not the green of a go button.
+	var active := _button_box(dark, BUTTON_DEPTH, scaled(OPTION_RADIUS, roundness))
+	active.bg_color = Workshop.TAB
+	active.border_color = Workshop.TAB_LO
+	active.set_content_margin_all(OPTION_PADDING)
+	theme.set_stylebox("pressed", NAV_BUTTON, active)
+	theme.set_stylebox("hover_pressed", NAV_BUTTON, active)
 	# Option inherits the amber Button fill when disabled, which reads as the active tab.
 	theme.set_stylebox("disabled", NAV_BUTTON, theme.get_stylebox("normal", OPTION))
 	var faded := Palette.muted_text(dark)

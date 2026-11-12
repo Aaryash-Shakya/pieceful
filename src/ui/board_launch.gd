@@ -14,8 +14,14 @@ static func launch(tree: SceneTree, save_path: String, source: Collection, puzzl
 	board.resume = resume_save
 	# Static and bound to values, so it never reaches the launching screen, which is freed by then.
 	board.home_requested.connect(BoardLaunch._return_home.bind(tree, save_path, source, quit))
+	board.restart_requested.connect(BoardLaunch._restart.bind(tree, save_path, source, quit))
 	AppShell.reset_to(tree, board)
 	return board
+
+
+# A new game replaces the save when it first writes, as a puzzle started from Setup does.
+static func _restart(puzzle: SaveGame.Puzzle, tree: SceneTree, path: String, source: Collection, quit: Callable) -> void:
+	launch(tree, path, source, puzzle, false, quit)
 
 
 # The quit seam is handed on so a test's seam survives the round trip.

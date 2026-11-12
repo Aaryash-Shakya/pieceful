@@ -5,8 +5,9 @@ extends PanelContainer
 
 var path := Settings.DEFAULT_PATH
 var settings: Settings
-var sound_check: CheckBox
-var vibration_check: CheckBox
+var heading: Label
+var sound_check: CheckButton
+var vibration_check: CheckButton
 
 
 func _ready() -> void:
@@ -15,21 +16,25 @@ func _ready() -> void:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 12)
 	add_child(column)
-	var heading := Label.new()
+	heading = Label.new()
 	heading.text = "Settings"
 	heading.theme_type_variation = UiTheme.TITLE
 	column.add_child(heading)
-	sound_check = _make_check("Sound", settings.sound, _on_sound_toggled, column)
-	vibration_check = _make_check("Vibration", settings.vibration, _on_vibration_toggled, column)
+	sound_check = _make_switch("Sound", settings.sound, _on_sound_toggled, column)
+	vibration_check = _make_switch("Vibration", settings.vibration, _on_vibration_toggled, column)
 
 
-func _make_check(text: String, on: bool, handler: Callable, parent: Control) -> CheckBox:
-	var check := CheckBox.new()
+# A pressed-in peach strip with the name on the left and a chunky switch on the right.
+func _make_switch(text: String, on: bool, handler: Callable, parent: Control) -> CheckButton:
+	var line := PanelContainer.new()
+	line.theme_type_variation = Workshop.LINE
+	parent.add_child(line)
+	var check := CheckButton.new()
 	check.text = text
 	check.button_pressed = on
 	check.focus_mode = Control.FOCUS_NONE
 	check.toggled.connect(handler)
-	parent.add_child(check)
+	line.add_child(check)
 	return check
 
 

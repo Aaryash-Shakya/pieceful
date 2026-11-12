@@ -17,6 +17,7 @@ func _init() -> void:
 	await _test_layout()
 	_test_slider_offers_valid_counts()
 	_test_step_counts()
+	_test_stepper()
 	_test_drag_does_not_generate()
 	await _test_changes_coalesce()
 	_test_picture_change_keeps_nearest()
@@ -447,6 +448,22 @@ func _test_settings_button() -> void:
 	check(s.settings_sheet.visible, "the Settings button shows the sheet")
 	s.settings_button.pressed.emit()
 	check(not s.settings_sheet.visible, "pressing it again hides the sheet")
+
+
+func _test_stepper() -> void:
+	var s := _open()
+	var at := int(s.slider.value)
+	s.plus_button.pressed.emit()
+	check(int(s.slider.value) == at + 1 and s.count == s.counts[at + 1], "plus moves one notch up: %d" % s.count)
+	check(s.count_label.text == "%d pieces" % s.count, "the label follows plus")
+	s.minus_button.pressed.emit()
+	check(int(s.slider.value) == at and s.count == s.counts[at], "minus moves one notch back")
+	s.slider.value = 0
+	s.minus_button.pressed.emit()
+	check(int(s.slider.value) == 0 and s.count == s.counts[0], "minus stops at the fewest pieces")
+	s.slider.value = s.slider.max_value
+	s.plus_button.pressed.emit()
+	check(s.count == s.counts[s.counts.size() - 1], "plus stops at the most pieces")
 
 
 func _test_step_counts() -> void:

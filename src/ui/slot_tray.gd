@@ -7,7 +7,11 @@ extends Control
 const SLOT_HEIGHT := 88.0
 const GAP := 12.0
 const MARGIN_SIDE := 16.0
-const MARGIN_BOTTOM := 24.0
+## The slots sit on a wooden shelf just above the HUD's tool strip.
+const SHELF_PADDING := 12.0
+const MARGIN_BOTTOM := Hud.TOOL_STRIP_HEIGHT + SHELF_PADDING
+const SHELF_EDGE := 4.0
+const SLOT_WELL := Color(0.235, 0.078, 0.02, 0.55)
 const BORDER_WIDTH := 2.0
 const HOVER_BORDER_WIDTH := 4.0
 const HOVER_TINT := 0.28
@@ -182,13 +186,21 @@ func _on_hover(slot: int) -> void:
 
 
 func _draw() -> void:
+	if not rects.is_empty():
+		# The shelf: a wooden plank across the screen with a lit top edge and a dark lip.
+		var top := rects[0].position.y - SHELF_PADDING
+		var bottom := get_viewport_rect().size.y - Hud.TOOL_STRIP_HEIGHT
+		var width := get_viewport_rect().size.x
+		draw_rect(Rect2(0.0, top, width, bottom - top), Workshop.WOOD)
+		draw_rect(Rect2(0.0, top, width, SHELF_EDGE), Workshop.PEACH_LO)
+		draw_rect(Rect2(0.0, bottom - SHELF_EDGE, width, SHELF_EDGE), Workshop.WOOD_LO)
 	for s in rects.size():
 		var filled := counts[s] > 0
 		var target := s == hover
 		var box := StyleBoxFlat.new()
-		# The slot a release would fill glows in the accent colour with a thick border.
-		box.bg_color = Palette.surface(true).lerp(Palette.accent(), HOVER_TINT) if target else Palette.surface(true)
-		box.border_color = Palette.accent() if filled or target else Palette.lines(true)
+		# A hollow cut into the shelf; the slot a release would fill glows sun yellow.
+		box.bg_color = SLOT_WELL.lerp(Workshop.SUN, HOVER_TINT) if target else SLOT_WELL
+		box.border_color = Workshop.SUN if target else (Workshop.CHOC if filled else Workshop.WOOD_LO)
 		box.set_border_width_all(int(HOVER_BORDER_WIDTH if target else BORDER_WIDTH))
 		box.set_corner_radius_all(UiTheme.OPTION_RADIUS)
 		draw_style_box(box, rects[s])

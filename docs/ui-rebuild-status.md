@@ -8,9 +8,23 @@ The owner replaced the look on 2026-11-08. The new mockup is `docs/prototype/wor
 
 Built: the Workshop palette is the default theme, Laila and Monda replace Baloo 2 and Quicksand, panels have a 3 px rim, the Home logo is sun yellow with a dark rim, and the app icon and boot splash are new. Settings files from before have their theme reset to Workshop once (`look_version`), because no screen could pick a theme yet, so the stored "midnight" was only the old default.
 
-Not built yet, for the slices that own those screens: peach paper panels, wooden picture frames and ribbon titles, the Setup card over Pictures, the board's wooden shelf and tool keys, and the Pause, Complete and Settings layouts. The board's Edges and Fit keys in the mockup are new features, not a restyle, and need the owner's go-ahead.
+Built on 2026-11-10, the rest of the mockup. The parts live in `src/ui/workshop.gd` (fixed Workshop colours, theme variations and a few builders) and every screen uses them:
 
-`tools/capture_screens.gd` saves Home, Pictures, Setup and the board as PNGs from a windowed run. It reads the viewport directly, which avoids the zoomed movie capture on this machine.
+- Home: the logo centred, the game in progress in a wooden frame inside a chocolate well with a "Keep going" ribbon, a sun-yellow progress bar reading placed of all pieces, and orange New puzzle and yellow Daily keys. First launch shows a "Welcome" card with the first picture.
+- Pictures: peach paper, chunky chips, pictures in wooden frames with a chocolate name strip, and a yellow ring on the chosen one.
+- Setup: peach paper with the choices in a chocolate well under a "New puzzle" ribbon, the preview in a wooden frame, and round minus and plus keys either side of the piece slider.
+- Board: a round Pause key, the clock and placed-of-all pills at the top; the slots on a wooden shelf; Ghost and Tidy as orange keys on a peach strip at the bottom. Pause stops the clock and opens a peach card with Sound, Vibrate and Ghost switches, Resume, Restart (same picture, count and style, reshuffled) and Save and exit. Complete is a chocolate card with the framed picture, the time in big yellow numbers, pills, and round Home, Play again and Share keys.
+- Settings: a new tab on peach paper with the Sound and Vibration switches as chunky toggles.
+
+Calls made while building, which the owner can overturn:
+
+- Setup stays its own screen on peach paper rather than a card over a dimmed Pictures. The shell keeps only the top screen in the tree, so a true overlay needs a shell change.
+- Setup keeps its collection chips and picture strip. Pictures is the main way to choose, but Setup still works on its own.
+- The Settings tab only offers what exists, Sound and Vibration. Snap effects, Reduce motion, the strength sliders and Reset progress in the mockup are features, not looks.
+- Edges and Fit are left out of the board's keys. They are new features and need the owner's go-ahead.
+- The Workshop colours are fixed in `workshop.gd`, not palette roles, because the mockup is one world. The other themes still change the page, text and accent roles.
+
+`tools/capture_screens.gd` saves Home, Pictures, Setup, the board, Pause, Complete and Settings as PNGs. It draws into its own 540 by 1200 viewport, so a window manager that resizes the window cannot change the shape.
 
 ## Slice 1: foundations (built)
 

@@ -42,9 +42,12 @@ func _init() -> void:
 func _test_touches_reach_the_board(board: Board) -> void:
 	var viewport := root.get_viewport()
 	var size := viewport.get_visible_rect().size
+	# The HUD's own controls keep their touches: its buttons and the tool strip they sit on.
 	var buttons: Array[Rect2] = []
-	for node in board.find_children("*", "Button", true, false):
-		buttons.append((node as Button).get_global_rect())
+	for node in board.get_node("Hud").find_children("*", "Control", true, false):
+		var control := node as Control
+		if control.is_visible_in_tree() and control.mouse_filter == Control.MOUSE_FILTER_STOP:
+			buttons.append(control.get_global_rect())
 	var missed := 0
 	var tried := 0
 	for fy in range(1, 10):
@@ -94,6 +97,8 @@ func _test_buttons_keep_their_presses(board: Board) -> void:
 	_push_touch(0, at, false)
 	check(not reached, "a press on a HUD button never reaches the board")
 	check(board.gesture_report().contains("no fingers"), "the button's finger is not left down on the board")
+	# The first button is Pause, so the tap opened the card over the board; the next test needs it gone.
+	(board.get_node("Hud") as Hud).close_pause()
 
 
 # A finger that starts on a piece belongs to the board until it lifts, even when a control that takes
